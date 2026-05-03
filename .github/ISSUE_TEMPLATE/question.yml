@@ -1,0 +1,48 @@
+name: Ask a Question for Help
+description: Express your questions to developers/other users and seek help
+title: '[Question] '
+labels: [question,help wanted]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ask your questions here~
+  - type: checkboxes
+    id: chinese-user
+    attributes:
+      label: 中文用户？
+      description: 请使用英语编写Issue,否则Issue将被Closed
+      options:
+        - label: 我是一个中文用户，并且我明白需要使用英语编写Issue
+          required: false
+  - type: input
+    id: python-version
+    attributes:
+      label: Python Version
+      description: Check with `python --version` command
+      placeholder: "3.12"
+    validations:
+      required: true
+  - type: input
+    id: AmritaSense-version
+    attributes:
+      label: AmritaSense Version
+      description: Check with `pip show amrita_core` command
+      placeholder: 0.1.0
+    validations:
+      required: false
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What problem did you encounter?
+      description: Describe the problem you encountered
+    validations:
+      required: true
+  - type: textarea
+    id: AmritaSense-log
+    attributes:
+      label: AmritaSense Runtime Log
+      description: Please paste the console output from AmritaSense when an error occurs if you think this is helpful.
+      render: shell
+    validations:
+      required: false

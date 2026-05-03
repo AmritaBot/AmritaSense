@@ -1,0 +1,64 @@
+name: Bug Report
+description: Report possible abnormal behavior
+title: '[BUG] '
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Welcome to AmritaSense's Issue Tracker! Please fill out the following form to submit a Bug report.
+  - type: checkboxes
+    id: chinese-user
+    attributes:
+      label: 中文用户？
+      description: 请使用英语编写Issue,否则Issue将被Closed
+      options:
+        - label: 我是一个中文用户，并且我明白需要使用英语编写Issue
+          required: false
+  - type: input
+    id: python-version
+    attributes:
+      label: Python Version
+      description: Check with `python --version` command
+      placeholder: "3.12"
+    validations:
+      required: true
+  - type: input
+    id: AmritaSense-version
+    attributes:
+      label: AmritaSense Version
+      description: Check with `pip show amrita_core`
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the abnormal behavior you believe AmritaSense exhibited
+    validations:
+      required: true
+  - type: textarea
+    id: how-reproduce
+    attributes:
+      label: How to reproduce
+      description: Describe how to trigger this abnormal behavior
+      placeholder: |
+        1. xxx
+        2. xxx
+        3. xxx
+    validations:
+      required: true
+  - type: textarea
+    id: what-expected
+    attributes:
+      label: Expected Result?
+      description: Describe what normal behavior you think AmritaSense should perform
+    validations:
+      required: true
+  - type: textarea
+    id: AmritaSense-log
+    attributes:
+      label: AmritaSense Runtime Log
+      description: Please paste the console output from AmritaSense when an error occurs
+      render: shell
