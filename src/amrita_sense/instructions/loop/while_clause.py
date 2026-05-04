@@ -6,7 +6,7 @@ from typing import Any
 from typing_extensions import Self
 
 from amrita_sense.exceptions import BreakLoop
-from amrita_sense.instructions.loop.jump import JumpNode
+from amrita_sense.instructions.jump import JumpNode
 from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
