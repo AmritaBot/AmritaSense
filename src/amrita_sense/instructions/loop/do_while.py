@@ -1,0 +1,99 @@
+import inspect
+from collections.abc import Callable
+from types import FrameType
+from typing import Any
+
+from typing_extensions import Self
+
+from amrita_sense.exceptions import BreakLoop
+from amrita_sense.instructions.workfl_ctrl import NOP
+from amrita_sense.node.core import BaseNode, Node, NodeCompose
+from amrita_sense.node.self_compile import SelfCompileInstruction
+from amrita_sense.runtime.workflow import WorkflowPC
+
+
+class DONode(BaseNode):
+    tag: str
+    func: Callable[..., Any]
+    wrap_to_async: bool
+    address_able: bool
+    fun_frame: FrameType
+    fun_sign: inspect.Signature
+    _do_offset: int
+    _jmp_addr: int
+    _break_addr: int
+
+    __slots__ = (
+        "_break_addr",
+        "_do_offset",
+        "_jmp_addr",
+        "address_able",
+        "fun_frame",
+        "fun_sign",
+        "func",
+        "tag",
+        "wrap_to_async",
+    )
+
+    def __init__(self, do_offset: int, jmp_addr: int, break_addr: int):
+        self._do_offset = do_offset
+        self._jmp_addr = jmp_addr
+        self._break_addr = break_addr
+        self._init(self.__call__, None, True, False)
+
+    async def __call__(self, ptr: WorkflowPC):
+        try:
+            await ptr.call_offset(self._do_offset)
+        except BreakLoop:
+            return ptr.jump_near(self._break_addr)
+        ptr.jump_near(self._jmp_addr)
+
+
+class DowhileNode(BaseNode):
+    tag: str
+    func: Callable[..., Any]
+    wrap_to_async: bool
+    address_able: bool
+    fun_frame: FrameType
+    fun_sign: inspect.Signature
+    _back_addr: int
+    _condi_offset: int
+    _then_addr: int
+
+    def __init__(self, condi_offset: int, then_addr: int, back_addr: int):
+        self._condi_offset = condi_offset
+        self._then_addr = then_addr
+        self._back_addr = back_addr
+        self._init(self.__call__, None, False, False)
+
+    async def __call__(self, ptr: WorkflowPC):
+        if await ptr.call_offset(self._condi_offset):
+            ptr.jump_near(self._back_addr)
+        else:
+            ptr.jump_near(self._then_addr)
+
+
+class DoWhileClause(
+    SelfCompileInstruction
+):  # DO >> do() >> WHILE(jump back to DO or NOP) >> CONDI >> NOP
+    condition: Node[bool]
+    do: Node
+
+    def __init__(
+        self,
+        do: Node,
+    ):
+        self.do = do
+
+    @property
+    def WHILE(self) -> Callable[[Node[bool]], Self]:
+        return lambda condition: (setattr(self, "condition", condition), self)[1]
+
+    def extract(self) -> NodeCompose:
+        return NodeCompose(
+            DONode(1, 2, 4), self.do, DowhileNode(1, 4, 0), self.condition, NOP
+        )
+
+
+def DO(do: Node) -> DoWhileClause:
+    return DoWhileClause(do)

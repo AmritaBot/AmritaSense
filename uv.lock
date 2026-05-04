@@ -181,7 +181,7 @@ wheels = [
 
 [[package]]
 name = "amrita-core"
-version = "0.8.5"
+version = "0.8.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
@@ -198,9 +198,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "pytz" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b7/93/0a923cd412984f66c34f928475450acc71658522390831c0956b1ab9619e/amrita_core-0.8.5.tar.gz", hash = "sha256:74efc31091464b7aaf555572490c5f4d0de726897240fd1629e7729d28446ef0", size = 115608, upload-time = "2026-05-02T03:37:38.767Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cc/ae/3b1c89c4c58b18b873c7f4748fc09e1c908a85aa828230c85063789ccf9b/amrita_core-0.8.6.tar.gz", hash = "sha256:f9df59d515419b3afa74ea26461ffb0bce1e05d87220ac38fe17bdc4289f841c", size = 115533, upload-time = "2026-05-03T08:23:44.643Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ea/59/4bf9fd25adb9696b2c95a46947b8509eebd010e692cdd505e1718936d299/amrita_core-0.8.5-py3-none-any.whl", hash = "sha256:cdf241fae887a171a31c5b94c3914f90950cea60773db07c334853854b97903f", size = 83493, upload-time = "2026-05-02T03:37:37.603Z" },
+    { url = "https://files.pythonhosted.org/packages/94/14/cc8102537b929c92c490cfd8b71d6c931da4c7bbee9dcdb863de0cfd5c32/amrita_core-0.8.6-py3-none-any.whl", hash = "sha256:588136d9107e16c9ba926c5425c290ab4e72fef912146306def5db15fd034d92", size = 83558, upload-time = "2026-05-03T08:23:45.829Z" },
 ]
 
 [[package]]
@@ -225,7 +225,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiologic", specifier = ">=0.16.0" },
-    { name = "amrita-core", specifier = ">=0.8.5" },
+    { name = "amrita-core", specifier = ">=0.8.6" },
 ]
 
 [package.metadata.requires-dev]

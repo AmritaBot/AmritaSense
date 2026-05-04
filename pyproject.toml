@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "aiologic>=0.16.0",
-    "amrita-core>=0.8.5",
+    "amrita-core>=0.8.6",
 ]
 [project.urls]
 "Homepage" = "https://github.com/AmritaBot/AmritaSense"
