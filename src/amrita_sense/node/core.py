@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 from abc import abstractmethod
 from collections.abc import Awaitable, Callable
+import time
 from types import FrameType
 from typing import TYPE_CHECKING, Any, Generic, TypeVar, overload
 
@@ -124,8 +125,12 @@ class NodeCompose:
 
     def render(self) -> NodeComposeRendered:
         logger.info("rendering node compose")
+        logger.info(f"Size of graph is : {len(self._graph)}")
+        time1 = time.time()
         r = NodeComposeRendered(self)
         r._build()
+        time_end = time.time()
+        logger.info(f"node compose rendered, cost: {time_end - time1:.8f}s")
         return r
 
 

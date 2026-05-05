@@ -49,14 +49,15 @@ class ELIFClause(Condition):
         self.condition = condition
         self.do = do
         self.parent = if_clause
+        self._elif_compose = []
 
     @property
     def ELIF(self) -> Callable[[Node, Node], Self]:
+        def _elif(condition, do):
+            self._elif_compose.append(NestedELIFClause(self, condition, do))
+            return self
 
-        return lambda condition, do: (
-            self,
-            self._elif_compose.append(NestedELIFClause(self, condition, do)),
-        )[0]
+        return _elif
 
     @property
     def ELSE(self) -> Callable[[Node | None], "ELSEClause"]:
@@ -161,13 +162,18 @@ class ELSENode(BaseNode):
     )
 
     def __init__(self, do_offset: int, then_offset: int):
-        super()._init(self.__call__, tag=None, wrap_to_async=True, address_able=True)
+        super()._init(
+            self._else_worker, tag=None, wrap_to_async=True, address_able=True
+        )
         self._do_offset = do_offset
         self._then_offset = then_offset
 
-    async def __call__(self, pc: WorkflowPC):
+    async def _else_worker(self, pc: WorkflowPC):
         await pc.call_offset(self._do_offset)  # CALL DO (intra-chunk relative)
         pc.jump_offset(self._then_offset)  # JMP directly to NOP
+
+    def __call__(self, pc: WorkflowPC):
+        return self._else_worker(pc)
 
 
 CONDITION_CHAIN: TypeAlias = tuple[ConditionJumpNode, Node, Node]

@@ -75,36 +75,39 @@ class WorkflowPC:
     def jump_to(self, addr: list[int]) -> None:
         if (self._find_addr_or_none(addr)) is None:
             raise NullPointerException(f"{addr} is not a valid address")
-        # Remove the clear() call to preserve return address stack
+        logger.info(f"Jumping to address {addr}")
         self._pointer.far_to(addr)
 
     @markup
     def jump_near(self, addr: int) -> None:
-
+        logger.info(f"Jumping near to address {addr}")
         self._pointer.near_to(addr)
 
     @markup
     def jump_offset(self, offset: int) -> None:
+        logger.info(f"Jumping with offset {offset}")
         self._pointer.offset(offset)
 
     @markup
     def jump_far_ptr(self, offset: list[int]) -> None:
-
+        logger.info(f"Jumping far to pointer {offset}")
         self._pointer.far_to(offset)
 
     async def call_offset(self, offset: int) -> Any:
         ptr = self._pointer.copy().offset(offset)
-
+        logger.info(f"Calling with offset {offset} at pointer {ptr}")
         return await self.call_sub(ptr)
 
     async def call_near(self, addr: int) -> Any:
         ptr = self._pointer.copy().near_to(addr)
+        logger.info(f"Calling near address {addr} at pointer {ptr}")
         return await self.call_sub(ptr)
 
     async def call_sub(self, addr: PointerVector) -> Any:
         pev = self._pointer
         self._ret_addr_stack.push(pev)
         self._pointer = addr
+        logger.info(f"Calling subroutine at {addr}")
         try:
             return await self._call(self.find_addr)
         finally:
@@ -300,7 +303,7 @@ class WorkflowPC:
                     ", ".join(kw2rsev.keys())
                 )
             )
-        logger.info(f"Running node {node.tag}:{node.func.__name__}")
+        logger.debug(f"Running node {node.tag}:{node.func.__name__}")
         logger.debug(
             f"Address is {self._pointer}, Type of node is {node.__class__.__name__}"
         )

@@ -47,9 +47,9 @@ class WhileNode(BaseNode):
         self._do_offset = do_offset
         self._checkup_addr = checkup_addr
         self._else_addr = else_addr
-        self._init(self.__call__, None, False, True)
+        self._init(self._while_worker, None, False, True)
 
-    async def __call__(self, pc: WorkflowPC):
+    async def _while_worker(self, pc: WorkflowPC):
         if await pc.call_offset(self._condi_offset):
             try:
                 await pc.call_offset(self._do_offset)
@@ -58,6 +58,9 @@ class WhileNode(BaseNode):
             pc.jump_near(self._checkup_addr)
         else:
             pc.jump_near(self._else_addr)
+
+    def __call__(self, pc: WorkflowPC):
+        return self._while_worker(pc)
 
 
 class CheckUpNode(BaseNode):
@@ -84,10 +87,13 @@ class CheckUpNode(BaseNode):
 
     def __init__(self, jump_near: int):
         self._jump_addr = jump_near
-        super()._init(self.__call__, None, False, False)
+        super()._init(self._while_checkup, None, False, False)
+
+    def _while_checkup(self, pc: WorkflowPC):
+        pc.jump_near(self._jump_addr)
 
     def __call__(self, pc: WorkflowPC) -> Any:
-        pc.jump_near(self._jump_addr)
+        return self._while_checkup(pc)
 
 
 class WhileClause(SelfCompileInstruction):  # WHILE >> CONDI >> DO >> CHECKUP >> NOP

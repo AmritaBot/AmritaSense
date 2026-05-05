@@ -39,14 +39,17 @@ class DONode(BaseNode):
         self._do_offset = do_offset
         self._jmp_addr = jmp_addr
         self._break_addr = break_addr
-        self._init(self.__call__, None, True, False)
+        self._init(self._do_worker, None, True, False)
 
-    async def __call__(self, ptr: WorkflowPC):
+    async def _do_worker(self, ptr: WorkflowPC):
         try:
             await ptr.call_offset(self._do_offset)
         except BreakLoop:
             return ptr.jump_near(self._break_addr)
         ptr.jump_near(self._jmp_addr)
+
+    def __call__(self, ptr: WorkflowPC):
+        return self._do_worker(ptr)
 
 
 class DowhileNode(BaseNode):
@@ -64,13 +67,16 @@ class DowhileNode(BaseNode):
         self._condi_offset = condi_offset
         self._then_addr = then_addr
         self._back_addr = back_addr
-        self._init(self.__call__, None, False, False)
+        self._init(self._do_while_worker, None, False, False)
 
-    async def __call__(self, ptr: WorkflowPC):
+    async def _do_while_worker(self, ptr: WorkflowPC):
         if await ptr.call_offset(self._condi_offset):
             ptr.jump_near(self._back_addr)
         else:
             ptr.jump_near(self._then_addr)
+
+    def __call__(self, pc: WorkflowPC):
+        return self._do_while_worker(pc)
 
 
 class DoWhileClause(
