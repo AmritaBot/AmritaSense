@@ -10,7 +10,12 @@ from typing import Any, TypeAlias
 from amrita_core import SuspendObjectStream, logger
 from amrita_core.hook.matcher import DependsFactory, MatcherFactory
 
-from amrita_sense.exceptions import InterruptNotice, NullPointerException
+from amrita_sense.exceptions import (
+    DependsInjectFailed,
+    DependsResolveFailed,
+    InterruptNotice,
+    NullPointerException,
+)
 from amrita_sense.node.core import BaseNode, NodeComposeRendered
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.types import PointerVector, Stack
@@ -315,7 +320,7 @@ class WorkflowInterpreter:
             node.fun_sign, ava_args, ava_kwargs
         )
         if not success:
-            raise RuntimeError(
+            raise DependsResolveFailed(
                 f"Function {fun.__name__} in {node.tag} could not be resolved due to missing argument dependencies."
             )
         if kw2rsev and not await MatcherFactory._do_runtime_resolve(
@@ -327,7 +332,7 @@ class WorkflowInterpreter:
             session_kwargs=ava_kwargs,
             exception_ignored=self._exc_ignored,
         ):
-            raise RuntimeError(
+            raise DependsInjectFailed(
                 "Runtime resolve failed for kwargs: {}".format(
                     ", ".join(kw2rsev.keys())
                 )

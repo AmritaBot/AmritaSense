@@ -13,6 +13,12 @@ class NullPointerException(Exception):
 class BreakLoop(Exception):
     """Throwed when break loop (in while or do-while clause)"""
 
+class DependsException(Exception):
+    """Throwed when DI resolve failed."""
+
+
+class DependsResolveFailed(Exception):
+    """Throwed when DI resolve failed."""
 
 class DependsInjectFailed(Exception):
     """Throwed when DI resolve failed."""
