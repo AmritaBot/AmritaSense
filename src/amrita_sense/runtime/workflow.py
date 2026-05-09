@@ -5,7 +5,7 @@ from collections.abc import AsyncGenerator, Callable
 from copy import deepcopy
 from functools import wraps
 from inspect import iscoroutinefunction
-from typing import Any
+from typing import Any, TypeAlias
 
 from amrita_core import SuspendObjectStream, logger
 from amrita_core.hook.matcher import DependsFactory, MatcherFactory
@@ -15,10 +15,12 @@ from amrita_sense.node.core import BaseNode, NodeComposeRendered
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.types import PointerVector, Stack
 
-PC_CHECKPOINT = "WorkflowPC::each_node"
+PC_CHECKPOINT = (
+    "WorkflowPC::each_node"  # When stop at this checkpoint, change address is allowed.
+)
 
 
-class WorkflowPC:
+class WorkflowInterpreter:
     _graph: NodeComposeRendered
     _pointer: PointerVector
     _ava_args: tuple
@@ -64,7 +66,7 @@ class WorkflowPC:
     def markup(fun: Callable[..., Any]):  # Used to mark a jump action
         @wraps(fun)
         def wrapper(*args, **kwargs):
-            self: WorkflowPC = args[0]
+            self: WorkflowInterpreter = args[0]
             if not self._jump_marked:
                 self._jump_marked = True
                 return fun(*args, **kwargs)
@@ -93,23 +95,35 @@ class WorkflowPC:
         logger.info(f"Jumping far to pointer {offset}")
         self._pointer.far_to(offset)
 
-    async def call_offset(self, offset: int) -> Any:
-        ptr = self._pointer.copy().offset(offset)
+    @markup
+    def jump_to_top(self, addr: int) -> None:
+        logger.info(f"Jumping far to top at {addr}")
+        self._pointer.far_to([addr])
+
+    @markup
+    def jump_offset_top(self, offset: int) -> None:
+        logger.info(f"Jumping to top with offset {offset}")
+        self._pointer.offset_far(
+            [offset, -((self._pointer[1] if len(self._pointer) > 1 else 0) + 1)]
+        )
+
+    async def call_offset(self, offset: int, *ag, **kw) -> Any:
+        ptr: PointerVector = self._pointer.copy().offset(offset)
         logger.info(f"Calling with offset {offset} at pointer {ptr}")
-        return await self.call_sub(ptr)
+        return await self.call_sub(ptr, *ag, **kw)
 
-    async def call_near(self, addr: int) -> Any:
-        ptr = self._pointer.copy().near_to(addr)
+    async def call_near(self, addr: int, *ag, **kw) -> Any:
+        ptr: PointerVector = self._pointer.copy().near_to(addr)
         logger.info(f"Calling near address {addr} at pointer {ptr}")
-        return await self.call_sub(ptr)
+        return await self.call_sub(ptr, *ag, **kw)
 
-    async def call_sub(self, addr: PointerVector) -> Any:
-        pev = self._pointer
+    async def call_sub(self, addr: PointerVector, /, *extra_arg, **extra_kwargs) -> Any:
+        pev: PointerVector = self._pointer
         self._ret_addr_stack.push(pev)
         self._pointer = addr
         logger.info(f"Calling subroutine at {addr}")
         try:
-            return await self._call(self.find_addr)
+            return await self._call(self.find_addr, *extra_arg, **extra_kwargs)
         finally:
             ptr = self._ret_addr_stack.pop()
             if not self._jump_marked:
@@ -148,6 +162,7 @@ class WorkflowPC:
                     if not self._graph:
                         break
                     self._pointer.append(0)
+                await self.object_io._wait_for_continue(PC_CHECKPOINT)
                 yield await self._call()
                 if self._jump_marked:
                     self._jump_marked = False
@@ -273,17 +288,31 @@ class WorkflowPC:
         self,
         addr_getter: Callable[[list[int]], BaseNode | NodeComposeRendered]
         | None = None,
+        /,
+        *extra_args: Any,
+        **extra_kwargs: Any,
     ) -> Any:
-        await self.object_io._wait_for_continue(PC_CHECKPOINT)
+
         addr_getter = addr_getter or self.find_addr
         node: BaseNode | NodeComposeRendered = addr_getter(self._pointer.base_addr)
         if isinstance(node, NodeComposeRendered):
             raise RuntimeError("Cannot call a NodeCompose.")
+        await self.object_io._wait_for_continue(node.tag)
+
         node._pre_check(self)
 
+        ava_args = self._ava_args
+        ava_args += extra_args
+        if extra_kwargs:  # To avoid a copy cost.
+            ava_kwargs = self._ava_kwargs.copy()
+            ava_kwargs.update(extra_kwargs)
+        else:
+            ava_kwargs = self._ava_kwargs
+
         fun = node.func
+
         success, args, kw_rsved, kw2rsev = MatcherFactory._resolve_dependencies(
-            node.fun_sign, self._ava_args, self._ava_kwargs
+            node.fun_sign, ava_args, ava_kwargs
         )
         if not success:
             raise RuntimeError(
@@ -294,8 +323,8 @@ class WorkflowPC:
             runtime_kwargs=kw2rsev,
             args2update=[],
             kwargs2update=kw_rsved,
-            session_args=list(self._ava_args),
-            session_kwargs=self._ava_kwargs,
+            session_args=list(ava_args),
+            session_kwargs=ava_kwargs,
             exception_ignored=self._exc_ignored,
         ):
             raise RuntimeError(
@@ -313,3 +342,6 @@ class WorkflowPC:
             return await asyncio.to_thread(fun, *args, **kw_rsved)
         else:
             return fun(*args, **kw_rsved)
+
+
+WorkflowPC: TypeAlias = WorkflowInterpreter

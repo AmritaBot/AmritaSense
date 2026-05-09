@@ -77,7 +77,13 @@ class PointerVector:
                 ptr.extend([0] * -len_diff)
             elif len_diff > 0:
                 offset.extend([0] * len_diff)
-            self.base_addr = [i[0] + i[1] for i in zip(ptr, offset)]
+            self.base_addr.clear()
+            for a, b in zip(ptr, offset):
+                v = a + b
+                if v < 0:
+                    break
+                self.base_addr.append(v)
+
             return self
 
     def near_to(self, short_offset: int) -> Self:
@@ -138,6 +144,9 @@ class PointerVector:
 
     def __iter__(self) -> Iterator[int]:
         yield from self.base_addr
+
+    def __len__(self) -> int:
+        return len(self.base_addr)
 
     def __delitem__(self, key):
         raise ValueError("Cannot delete items from PointerVector")

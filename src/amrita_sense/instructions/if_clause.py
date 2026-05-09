@@ -17,11 +17,32 @@ class Condition(ABC):
     do: BaseNode
 
 
-class IFClause(Condition):
-    # IF(condition, do).ELIF(condition, do).ELSE(NOP)
+class IFClause(SelfCompileInstruction, Condition):
+    """IF Clause
+    Usage:
+        ```python
+        IF(CONDITION,PAYLOAD)
+        IF(CONDITION,PAYLOAD).ELSE(ELSE_PAYLOAD)
+        IF(CONDITION,PAYLOAD).ELIF(ELIF_CONDITION,ELIF_PAYLOAD).ELSE(ELSE_PAYLOAD)
+        ```
+    """
+
     def __init__(self, condition: Node[bool], do: BaseNode):
         self.condition = condition
         self.do = do
+
+    def extract(self) -> NodeCompose:
+        return NodeCompose(
+            ConditionJumpNode(
+                condition_offset=1,
+                do_offset=2,
+                false_offset=3,
+                then_addr=3,
+            ),
+            self.condition,
+            self.do,
+            NOP,
+        )
 
     @property
     def ELIF(self) -> Callable[[Node, Node], "ELIFClause"]:
@@ -274,3 +295,23 @@ class ELSEClause(SelfCompileInstruction, Condition):
             compose_chunk.extend(else_chunk)
 
         return NodeCompose(*compose_chunk)
+
+
+def IF(condition: Node[bool], do: BaseNode) -> IFClause:
+    """If condition
+
+    Args:
+        condition (Node): Condition node
+        do (Node): Payload
+
+    Returns:
+        IFClause: If Clause
+
+    Examples:
+        ```python
+        IF(CONDITION,PAYLOAD)
+        IF(CONDITION,PAYLOAD).ELSE(ELSE_PAYLOAD)
+        IF(CONDITION,PAYLOAD).ELIF(ELIF_CONDITION,ELIF_PAYLOAD).ELSE(ELSE_PAYLOAD)
+        ```
+    """
+    return IFClause(condition, do)

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import inspect
+import time
 from abc import abstractmethod
 from collections.abc import Awaitable, Callable
-import time
 from types import FrameType
 from typing import TYPE_CHECKING, Any, Generic, TypeVar, overload
 
@@ -14,9 +14,9 @@ from amrita_sense.exceptions import NullPointerException
 from amrita_sense.node.self_compile import SelfCompileInstruction
 
 if TYPE_CHECKING:
-    from amrita_sense.runtime.workflow import WorkflowPC
+    from amrita_sense.runtime.workflow import WorkflowInterpreter
 
-NODE_T = TypeVar("NODE_T", bound=Any)
+NODE_T = TypeVar("NODE_T", bound=Any, covariant=True)
 
 
 class BaseNode:
@@ -53,10 +53,11 @@ class BaseNode:
     def __str__(self) -> str:
         return self.tag
 
-    def _pre_check(self, pointer: WorkflowPC) -> None: ...
+    def _pre_check(self, pointer: WorkflowInterpreter) -> None: ...
 
     @abstractmethod
     def __call__(self, *args: Any, **kwds: Any) -> Any: ...
+
     def __rshift__(self, other) -> NodeCompose:
         return NodeCompose(self, other)
 
@@ -104,8 +105,14 @@ class Node(BaseNode, Generic[NODE_T]):
     def __str__(self) -> str:
         return self.tag
 
-    def __call__(self, *args: Any, **kwds: Any) -> Any:
-        return self.func(*args, **kwds)
+    if TYPE_CHECKING:
+
+        def __call__(self, *args: Any, **kwargs: Any) -> Any: ...
+    else:
+
+        @property
+        def __call__(self):
+            return self.func
 
     def __rshift__(self, other) -> NodeCompose:
         return NodeCompose(self, other)
@@ -174,7 +181,7 @@ class NodeComposeRendered:
             self._process_nodes(self.__original_tmp._graph, current_path, top)
         else:
             self._process_nodes(self.__original_tmp, current_path, top)
-        del self.__original_tmp
+        self.__original_tmp = None
 
     def _process_nodes(
         self,
