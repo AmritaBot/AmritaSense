@@ -5,7 +5,7 @@ from collections.abc import AsyncGenerator, Callable
 from copy import deepcopy
 from functools import wraps
 from inspect import iscoroutinefunction
-from typing import Any, TypeAlias
+from typing import Any, Generic, TypeAlias, TypeVar, cast
 
 from amrita_core import SuspendObjectStream, logger
 from amrita_core.hook.matcher import DependsFactory, MatcherFactory
@@ -24,21 +24,23 @@ PC_CHECKPOINT = (
     "WorkflowPC::each_node"  # When stop at this checkpoint, change address is allowed.
 )
 
+io_T = TypeVar("io_T", bound=SuspendObjectStream, covariant=True)
 
-class WorkflowInterpreter:
+
+class WorkflowInterpreter(Generic[io_T]):
     _graph: NodeComposeRendered
     _pointer: PointerVector
     _ava_args: tuple
     _ava_kwargs: dict[str, Any]
     _exc_ignored: tuple[type[BaseException], ...]
-    object_io: SuspendObjectStream
+    object_io: io_T
     _ret_addr_stack: Stack[PointerVector]
     _jump_marked: bool
 
     def __init__(
         self,
         node_compose: NodeComposeRendered | SelfCompileInstruction,
-        object_io: SuspendObjectStream | None = None,
+        object_io: SuspendObjectStream[Any] | None = None,
         *,
         exception_ignored: tuple[type[BaseException], ...],
         extra_args: tuple,
@@ -52,7 +54,8 @@ class WorkflowInterpreter:
         self._ava_args = (self, *extra_args)
         self._ava_kwargs = deepcopy(extra_kwargs)
         self._exc_ignored = (*exception_ignored, InterruptNotice)
-        self.object_io = object_io or SuspendObjectStream()
+        object_io = object_io or SuspendObjectStream()
+        self.object_io = cast(io_T, object_io)
         self._ret_addr_stack = addr_stack or Stack()
         self._jump_marked = False
 
