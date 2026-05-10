@@ -51,7 +51,7 @@ class WorkflowInterpreter:
         self._pointer = PointerVector()
         self._ava_args = (self, *extra_args)
         self._ava_kwargs = deepcopy(extra_kwargs)
-        self._exc_ignored = exception_ignored
+        self._exc_ignored = (*exception_ignored, InterruptNotice)
         self.object_io = object_io or SuspendObjectStream()
         self._ret_addr_stack = addr_stack or Stack()
         self._jump_marked = False
@@ -122,10 +122,12 @@ class WorkflowInterpreter:
         logger.info(f"Calling near address {addr} at pointer {ptr}")
         return await self.call_sub(ptr, *ag, **kw)
 
-    async def call_sub(self, addr: PointerVector, /, *extra_arg, **extra_kwargs) -> Any:
+    async def call_sub(
+        self, addr: PointerVector | list[int], /, *extra_arg, **extra_kwargs
+    ) -> Any:
         pev: PointerVector = self._pointer
         self._ret_addr_stack.push(pev)
-        self._pointer = addr
+        self._pointer = addr if isinstance(addr, PointerVector) else PointerVector(addr)
         logger.info(f"Calling subroutine at {addr}")
         try:
             return await self._call(self.find_addr, *extra_arg, **extra_kwargs)
@@ -293,7 +295,6 @@ class WorkflowInterpreter:
         self,
         addr_getter: Callable[[list[int]], BaseNode | NodeComposeRendered]
         | None = None,
-        /,
         *extra_args: Any,
         **extra_kwargs: Any,
     ) -> Any:

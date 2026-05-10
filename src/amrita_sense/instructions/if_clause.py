@@ -2,7 +2,7 @@ import inspect
 from abc import ABC
 from collections.abc import Callable
 from types import FrameType
-from typing import Any, TypeAlias
+from typing import Any, TypeVar
 
 from typing_extensions import Self
 
@@ -11,78 +11,8 @@ from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.runtime.workflow import WorkflowPC
 
-
-class Condition(ABC):
-    condition: Node[bool]
-    do: BaseNode
-
-
-class IFClause(SelfCompileInstruction, Condition):
-    """IF Clause
-    Usage:
-        ```python
-        IF(CONDITION,PAYLOAD)
-        IF(CONDITION,PAYLOAD).ELSE(ELSE_PAYLOAD)
-        IF(CONDITION,PAYLOAD).ELIF(ELIF_CONDITION,ELIF_PAYLOAD).ELSE(ELSE_PAYLOAD)
-        ```
-    """
-
-    def __init__(self, condition: Node[bool], do: BaseNode):
-        self.condition = condition
-        self.do = do
-
-    def extract(self) -> NodeCompose:
-        return NodeCompose(
-            ConditionJumpNode(
-                condition_offset=1,
-                do_offset=2,
-                false_offset=3,
-                then_addr=3,
-            ),
-            self.condition,
-            self.do,
-            NOP,
-        )
-
-    @property
-    def ELIF(self) -> Callable[[Node, Node], "ELIFClause"]:
-        return lambda condition, node: ELIFClause(self, condition, node)
-
-    @property
-    def ELSE(self) -> Callable[[Node], "ELSEClause"]:
-        return lambda node: ELSEClause(self, node)
-
-
-class NestedELIFClause(Condition):
-    parent: "ELIFClause"
-
-    def __init__(self, if_clause: "ELIFClause", condition: Node[bool], do: Node):
-        self.condition = condition
-        self.do = do
-        self.parent = if_clause
-
-
-class ELIFClause(Condition):
-    parent: IFClause
-    _elif_compose: list[NestedELIFClause]
-
-    def __init__(self, if_clause: IFClause, condition: Node[bool], do: Node):
-        self.condition = condition
-        self.do = do
-        self.parent = if_clause
-        self._elif_compose = []
-
-    @property
-    def ELIF(self) -> Callable[[Node, Node], Self]:
-        def _elif(condition, do):
-            self._elif_compose.append(NestedELIFClause(self, condition, do))
-            return self
-
-        return _elif
-
-    @property
-    def ELSE(self) -> Callable[[Node | None], "ELSEClause"]:
-        return lambda node=None: ELSEClause(self, node or NOP)
+T_cod = TypeVar("T_cod", bound=Node[bool], covariant=True)
+T_ret = TypeVar("T_ret", bound=BaseNode, covariant=True)
 
 
 class ConditionJumpNode(BaseNode):
@@ -154,6 +84,109 @@ class ConditionJumpNode(BaseNode):
     def __call__(self, pc: WorkflowPC):
         return self._do(pc)
 
+    @classmethod
+    def make_chunk(
+        cls, condition: T_cod, do: T_ret, then: int, false: int
+    ) -> tuple[Self, T_cod, T_ret]:
+        return (cls(1, 2, false, then), condition, do)
+
+
+class Condition(ABC):
+    condition: Node[bool]
+    do: BaseNode
+
+
+class IFClause(SelfCompileInstruction, Condition):
+    """IF Clause
+    Usage:
+        ```python
+        IF(CONDITION,PAYLOAD)
+        IF(CONDITION,PAYLOAD).ELIF(ELIF_CONDITION,ELIF_PAYLOAD)
+        IF(CONDITION,PAYLOAD).ELSE(ELSE_PAYLOAD)
+        IF(CONDITION,PAYLOAD).ELIF(ELIF_CONDITION,ELIF_PAYLOAD).ELSE(ELSE_PAYLOAD)
+        ```
+    """
+
+    def __init__(self, condition: Node[bool], do: BaseNode):
+        self.condition = condition
+        self.do = do
+
+    def extract(self) -> NodeCompose:
+        return NodeCompose(
+            *ConditionJumpNode.make_chunk(self.condition, self.do, 3, 3),
+            NOP,
+        )
+
+    @property
+    def ELIF(self) -> Callable[[Node, Node], "ELIFClause"]:
+        return lambda condition, node: ELIFClause(self, condition, node)
+
+    @property
+    def ELSE(self) -> Callable[[Node], "ELSEClause"]:
+        return lambda node: ELSEClause(self, node)
+
+
+class NestedELIFClause(Condition):
+    parent: "ELIFClause"
+
+    def __init__(self, if_clause: "ELIFClause", condition: Node[bool], do: Node):
+        self.condition = condition
+        self.do = do
+        self.parent = if_clause
+
+
+class ELIFClause(SelfCompileInstruction, Condition):
+    parent: IFClause
+    _elif_compose: list[NestedELIFClause]
+
+    def __init__(self, if_clause: IFClause, condition: Node[bool], do: Node):
+        self.condition = condition
+        self.do = do
+        self.parent = if_clause
+        self._elif_compose = []
+
+    @property
+    def ELIF(self) -> Callable[[Node, Node], Self]:
+        def _elif(condition, do):
+            self._elif_compose.append(NestedELIFClause(self, condition, do))
+            return self
+
+        return _elif
+
+    @property
+    def ELSE(self) -> Callable[[Node | None], "ELSEClause"]:
+        return lambda node=None: ELSEClause(self, node or NOP)
+
+    def extract(self) -> NodeCompose:
+        total_length = (
+            3  # IF + CONDI + DO
+            + 3  # Main ELIF Clause
+            + len(self._elif_compose) * 3  # Each 3 elements
+            + 1  # NOP exit point
+        )
+        jump_out_addr = total_length - 1
+        compose_chunk: list[ConditionJumpNode | Node[bool] | BaseNode] = [
+            *ConditionJumpNode.make_chunk(
+                self.parent.condition, self.parent.do, jump_out_addr, 3
+            ),
+            *ConditionJumpNode.make_chunk(self.condition, self.do, jump_out_addr, 3),
+        ]
+
+        elif_chains_nodes: list[ConditionJumpNode | Node[bool] | BaseNode] = []
+        for i in self._elif_compose:
+            elif_chains_nodes.extend(
+                [
+                    *ConditionJumpNode.make_chunk(
+                        i.condition, i.do, then=jump_out_addr, false=3
+                    ),
+                ]
+            )
+        compose_chunk.extend(elif_chains_nodes)
+        compose_chunk.append(NOP)
+        return NodeCompose(
+            *compose_chunk,
+        )
+
 
 class ELSENode(BaseNode):
     """ELSE node
@@ -197,10 +230,6 @@ class ELSENode(BaseNode):
         return self._else_worker(pc)
 
 
-CONDITION_CHAIN: TypeAlias = tuple[ConditionJumpNode, Node, Node]
-ELSE_TUPLE: TypeAlias = tuple[ELSENode, Node]
-
-
 class ELSEClause(SelfCompileInstruction, Condition):
     top: IFClause
     parent: ELIFClause | IFClause
@@ -216,9 +245,7 @@ class ELSEClause(SelfCompileInstruction, Condition):
 
         # Base IF clause
         compose_chunk = [
-            ConditionJumpNode(
-                condition_offset=1, do_offset=2, false_offset=3, then_addr=0
-            ),
+            NOP,
             top_if.condition,
             top_if.do,
         ]
@@ -260,27 +287,14 @@ class ELSEClause(SelfCompileInstruction, Condition):
 
             # Main ELIF clause
             elif_clause_nodes = [
-                ConditionJumpNode(
-                    condition_offset=1, do_offset=2, false_offset=3, then_addr=then_addr
-                ),
-                parent.condition,
-                parent.do,
+                *ConditionJumpNode.make_chunk(parent.condition, parent.do, then_addr, 3)
             ]
 
             # ELIF chain
             elif_chains_nodes = []
             for i in parent._elif_compose:
                 elif_chains_nodes.extend(
-                    [
-                        ConditionJumpNode(
-                            condition_offset=1,
-                            do_offset=2,
-                            false_offset=3,
-                            then_addr=then_addr,
-                        ),
-                        i.condition,
-                        i.do,
-                    ]
+                    [*ConditionJumpNode.make_chunk(i.condition, i.do, then_addr, 3)]
                 )
 
             # ELSE chunk - then_addr=2 points to NOP within ELSE chunk (relative addressing)
