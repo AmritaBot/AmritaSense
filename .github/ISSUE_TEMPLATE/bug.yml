@@ -27,7 +27,7 @@ body:
     id: AmritaSense-version
     attributes:
       label: AmritaSense Version
-      description: Check with `pip show amrita_core`
+      description: Check with `pip show amrita_sense`
       placeholder: 0.1.0
     validations:
       required: true

@@ -47,8 +47,7 @@ jobs:
           pylance-version: latest-release
 
       - name: Run Unit Tests with JUnit XML output
-        run: uv run pytest tests/ --cov=src/amrita_core --cov-report=term-missing
-          --cov-report=xml --junitxml=test-results.xml -v
+        run: uv run pytest tests/ --cov=src/amrita_sense --cov-report=term-missing --cov-report=xml --junitxml=test-results.xml -v
 
       - name: Publish Test Report
         uses: dorny/test-reporter@v1

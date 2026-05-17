@@ -361,3 +361,6 @@ test-results.xml
 # Editor
 *.swp
 
+# Pytest
+
+test-results.xml

@@ -167,7 +167,7 @@ class PointerVector:
         """
         with self._lock:
             offset = offset.copy()
-            ptr: list[int] = self.base_addr
+            ptr: list[int] = self.base_addr.copy()
             len_off: int = len(offset)
             len_ptr: int = len(ptr)
             len_diff: int = len_ptr - len_off
