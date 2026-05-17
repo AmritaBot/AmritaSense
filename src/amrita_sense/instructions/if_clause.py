@@ -9,7 +9,7 @@ from typing_extensions import Self
 from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
-from amrita_sense.runtime.workflow import WorkflowPC
+from amrita_sense.runtime.workflow import WorkflowInterpreter
 
 T_cod = TypeVar("T_cod", bound=Node[bool], covariant=True)
 T_ret = TypeVar("T_ret", bound=BaseNode, covariant=True)
@@ -70,7 +70,7 @@ class ConditionJumpNode(BaseNode):
         self._then_addr = then_addr
         self._false_offset = false_offset
 
-    async def _do(self, pc: WorkflowPC):
+    async def _do(self, pc: WorkflowInterpreter):
         if await pc.call_offset(
             self._condition_offset
         ):  # CALL CONDITION (intra-chunk relative)
@@ -81,7 +81,7 @@ class ConditionJumpNode(BaseNode):
         else:
             pc.jump_offset(self._false_offset)  # JMP OFFSET FALSE_FORK (relative)
 
-    def __call__(self, pc: WorkflowPC):
+    def __call__(self, pc: WorkflowInterpreter):
         return self._do(pc)
 
     @classmethod
@@ -222,11 +222,11 @@ class ELSENode(BaseNode):
         self._do_offset = do_offset
         self._then_offset = then_offset
 
-    async def _else_worker(self, pc: WorkflowPC):
+    async def _else_worker(self, pc: WorkflowInterpreter):
         await pc.call_offset(self._do_offset)  # CALL DO (intra-chunk relative)
         pc.jump_offset(self._then_offset)  # JMP directly to NOP
 
-    def __call__(self, pc: WorkflowPC):
+    def __call__(self, pc: WorkflowInterpreter):
         return self._else_worker(pc)
 
 

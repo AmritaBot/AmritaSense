@@ -9,7 +9,7 @@ from amrita_sense.exceptions import BreakLoop
 from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
-from amrita_sense.runtime.workflow import WorkflowPC
+from amrita_sense.runtime.workflow import WorkflowInterpreter
 
 
 class DONode(BaseNode):
@@ -41,14 +41,14 @@ class DONode(BaseNode):
         self._break_addr = break_addr
         self._init(self._do_worker, None, True, False)
 
-    async def _do_worker(self, ptr: WorkflowPC):
+    async def _do_worker(self, ptr: WorkflowInterpreter):
         try:
             await ptr.call_offset(self._do_offset)
         except BreakLoop:
             return ptr.jump_near(self._break_addr)
         ptr.jump_near(self._jmp_addr)
 
-    def __call__(self, ptr: WorkflowPC):
+    def __call__(self, ptr: WorkflowInterpreter):
         return self._do_worker(ptr)
 
 
@@ -69,13 +69,13 @@ class DowhileNode(BaseNode):
         self._back_addr = back_addr
         self._init(self._do_while_worker, None, False, False)
 
-    async def _do_while_worker(self, ptr: WorkflowPC):
+    async def _do_while_worker(self, ptr: WorkflowInterpreter):
         if await ptr.call_offset(self._condi_offset):
             ptr.jump_near(self._back_addr)
         else:
             ptr.jump_near(self._then_addr)
 
-    def __call__(self, pc: WorkflowPC):
+    def __call__(self, pc: WorkflowInterpreter):
         return self._do_while_worker(pc)
 
 

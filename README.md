@@ -21,10 +21,16 @@
     </a>
   </p>
 
-> ### _"Any is things all you need."_
+> ### _"Any is thing all you need."_
+>
+> ### _"Let developers return with Python again."_
 
 </center>
 
-## Significants
+## TODO
 
-Docs and tests are still in progress...
+- [x] Main project
+- [x] [Documentation](https://sense.amritabot.com)
+- [ ] Workflow Debugger (Planned, in progress)
+- [ ] Tests (In progress)
+- [ ] DEMOS (In progress)

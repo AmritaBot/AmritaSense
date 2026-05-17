@@ -10,7 +10,7 @@ from amrita_sense.instructions.jump import JumpNode
 from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
-from amrita_sense.runtime.workflow import WorkflowPC
+from amrita_sense.runtime.workflow import WorkflowInterpreter
 
 
 class WhileNode(BaseNode):
@@ -49,7 +49,7 @@ class WhileNode(BaseNode):
         self._else_addr = else_addr
         self._init(self._while_worker, None, False, True)
 
-    async def _while_worker(self, pc: WorkflowPC):
+    async def _while_worker(self, pc: WorkflowInterpreter):
         if await pc.call_offset(self._condi_offset):
             try:
                 await pc.call_offset(self._do_offset)
@@ -59,7 +59,7 @@ class WhileNode(BaseNode):
         else:
             pc.jump_near(self._else_addr)
 
-    def __call__(self, pc: WorkflowPC):
+    def __call__(self, pc: WorkflowInterpreter):
         return self._while_worker(pc)
 
 
@@ -89,10 +89,10 @@ class CheckUpNode(BaseNode):
         self._jump_addr = jump_near
         super()._init(self._while_checkup, None, False, False)
 
-    def _while_checkup(self, pc: WorkflowPC):
+    def _while_checkup(self, pc: WorkflowInterpreter):
         pc.jump_near(self._jump_addr)
 
-    def __call__(self, pc: WorkflowPC) -> Any:
+    def __call__(self, pc: WorkflowInterpreter) -> Any:
         return self._while_checkup(pc)
 
 

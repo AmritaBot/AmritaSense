@@ -360,3 +360,6 @@ test-results.xml
 
 # Editor
 *.swp
+
+docs-example/
+docs.arch.txt

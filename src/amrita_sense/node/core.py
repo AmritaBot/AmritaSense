@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import inspect
-import time
 from abc import abstractmethod
 from collections.abc import Awaitable, Callable
 from types import FrameType
@@ -12,6 +11,7 @@ from typing_extensions import Self
 
 from amrita_sense.exceptions import NullPointerException
 from amrita_sense.node.self_compile import SelfCompileInstruction
+from amrita_sense.utils import TimeInsighter
 
 if TYPE_CHECKING:
     from amrita_sense.runtime.workflow import WorkflowInterpreter
@@ -20,6 +20,21 @@ NODE_T = TypeVar("NODE_T", bound=Any, covariant=True)
 
 
 class BaseNode:
+    """Abstract base class for all workflow nodes.
+
+    This class defines the common interface and attributes for all node types
+    in the workflow engine. It provides metadata storage, function wrapping,
+    and basic operations like string representation and composition.
+
+    Attributes:
+        tag: Human-readable identifier for the node.
+        func: The underlying callable function or method.
+        wrap_to_async: Flag indicating if synchronous functions should be wrapped for async execution.
+        address_able: Flag indicating if this node can be referenced by address.
+        fun_frame: Frame object capturing the creation context of the node.
+        fun_sign: Signature object describing the function's parameters.
+    """
+
     tag: str
     func: Callable[..., Any]
     wrap_to_async: bool
@@ -35,7 +50,20 @@ class BaseNode:
         address_able: bool,
         frame: FrameType | None = None,
     ):
-        """Coconstructor"""
+        """Initialize the base node with function and metadata.
+
+        This is a co-constructor that sets up the node's core attributes.
+
+        Args:
+            func: The underlying callable to wrap.
+            tag: Optional human-readable identifier. If None, auto-generated from function name.
+            wrap_to_async: Whether to wrap synchronous functions for async execution.
+            address_able: Whether this node can be referenced by address.
+            frame: Optional frame object for context capture. If None, uses current frame.
+
+        Raises:
+            RuntimeError: If no valid frame can be obtained.
+        """
         frame = frame or inspect.currentframe()
         if not frame:
             raise RuntimeError("No frame found")
@@ -48,21 +76,77 @@ class BaseNode:
         self.address_able = address_able
 
     def __repr__(self) -> str:
+        """Return a detailed string representation of the node.
+
+        Returns:
+            String representation including memory address and tag.
+        """
         return f"<Node at {id(self)}:{self.tag}>"
 
     def __str__(self) -> str:
+        """Return the node's tag as its string representation.
+
+        Returns:
+            The human-readable tag of the node.
+        """
         return self.tag
 
-    def _pre_check(self, pointer: WorkflowInterpreter) -> None: ...
+    def _pre_check(self, pointer: WorkflowInterpreter) -> None:
+        """Perform pre-execution checks on the node.
+
+        This method is called before node execution and can be overridden by
+        subclasses to perform validation or setup tasks.
+
+        Args:
+            pointer: The current workflow interpreter instance.
+        """
+        ...
 
     @abstractmethod
-    def __call__(self, *args: Any, **kwds: Any) -> Any: ...
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        """Execute the node with given arguments.
+
+        This abstract method must be implemented by concrete node classes.
+
+        Args:
+            *args: Positional arguments to pass to the underlying function.
+            **kwds: Keyword arguments to pass to the underlying function.
+
+        Returns:
+            The result of executing the node's function.
+        """
+        ...
 
     def __rshift__(self, other) -> NodeCompose:
+        """Create a node composition using the right-shift operator.
+
+        This enables the `node1 >> node2` syntax for composing workflows.
+
+        Args:
+            other: Another node or composition to append to this node.
+
+        Returns:
+            A new NodeCompose containing this node and the other element.
+        """
         return NodeCompose(self, other)
 
 
 class Node(BaseNode, Generic[NODE_T]):
+    """Generic workflow node that wraps a callable function.
+
+    This class represents a concrete workflow node that wraps an arbitrary
+    callable function. It supports both synchronous and asynchronous functions
+    and provides type safety through generic typing.
+
+    Attributes:
+        tag: Human-readable identifier for the node.
+        func: The underlying callable function or method.
+        wrap_to_async: Flag indicating if synchronous functions should be wrapped for async execution.
+        address_able: Flag indicating if this node can be referenced by address.
+        fun_frame: Frame object capturing the creation context of the node.
+        fun_sign: Signature object describing the function's parameters.
+    """
+
     tag: str
     func: Callable[..., Awaitable[NODE_T] | NODE_T]
     wrap_to_async: bool
@@ -97,12 +181,31 @@ class Node(BaseNode, Generic[NODE_T]):
     ): ...
 
     def __init__(self, *args, **kwargs):
+        """Initialize a generic node with function and metadata.
+
+        Args:
+            func: The underlying callable to wrap.
+            tag: Optional human-readable identifier.
+            wrap_to_async: Whether to wrap synchronous functions for async execution.
+            address_able: Whether this node can be referenced by address.
+            frame: Optional frame object for context capture.
+        """
         super()._init(*args, **kwargs)
 
     def __repr__(self) -> str:
+        """Return a detailed string representation of the node.
+
+        Returns:
+            String representation including memory address and tag.
+        """
         return f"<Node at {id(self)}:{self.tag}>"
 
     def __str__(self) -> str:
+        """Return the node's tag as its string representation.
+
+        Returns:
+            The human-readable tag of the node.
+        """
         return self.tag
 
     if TYPE_CHECKING:
@@ -112,36 +215,91 @@ class Node(BaseNode, Generic[NODE_T]):
 
         @property
         def __call__(self):
+            """Return the underlying function for direct execution.
+
+            Returns:
+                The wrapped function that can be called directly.
+            """
             return self.func
 
     def __rshift__(self, other) -> NodeCompose:
+        """Create a node composition using the right-shift operator.
+
+        Args:
+            other: Another node or composition to append to this node.
+
+        Returns:
+            A new NodeCompose containing this node and the other element.
+        """
         return NodeCompose(self, other)
 
 
 class NodeCompose:
+    """Container for composing multiple nodes into a workflow sequence.
+
+    This class represents a linear composition of nodes that will be executed
+    sequentially. It supports the `>>` operator for chaining nodes together
+    and provides a render() method to compile the composition into an
+    executable workflow graph.
+
+    Attributes:
+        _graph: List of nodes and sub-compositions in this composition.
+    """
+
     _graph: list[NodeCompose | BaseNode | SelfCompileInstruction]
 
     def __init__(self, *nodes: NodeCompose | BaseNode | SelfCompileInstruction):
+        """Initialize a node composition with one or more elements.
+
+        Args:
+            *nodes: Variable number of nodes, compositions, or self-compile instructions.
+        """
         self._graph = list(nodes)
 
     def __rshift__(
         self, other: NodeCompose | BaseNode | SelfCompileInstruction
     ) -> Self:
+        """Append another element to this composition using the right-shift operator.
+
+        Args:
+            other: Another node, composition, or instruction to append.
+
+        Returns:
+            Self reference for method chaining.
+        """
         self._graph.append(other)
         return self
 
     def render(self) -> NodeComposeRendered:
-        logger.info("rendering node compose")
-        logger.info(f"Size of graph is : {len(self._graph)}")
-        time1 = time.time()
-        r = NodeComposeRendered(self)
-        r._build()
-        time_end = time.time()
-        logger.info(f"node compose rendered, cost: {time_end - time1:.8f}s")
+        """Compile this composition into an executable workflow graph.
+
+        This method processes all nodes in the composition, resolves aliases,
+        expands self-compiling instructions, and builds the final execution graph.
+
+        Returns:
+            A NodeComposeRendered instance representing the compiled workflow.
+        """
+        logger.debug(f"Size of the main graph is : {len(self._graph)}")
+        with TimeInsighter() as tm:
+            r = NodeComposeRendered(self)
+            r._build()
+        time_end = tm.t_diff
+        logger.info(f"node compose rendered, cost: {time_end.microseconds / 1000}ms")
         return r
 
 
 class NodeComposeRendered:
+    """Compiled and executable workflow graph.
+
+    This class represents a fully processed workflow graph that is ready for
+    execution. It contains the resolved node structure, alias mappings, and
+    provides methods for accessing nodes by address.
+
+    Attributes:
+        _graph: List of resolved base nodes and rendered compositions.
+        alias2vector_map: Mapping from alias names to their address vectors.
+    """
+
     _graph: list[BaseNode | NodeComposeRendered]
     __original_tmp: (
         NodeCompose | list[BaseNode | NodeCompose | SelfCompileInstruction] | None
@@ -153,10 +311,20 @@ class NodeComposeRendered:
         original_graph: NodeCompose
         | list[BaseNode | NodeCompose | SelfCompileInstruction],
     ):
+        """Initialize a rendered composition with the original graph.
+
+        Args:
+            original_graph: The original node composition or list of nodes to render.
+        """
         self.__original_tmp = original_graph
         self.alias2vector_map = {}
 
     def __bool__(self) -> bool:
+        """Return True if the rendered graph exists and is non-empty.
+
+        Returns:
+            Boolean indicating whether the graph has been built and contains nodes.
+        """
         return bool(self._graph if hasattr(self, "_graph") else False)
 
     def _build(
@@ -164,6 +332,19 @@ class NodeComposeRendered:
         current_path: list[int] | None = None,
         top: NodeComposeRendered | None = None,
     ):
+        """Build the executable workflow graph from the original composition.
+
+        This internal method recursively processes the original graph, resolving
+        aliases, expanding self-compiling instructions, and building the final
+        execution structure.
+
+        Args:
+            current_path: Current address path during recursive processing.
+            top: Reference to the top-level rendered composition for alias registration.
+
+        Raises:
+            RuntimeError: If the composition is already built or has no original graph.
+        """
 
         if current_path is None:
             current_path = []
@@ -189,6 +370,15 @@ class NodeComposeRendered:
         current_path: list[int],
         top: NodeComposeRendered,
     ):
+        """Process a list of nodes during graph building.
+
+        This internal method handles different node types during the rendering process.
+
+        Args:
+            nodes: List of nodes to process.
+            current_path: Current address path in the graph.
+            top: Top-level rendered composition for alias registration.
+        """
         from amrita_sense.instructions.alias import AliasNode
 
         for idx, node in enumerate(nodes):
@@ -215,7 +405,9 @@ class NodeComposeRendered:
                         f"Alias node `{node.alias}` cannot be used in an addressable node."
                     )
                 if node.alias in top.alias2vector_map:
-                    raise RuntimeError(f"Alias {node.alias} already exists")
+                    raise RuntimeError(
+                        f"Alias {node.alias} already exists in address `{top.alias2vector_map[node.alias]}`"
+                    )
                 top.alias2vector_map[node.alias] = node_path
                 self._graph.append(node)
 
@@ -228,6 +420,16 @@ class NodeComposeRendered:
         compose_path: list[int],
         top: NodeComposeRendered,
     ) -> NodeComposeRendered:
+        """Recursively render a nested node composition.
+
+        Args:
+            node_compose: The node composition to render.
+            compose_path: Address path for this composition.
+            top: Top-level rendered composition for alias registration.
+
+        Returns:
+            A rendered composition representing the nested structure.
+        """
 
         rendered = NodeComposeRendered(node_compose._graph)
 
@@ -235,9 +437,25 @@ class NodeComposeRendered:
         return rendered
 
     def __getitem__(self, key: int):
+        """Access a node in the rendered graph by index.
+
+        Args:
+            key: Index of the node to access.
+
+        Returns:
+            The node at the specified index.
+
+        Raises:
+            NullPointerException: If the index is out of range.
+        """
         if key >= len(self._graph):
             raise NullPointerException(f"NodeComposeRendered index out of range: {key}")
         return self._graph[key]
 
     def __iter__(self):
+        """Iterate over all nodes in the rendered graph.
+
+        Yields:
+            Each node in the rendered graph sequentially.
+        """
         yield from self._graph

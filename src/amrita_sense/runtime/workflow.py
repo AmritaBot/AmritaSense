@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator, Callable
+from contextlib import nullcontext
 from copy import deepcopy
 from functools import wraps
 from inspect import iscoroutinefunction
-from typing import Any, Generic, TypeAlias, TypeVar, cast
+from typing import Any, Generic, TypeVar, cast
 
+import aiologic
 from amrita_core import SuspendObjectStream, logger
 from amrita_core.hook.matcher import DependsFactory, MatcherFactory
 
 from amrita_sense.exceptions import (
+    BreakLoop,
     DependsInjectFailed,
     DependsResolveFailed,
     InterruptNotice,
@@ -20,14 +23,31 @@ from amrita_sense.node.core import BaseNode, NodeComposeRendered
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.types import PointerVector, Stack
 
-PC_CHECKPOINT = (
-    "WorkflowPC::each_node"  # When stop at this checkpoint, change address is allowed.
-)
-
+PC_CHECKPOINT = "WorkflowInterpreter::each_node"
+NULL_CTX = nullcontext()
 io_T = TypeVar("io_T", bound=SuspendObjectStream, covariant=True)
 
 
 class WorkflowInterpreter(Generic[io_T]):
+    """Main workflow interpreter and execution engine.
+
+    This class is responsible for executing compiled workflow graphs by managing
+    the execution pointer, handling control flow operations (jumps, calls, loops),
+    and providing dependency injection services. It implements an interpreter/VM
+    pattern for dynamic workflow execution.
+
+    Attributes:
+        _graph: The compiled workflow graph to execute.
+        _pointer: Current execution pointer in the workflow graph.
+        _ava_args: Available arguments for dependency injection.
+        _ava_kwargs: Available keyword arguments for dependency injection.
+        _exc_ignored: Exception types that should not be caught by TRY/CATCH blocks.
+        object_io: I/O stream for external communication and interruption.
+        _ret_addr_stack: Stack for managing return addresses during subroutine calls.
+        _jump_marked: Flag indicating if a jump operation has been performed.
+        _interpret_lock: Lock for ensuring thread-safe execution.
+    """
+
     _graph: NodeComposeRendered
     _pointer: PointerVector
     _ava_args: tuple
@@ -36,42 +56,91 @@ class WorkflowInterpreter(Generic[io_T]):
     object_io: io_T
     _ret_addr_stack: Stack[PointerVector]
     _jump_marked: bool
+    _interpret_lock: aiologic.Lock
 
     def __init__(
         self,
         node_compose: NodeComposeRendered | SelfCompileInstruction,
         object_io: SuspendObjectStream[Any] | None = None,
         *,
-        exception_ignored: tuple[type[BaseException], ...],
-        extra_args: tuple,
-        extra_kwargs: dict[str, Any],
+        exception_ignored: tuple[type[BaseException], ...] = (),
+        extra_args: tuple = (),
+        extra_kwargs: dict[str, Any] | None = None,
         addr_stack: Stack[PointerVector] | None = None,
     ):
+        """Initialize the workflow interpreter with a compiled workflow graph.
+
+        Args:
+            node_compose: The workflow graph to execute, either pre-rendered or a self-compiling instruction.
+            object_io: Optional I/O stream for external communication. Defaults to a new SuspendObjectStream.
+            exception_ignored: Exception types that should bypass TRY/CATCH handlers.
+            extra_args: Additional positional arguments for dependency injection.
+            extra_kwargs: Additional keyword arguments for dependency injection.
+            addr_stack: Optional pre-initialized return address stack.
+        """
         if isinstance(node_compose, SelfCompileInstruction):
             node_compose = node_compose.extract().render()
         self._graph = node_compose
         self._pointer = PointerVector()
         self._ava_args = (self, *extra_args)
+        extra_kwargs = extra_kwargs or {}
         self._ava_kwargs = deepcopy(extra_kwargs)
-        self._exc_ignored = (*exception_ignored, InterruptNotice)
+        self._exc_ignored = (*exception_ignored, InterruptNotice, BreakLoop)
         object_io = object_io or SuspendObjectStream()
         self.object_io = cast(io_T, object_io)
         self._ret_addr_stack = addr_stack or Stack()
         self._jump_marked = False
+        self._interpret_lock = aiologic.Lock()
 
     def get_graph(self) -> NodeComposeRendered:
+        """Return the compiled workflow graph being executed.
+
+        Returns:
+            The NodeComposeRendered instance representing the workflow graph.
+        """
         return self._graph
 
     def find_addr_alias(self, alias: str) -> list[int]:
+        """Find the address vector for a node by its alias.
+
+        Args:
+            alias: The alias name of the target node.
+
+        Returns:
+            The address vector (list of indices) pointing to the node.
+
+        Raises:
+            NullPointerException: If the alias does not exist in the graph.
+        """
         if alias not in self._graph.alias2vector_map:
             raise NullPointerException(f"{alias} is not a valid alias")
         return self._graph.alias2vector_map[alias]
 
     def find_node_alias(self, alias: str) -> BaseNode | NodeComposeRendered:
+        """Find a node by its alias and return the node object.
+
+        Args:
+            alias: The alias name of the target node.
+
+        Returns:
+            The node object corresponding to the alias.
+        """
         return self.find_addr(self.find_addr_alias(alias))
 
     @staticmethod
     def markup(fun: Callable[..., Any]):  # Used to mark a jump action
+        """Decorator for marking methods that perform jump operations.
+
+        This decorator automatically sets the _jump_marked flag when a jump method
+        is called, preventing the pointer from advancing normally after the jump.
+
+        Args:
+            fun: The method to decorate as a jump operation.
+
+        Returns:
+            A wrapped version of the original method that manages the jump flag.
+        """
+
         @wraps(fun)
         def wrapper(*args, **kwargs):
             self: WorkflowInterpreter = args[0]
@@ -83,6 +152,14 @@ class WorkflowInterpreter(Generic[io_T]):
 
     @markup
     def jump_to(self, addr: list[int]) -> None:
+        """Jump to an absolute address in the workflow graph.
+
+        Args:
+            addr: Absolute address vector to jump to.
+
+        Raises:
+            NullPointerException: If the target address does not exist.
+        """
         if (self._find_addr_or_none(addr)) is None:
             raise NullPointerException(f"{addr} is not a valid address")
         logger.info(f"Jumping to address {addr}")
@@ -90,60 +167,144 @@ class WorkflowInterpreter(Generic[io_T]):
 
     @markup
     def jump_near(self, addr: int) -> None:
+        """Jump to a relative address within the current scope.
+
+        Args:
+            addr: Relative address offset within the current container.
+        """
         logger.info(f"Jumping near to address {addr}")
         self._pointer.near_to(addr)
 
     @markup
     def jump_offset(self, offset: int) -> None:
+        """Jump by applying a relative offset to the current pointer.
+
+        Args:
+            offset: Integer offset to apply to the current pointer position.
+        """
         logger.info(f"Jumping with offset {offset}")
         self._pointer.offset(offset)
 
     @markup
     def jump_far_ptr(self, offset: list[int]) -> None:
+        """Jump using a multi-dimensional offset vector.
+
+        Args:
+            offset: Multi-dimensional offset vector to apply to the current pointer.
+        """
         logger.info(f"Jumping far to pointer {offset}")
         self._pointer.far_to(offset)
 
     @markup
     def jump_to_top(self, addr: int) -> None:
+        """Jump to an absolute address at the top level of the workflow.
+
+        Args:
+            addr: Address index at the top level to jump to.
+        """
         logger.info(f"Jumping far to top at {addr}")
         self._pointer.far_to([addr])
 
     @markup
     def jump_offset_top(self, offset: int) -> None:
+        """Jump to the top level with a relative offset.
+
+        Args:
+            offset: Offset to apply when jumping to the top level.
+        """
         logger.info(f"Jumping to top with offset {offset}")
         self._pointer.offset_far(
             [offset, -((self._pointer[1] if len(self._pointer) > 1 else 0) + 1)]
         )
 
-    async def call_offset(self, offset: int, *ag, **kw) -> Any:
+    async def call_offset(self, offset: int, *ag, interrupt: bool = False, **kw) -> Any:
+        """Call a subroutine at a relative offset from the current position.
+
+        Args:
+            offset: Relative offset from current pointer position.
+            *ag: Additional positional arguments to pass to the subroutine.
+            interrupt: Whether to allow interruption during this call.
+            **kw: Additional keyword arguments to pass to the subroutine.
+
+        Returns:
+            The result of executing the subroutine.
+        """
         ptr: PointerVector = self._pointer.copy().offset(offset)
         logger.info(f"Calling with offset {offset} at pointer {ptr}")
-        return await self.call_sub(ptr, *ag, **kw)
+        return await self.call_sub(ptr, *ag, interrupt, **kw)
 
-    async def call_near(self, addr: int, *ag, **kw) -> Any:
+    async def call_near(self, addr: int, *ag, interrupt: bool = False, **kw) -> Any:
+        """Call a subroutine at a relative address within the current scope.
+
+        Args:
+            addr: Relative address within the current container.
+            *ag: Additional positional arguments to pass to the subroutine.
+            interrupt: Whether to allow interruption during this call.
+            **kw: Additional keyword arguments to pass to the subroutine.
+
+        Returns:
+            The result of executing the subroutine.
+        """
         ptr: PointerVector = self._pointer.copy().near_to(addr)
         logger.info(f"Calling near address {addr} at pointer {ptr}")
-        return await self.call_sub(ptr, *ag, **kw)
+        return await self.call_sub(ptr, *ag, interrupt, **kw)
 
     async def call_sub(
-        self, addr: PointerVector | list[int], /, *extra_arg, **extra_kwargs
+        self,
+        addr: PointerVector | list[int],
+        /,
+        *extra_arg,
+        interrupt: bool = False,
+        **extra_kwargs,
     ) -> Any:
+        """Call a subroutine at the specified address.
+
+        This method manages the call stack by pushing the current return address
+        and setting up the new execution context.
+
+        Args:
+            addr: Absolute address vector of the subroutine to call.
+            *extra_arg: Additional positional arguments to pass to the subroutine.
+            interrupt: Whether to allow interruption during this call.
+            **extra_kwargs: Additional keyword arguments to pass to the subroutine.
+
+        Returns:
+            The result of executing the subroutine.
+        """
         pev: PointerVector = self._pointer
         self._ret_addr_stack.push(pev)
         self._pointer = addr if isinstance(addr, PointerVector) else PointerVector(addr)
         logger.info(f"Calling subroutine at {addr}")
         try:
-            return await self._call(self.find_addr, *extra_arg, **extra_kwargs)
+            async with self._interpret_lock if interrupt else NULL_CTX:
+                return await self._call(self.find_addr, *extra_arg, **extra_kwargs)
         finally:
             ptr = self._ret_addr_stack.pop()
             if not self._jump_marked:
                 self._pointer = ptr
 
     async def run(self):
+        """Execute the entire workflow to completion.
+
+        This method runs the workflow until all nodes have been processed or
+        an interrupt occurs.
+        """
         async for _ in self.run_step_by():
             pass
 
     async def run_step_by(self) -> AsyncGenerator[Any, None]:
+        """Execute the workflow step by step, yielding results from each node.
+
+        This generator method executes one node at a time and yields its result,
+        allowing for external monitoring and interruption between steps.
+
+        Yields:
+            The result of each executed node in sequence.
+
+        Raises:
+            RuntimeError: If runtime dependencies cannot be resolved.
+            InterruptNotice: When an external interrupt is requested.
+        """
         try:
             session_args = list(self._ava_args)
             session_kwargs: dict[str, Any] = self._ava_kwargs
@@ -168,18 +329,19 @@ class WorkflowInterpreter(Generic[io_T]):
                     raise RuntimeError("Runtime arguments cannot be resolved")
             self._ava_args = tuple(session_args)
             while True:
-                if not self._pointer:
-                    if not self._graph:
-                        break
-                    self._pointer.append(0)
                 await self.object_io._wait_for_continue(PC_CHECKPOINT)
-                yield await self._call()
-                if self._jump_marked:
-                    self._jump_marked = False
-                    continue
+                async with self._interpret_lock:
+                    if not self._pointer:
+                        if not self._graph:
+                            break
+                        self._pointer.append(0)
+                    yield await self._call()
+                    if self._jump_marked:
+                        self._jump_marked = False
+                        continue
 
-                if not self._advance_pointer():
-                    break
+                    if not self._advance_pointer():
+                        break
         except InterruptNotice as e:
             logger.info(f"Interrupt notice at {self._pointer} :{e.message}")
             logger.debug("Cleaning up pointer stack...")
@@ -188,6 +350,15 @@ class WorkflowInterpreter(Generic[io_T]):
             self._jump_marked = False
 
     def _advance_pointer(self) -> bool:
+        """Advance the execution pointer to the next node in the workflow.
+
+        This internal method implements the complex logic for navigating through
+        nested workflow structures, handling both sequential execution and
+        hierarchical traversal.
+
+        Returns:
+            True if the pointer was successfully advanced, False if at the end of workflow.
+        """
         if not self._pointer:
             logger.debug("Pointer is empty, cannot advance")
             return False
@@ -272,6 +443,14 @@ class WorkflowInterpreter(Generic[io_T]):
     def _find_addr_or_none(
         self, addr: list[int]
     ) -> BaseNode | NodeComposeRendered | None:
+        """Find a node at the specified address, returning None if not found.
+
+        Args:
+            addr: Address vector to look up.
+
+        Returns:
+            The node at the specified address, or None if it doesn't exist.
+        """
         graph: NodeComposeRendered = self._graph
         current_chunk: NodeComposeRendered | BaseNode = graph
 
@@ -289,6 +468,17 @@ class WorkflowInterpreter(Generic[io_T]):
         return current_chunk
 
     def find_addr(self, addr: list[int]) -> BaseNode | NodeComposeRendered:
+        """Find a node at the specified address.
+
+        Args:
+            addr: Address vector to look up.
+
+        Returns:
+            The node at the specified address.
+
+        Raises:
+            NullPointerException: If the address does not exist in the graph.
+        """
         if (node := self._find_addr_or_none(addr)) is not None:
             return node
         else:
@@ -301,6 +491,24 @@ class WorkflowInterpreter(Generic[io_T]):
         *extra_args: Any,
         **extra_kwargs: Any,
     ) -> Any:
+        """Execute a single node at the current pointer position.
+
+        This internal method handles the complete execution cycle for a node,
+        including dependency resolution, pre-checks, and actual function execution.
+
+        Args:
+            addr_getter: Optional function to retrieve the node at a specific address.
+            *extra_args: Additional positional arguments for the node execution.
+            **extra_kwargs: Additional keyword arguments for the node execution.
+
+        Returns:
+            The result of executing the node.
+
+        Raises:
+            DependsResolveFailed: If node dependencies cannot be resolved.
+            DependsInjectFailed: If dependency injection fails at runtime.
+            RuntimeError: If attempting to call a NodeCompose directly.
+        """
 
         addr_getter = addr_getter or self.find_addr
         node: BaseNode | NodeComposeRendered = addr_getter(self._pointer.base_addr)
@@ -351,6 +559,3 @@ class WorkflowInterpreter(Generic[io_T]):
             return await asyncio.to_thread(fun, *args, **kw_rsved)
         else:
             return fun(*args, **kw_rsved)
-
-
-WorkflowPC: TypeAlias = WorkflowInterpreter

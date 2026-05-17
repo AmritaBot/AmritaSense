@@ -1,0 +1,74 @@
+# 类型系统
+
+AmritaSense 的类型系统提供了工作流执行所需的核心数据结构。
+
+## Stack
+
+```python
+class Stack(Generic[T]):
+    """A thread-safe, bounded stack implementation used for managing execution
+    state in the workflow engine.
+
+    This stack is used for both the execution pointer stack and the return
+    address stack, providing LIFO operations with overflow protection.
+    """
+```
+
+**核心特性**:
+
+- **线程安全**: 使用内部锁确保并发安全
+- **溢出保护**: 默认最大容量为 1024 个元素
+- **类型安全**: 泛型实现，支持任意类型
+
+**主要方法**:
+
+- `push(item: T) -> None`: 压入元素
+- `pop() -> T`: 弹出元素（栈为空时抛出异常）
+- `peek() -> T`: 查看栈顶元素（不弹出）
+- `clear() -> None`: 清空栈
+- `is_empty() -> bool`: 检查栈是否为空
+
+**使用场景**:
+
+- 执行指针栈（`_pointer`）
+- 返回地址栈（`_ret_addr_stack`）
+
+## PointerVector
+
+```python
+class PointerVector:
+    """This class represents a multi-dimensional address vector used to navigate
+    through nested workflow structures.
+
+    Each dimension in the vector represents a level in the nested hierarchy,
+    allowing precise addressing of nodes within complex workflow graphs.
+    """
+```
+
+**核心特性**:
+
+- **多维地址**: 支持嵌套工作流的精确寻址
+- **不可变性**: 地址向量一旦创建就不能修改
+- **数学运算**: 支持地址向量的加减运算
+
+**主要属性**:
+
+- `vector`: 底层的整数列表，表示多维地址
+
+**主要方法**:
+
+- `__add__(other: PointerVector) -> PointerVector`: 地址向量加法
+- `__sub__(other: PointerVector) -> PointerVector`: 地址向量减法
+- `__eq__(other) -> bool`: 相等性比较
+- `copy() -> PointerVector`: 创建副本
+
+**地址示例**:
+
+- `[0]`: 第0层的第0个元素
+- `[0, 2, 1]`: 第0层第0个，第1层第2个，第2层第1个元素
+
+**寻址模式**:
+
+- **绝对寻址**: 使用完整的地址向量
+- **相对寻址**: 在同一层级内进行偏移
+- **近寻址**: 修改当前层级索引，保持其他层级不变

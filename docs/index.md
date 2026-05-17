@@ -2,28 +2,42 @@
 layout: home
 hero:
   name: "AmritaSense"
-  text: "Next-Gen Graph workflow engine"
-  tagline: "Modern, Lightweight, Easy to Use, Powerful"
+  text: "General-Purpose Workflow Orchestration Engine"
+  tagline: "Redefine workflows with instructions · Let orchestration return to thinking"
   image:
     src: /Amrita.png
-    alt: Project Logo
-
+    alt: AmritaSense Logo
   actions:
     - theme: brand
-      text: Start
+      text: Get Started
       link: /guide/introduction
     - theme: alt
       text: GitHub
       link: https://github.com/AmritaBot/AmritaSense
 
 features:
-  - icon: ⚡
-    title: ...
-    details: ...
+  - icon: ⚡️
+    title: Powerful Control
+    details: Say goodbye to rigid graph models. AmritaSense lets you describe complex flows in a natural, programming-like way—branching, looping, and jumping are all effortlessly expressible.
   - icon: 🔌
-    title: ...
-    details:...
+    title: Modular & Extensible
+    details: Instructions and nodes are decoupled, with support for custom extensions. Seamlessly integrates with the AmritaCore ecosystem to connect with LLMs and tools.
   - icon: 🪶
-    title: Lightweight
-    details: ...
+    title: Ultra Lightweight & Performant
+    details: A minimalist core delivers extremely low runtime overhead. Runs anywhere from Raspberry Pi to the cloud—one dependency is all you need to get started.
+  - icon: 🎯
+    title: Transparent & Debuggable
+    details: Built-in suspend/resume and step-by-step execution mechanisms make every step of the workflow visible, turning debugging and monitoring from a chore into a breeze.
 ---
+
+# Welcome to AmritaSense
+
+AmritaSense is a **general-purpose workflow orchestration engine**. It treats workflows as programmable execution streams, replacing "graphs" with "instructions" so you can describe task logic in the most direct way possible.
+
+> **Any is thing all you need.**
+
+Here, any asynchronous task can be broken down into a combination of nodes and instructions. Whether you're building AI Agents, automation pipelines, or orchestrating complex business logic, AmritaSense provides powerful and flexible support.
+
+## Ready to Begin?
+
+Start your orchestration journey with the [Introduction](/guide/introduction), or dive right into the [Getting Started](/guide/getting-started) guide for hands-on experience.

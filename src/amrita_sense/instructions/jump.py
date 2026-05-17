@@ -1,3 +1,4 @@
+import difflib
 import inspect
 from collections.abc import Callable
 from types import FrameType
@@ -6,7 +7,7 @@ from typing import Any
 from typing_extensions import override
 
 from amrita_sense.node.core import BaseNode
-from amrita_sense.runtime.workflow import WorkflowPC
+from amrita_sense.runtime.workflow import WorkflowInterpreter
 
 
 class JumpNode(BaseNode):
@@ -34,17 +35,28 @@ class JumpNode(BaseNode):
         self._node_addr = []
         super()._init(self._jump, None, False, True)
 
-    def _jump(self, pc: WorkflowPC):
+    def _jump(self, pc: WorkflowInterpreter):
         return pc.jump_to(self._node_addr)
 
-    def __call__(self, pc: WorkflowPC):
+    def __call__(self, pc: WorkflowInterpreter):
         return self._jump(pc)
 
     @override
-    def _pre_check(self, pointer: WorkflowPC) -> None:
+    def _pre_check(self, pointer: WorkflowInterpreter) -> None:
         if self._node_addr:
             return
         if isinstance(self._alias_or_idata, str):
+            if self._alias_or_idata not in pointer.get_graph().alias2vector_map:
+                str_keys = list(pointer.get_graph().alias2vector_map.keys())
+                matches = difflib.get_close_matches(
+                    self._alias_or_idata, str_keys, n=1, cutoff=0.6
+                )
+                if matches:
+                    suggestion = matches[0]
+                    hint = f"{self._alias_or_idata} not found in namespace, did you mean {suggestion}"
+                else:
+                    hint = f"{self._alias_or_idata} not found in namespace, please check your alias!"
+                raise RuntimeError(hint)
             self._node_addr = pointer.find_addr_alias(self._alias_or_idata)
         else:
             pointer.find_addr(self._alias_or_idata)

@@ -5,14 +5,26 @@ from .exceptions import (
     InterruptNotice,
     NullPointerException,
 )
-from .instructions import ALIAS, DO, IF, INTERRUPT, NOP, WHILE, Try
+from .instructions import (
+    ALIAS,
+    ARCHIVED_NODES,
+    CALL,
+    DO,
+    IF,
+    INTERRUPT,
+    NOP,
+    WHILE,
+    Try,
+)
 from .node import Node, NodeCompose, NodeComposeRendered, NodeType
 from .runtime.deps import POINTER_DEPENDS
-from .runtime.workflow import WorkflowInterpreter, WorkflowPC
+from .runtime.workflow import WorkflowInterpreter
 from .types import PointerVector, Stack
 
 __all__ = [
     "ALIAS",
+    "ARCHIVED_NODES",
+    "CALL",
     "DO",
     "IF",
     "INTERRUPT",
@@ -32,5 +44,4 @@ __all__ = [
     "Stack",
     "Try",
     "WorkflowInterpreter",
-    "WorkflowPC",
 ]
