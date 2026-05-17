@@ -32,5 +32,5 @@
 - [x] Main project
 - [x] [Documentation](https://sense.amritabot.com)
 - [ ] Workflow Debugger (Planned, in progress)
-- [ ] Tests (In progress)
+- [x] Tests (In progress)
 - [ ] DEMOS (In progress)

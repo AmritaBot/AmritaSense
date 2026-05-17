@@ -1,8 +1,11 @@
+from typing import cast
+
 import pytest
 
 from amrita_sense.instructions.jump import JumpNode
 from amrita_sense.instructions.loop.do_while import DO
 from amrita_sense.instructions.loop.while_clause import WHILE
+from amrita_sense.node.core import Node as NodeType
 from amrita_sense.node.wrapper import Node as NodeDecorator
 
 
@@ -31,7 +34,7 @@ def test_while_action_jumpnode_raises():
 
     # Use a JumpNode as action to trigger RuntimeError during extract()
     action = JumpNode([0])
-    w.ACTION(action)
+    w.ACTION(cast(NodeType, action))
     with pytest.raises(RuntimeError):
         w.extract()
 

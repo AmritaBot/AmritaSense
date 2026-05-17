@@ -98,16 +98,16 @@ class CheckUpNode(BaseNode):
 
 class WhileClause(SelfCompileInstruction):  # WHILE >> CONDI >> DO >> CHECKUP >> NOP
     condition: Node[bool]
-    _action: Node
+    _action: BaseNode
 
     def __init__(self, condition: Node[bool]) -> None:
         self.condition = condition
 
-    def _action_set(self, action: Node):
+    def _action_set(self, action: BaseNode):
         self._action = action
 
     @property
-    def ACTION(self) -> Callable[[Node], Self]:
+    def ACTION(self) -> Callable[[BaseNode], Self]:
         if hasattr(self, "_action"):
             raise RuntimeError("Please DO NOT follow a ACTION after a ACTION")
         return lambda node: (self, self._action_set(node))[0]
