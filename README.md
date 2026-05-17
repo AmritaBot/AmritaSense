@@ -27,10 +27,51 @@
 
 </center>
 
-## TODO
+AmritaSense is a **general-purpose workflow orchestration engine** that replaces traditional graph-based models with an **instruction set architecture**—treating workflows not as nodes-and-edges diagrams, but as programmable execution streams driven by a lightweight virtual machine.
 
-- [x] Main project
-- [x] [Documentation](https://sense.amritabot.com)
-- [ ] Workflow Debugger (Planned, in progress)
-- [x] Tests (In progress)
-- [ ] DEMOS (In progress)
+## Why AmritaSense?
+
+Most workflow engines force you into a graph mindset: define nodes, connect edges, manage state objects. AmritaSense takes a different path. You compose nodes and control flow just like writing ordinary code—the engine compiles them into a linear instruction sequence, then executes them step by step. The result: **zero scheduling overhead, native interrupt support, and the expressive power of assembly-level control flow.**
+
+## Core Features
+
+- **Complete Instruction Set**—`IF/ELIF/ELSE`, `WHILE/DO-WHILE`, `GOTO`/`CALL`, `TRY/CATCH/THEN/FIN`, `NOP`, `INTERRUPT`. All control flow is first-class, not simulated through graph routing.
+- **VM-Style Execution**—A program counter (`PointerVector`) and call stack drive execution. Jumps are integer operations, not graph traversals.
+- **Async-Native Suspend/Resume**—Two `Future` callbacks enable full workflow interruption at any node boundary. Built for debuggers and human-in-the-loop systems.
+- **Declarative Dependency Injection**—Nodes declare dependencies via function signatures. The engine resolves them at runtime with type matching and concurrent resolution.
+- **Ultra Lightweight**—Core interpreter is ~300 lines. Compiles 100,000 nodes in ~200ms. Runs anywhere from Raspberry Pi to cloud.
+- **Self-Compile Instructions**—Extend the instruction set with `SelfCompileInstruction`. Compile-time expansion, zero runtime overhead.
+
+## Installation
+
+```bash
+pip install amrita-sense
+```
+
+## Quick Look
+
+```python
+from amrita_sense import Node, WorkflowInterpreter as WorkflowPC, IF, NOP
+
+@Node()
+def condition() -> bool: return True
+
+@Node()
+def action(): print("Done")
+
+flow = IF(condition, action) >> NOP
+pc = WorkflowPC(flow.render())
+pc.run_sync()
+```
+
+## Documentation
+
+Full guides, concept explanations, and API reference at **[sense.amritabot.com](https://sense.amritabot.com)**.
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) and our [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## License
+
+LGPL V2. See [LICENSE](LICENSE).
