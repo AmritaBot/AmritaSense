@@ -155,13 +155,6 @@ bash scripts/check.sh
 - Keep documentation synchronized with code
 - Both English and Chinese documentation should be updated simultaneously
 
-## Project Structure
-
-```text
-...
-In progress...
-```
-
 ## Code Contribution Examples
 
 ### Adding New Features
