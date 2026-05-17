@@ -8,13 +8,7 @@ export default withMermaid({
     hostname: "https://sense.amritabot.com",
   },
   head: [
-    [
-      "link",
-      {
-        rel: "icon",
-        href: "/Amrita.png",
-      },
-    ],
+    ["link", { rel: "icon", href: "/Amrita.png" }],
     [
       "meta",
       {
@@ -139,12 +133,30 @@ export default withMermaid({
               },
               {
                 text: "Built-in Instruction Set",
-                link: "/guide/advanced/built-in_instruction_set",
+                items: [
+                  {
+                    text: "Conditional Branch (IF/ELIF/ELSE)",
+                    link: "/guide/advanced/built-in_instruction_set/if_clause",
+                  },
+                  {
+                    text: "Loop Control (WHILE/DO-WHILE)",
+                    link: "/guide/advanced/built-in_instruction_set/while_clause",
+                  },
+                  {
+                    text: "Jump Instructions (GOTO/CALL)",
+                    link: "/guide/advanced/built-in_instruction_set/jump_clause",
+                  },
+                  {
+                    text: "Sentinel Instructions (NOP/INTERRUPT)",
+                    link: "/guide/advanced/built-in_instruction_set/sentinel_clause",
+                  },
+                  {
+                    text: "Exception Handling (TRY/CATCH/THEN/FIN)",
+                    link: "/guide/advanced/built-in_instruction_set/try_clause",
+                  },
+                ],
               },
-              {
-                text: "Custom Nodes",
-                link: "/guide/advanced/custom_node",
-              },
+              { text: "Custom Nodes", link: "/guide/advanced/custom_node" },
               {
                 text: "Custom Instructions",
                 link: "/guide/advanced/custom_instruction",
@@ -158,39 +170,24 @@ export default withMermaid({
           {
             text: "API Reference",
             items: [
-              {
-                text: "Core Node Classes",
-                link: "/reference/api/core-nodes",
-              },
-              {
-                text: "Runtime System",
-                link: "/reference/api/runtime",
-              },
-              {
-                text: "Type System",
-                link: "/reference/api/types",
-              },
-              {
-                text: "Exception System",
-                link: "/reference/api/exceptions",
-              },
+              { text: "Core Node Classes", link: "/reference/api/core-nodes" },
+              { text: "Runtime System", link: "/reference/api/runtime" },
+              { text: "Type System", link: "/reference/api/types" },
+              { text: "Exception System", link: "/reference/api/exceptions" },
               {
                 text: "Self-Compile Instructions",
                 link: "/reference/api/self-compile",
               },
             ],
           },
-          { text: "Appendix", link: "#" },
+          { text: "Appendix", link: "/guide/appendix" },
         ],
         footer: {
           message: `LGPL V2 License`,
           copyright: `© Amrita 2025-${new Date().getFullYear()}`,
         },
         socialLinks: [
-          {
-            icon: "github",
-            link: "https://github.com/AmritaBot/AmritaSense",
-          },
+          { icon: "github", link: "https://github.com/AmritaBot/AmritaSense" },
           { icon: "discord", link: "https://discord.gg/byAD3sbjjj" },
         ],
       },
@@ -201,15 +198,7 @@ export default withMermaid({
       title: "AmritaSense - 通用工作流编排引擎",
       description:
         "一个轻量、高性能的Python通用工作流引擎。专注显式控制流，提供汇编级指令实现精确的异步任务编排。",
-      head: [
-        [
-          "link",
-          {
-            rel: "icon",
-            href: "/Amrita.png",
-          },
-        ],
-      ],
+      head: [["link", { rel: "icon", href: "/Amrita.png" }]],
       themeConfig: {
         siteTitle: "Amrita Sense 文档",
         nav: [
@@ -223,10 +212,7 @@ export default withMermaid({
             collapsed: false,
             items: [
               { text: "概述", link: "/zh/guide/introduction/" },
-              {
-                text: "主要特性",
-                link: "/zh/guide/introduction/key-features",
-              },
+              { text: "主要特性", link: "/zh/guide/introduction/key-features" },
             ],
           },
           {
@@ -256,10 +242,7 @@ export default withMermaid({
                 text: "寻址与数据结构",
                 link: "/zh/guide/concepts/addressing_and_data",
               },
-              {
-                text: "流程控制",
-                link: "/zh/guide/concepts/flow_control",
-              },
+              { text: "流程控制", link: "/zh/guide/concepts/flow_control" },
               {
                 text: "执行与中断",
                 link: "/zh/guide/concepts/exec_and_interrupt",
@@ -278,10 +261,7 @@ export default withMermaid({
                 text: "定位与空间",
                 link: "/zh/guide/advanced/locating_and_space",
               },
-              {
-                text: "子节点调用",
-                link: "/zh/guide/advanced/child_node",
-              },
+              { text: "子节点调用", link: "/zh/guide/advanced/child_node" },
               {
                 text: "外部中断",
                 link: "/zh/guide/advanced/external_interrupt",
@@ -311,10 +291,7 @@ export default withMermaid({
                   },
                 ],
               },
-              {
-                text: "自定义节点",
-                link: "/zh/guide/advanced/custom_node",
-              },
+              { text: "自定义节点", link: "/zh/guide/advanced/custom_node" },
               {
                 text: "自定义指令集",
                 link: "/zh/guide/advanced/custom_instruction",
@@ -328,26 +305,11 @@ export default withMermaid({
           {
             text: "API参考",
             items: [
-              {
-                text: "核心节点类",
-                link: "/zh/reference/api/core-nodes",
-              },
-              {
-                text: "运行时系统",
-                link: "/zh/reference/api/runtime",
-              },
-              {
-                text: "类型系统",
-                link: "/zh/reference/api/types",
-              },
-              {
-                text: "异常系统",
-                link: "/zh/reference/api/exceptions",
-              },
-              {
-                text: "自编译指令",
-                link: "/zh/reference/api/self-compile",
-              },
+              { text: "核心节点类", link: "/zh/reference/api/core-nodes" },
+              { text: "运行时系统", link: "/zh/reference/api/runtime" },
+              { text: "类型系统", link: "/zh/reference/api/types" },
+              { text: "异常系统", link: "/zh/reference/api/exceptions" },
+              { text: "自编译指令", link: "/zh/reference/api/self-compile" },
             ],
           },
           { text: "附录", link: "/zh/guide/appendix" },
@@ -357,10 +319,7 @@ export default withMermaid({
           copyright: `© Amrita 2025-${new Date().getFullYear()}`,
         },
         socialLinks: [
-          {
-            icon: "github",
-            link: "https://github.com/AmritaBot/AmritaSense",
-          },
+          { icon: "github", link: "https://github.com/AmritaBot/AmritaSense" },
           { icon: "discord", link: "https://discord.gg/byAD3sbjjj" },
         ],
       },

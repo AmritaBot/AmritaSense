@@ -29,6 +29,7 @@ Python 的 `except Exception` 不会捕获 `BaseException` 的子类。因此，
 **解释器响应**
 
 当解释器主循环捕获到 `InterruptNotice` 时：
+
 1. 记录当前指针位置和通知消息
 2. 清空 `_ret_addr_stack`（调用栈）
 3. 重置 `_pointer`（指针向量）
@@ -74,6 +75,7 @@ class BreakLoop(Exception):
 **自动穿透机制**
 
 `BreakLoop` 在 `WorkflowInterpreter` 初始化时被自动加入 `_exc_ignored` 元组。这意味着：
+
 - 循环体内部的任何 `TRY/CATCH` 块**不能**捕获 `BreakLoop`
 - 它会穿透中间所有异常处理层，直达最内层的 `WhileNode` 或 `DONode`
 - 循环节点捕获到 `BreakLoop` 后执行 `jump_near(NOP)`，干净退出
@@ -158,6 +160,7 @@ Exception
 ```
 
 **设计原则**：
+
 - `InterruptNotice` 继承 `BaseException`，实现天然的不可捕获性
 - `BreakLoop` 继承 `Exception`，但通过自动加入 `_exc_ignored` 获得等效的穿透能力
 - 依赖相关异常继承同一个基类 `DependsException`，允许用户按需捕获整个依赖类别的错误
