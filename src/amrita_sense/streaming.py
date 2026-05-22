@@ -34,7 +34,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
     _callback_fun: CALLBACK_TYPE | None = None
     _callback_lock: aiologic.Lock
     _callback_fun_sending: CALLBACK_TYPE | None = None
-    _callbacK_sending_lock: aiologic.Lock
+    _callback_sending_lock: aiologic.Lock
 
     # Stream-related attributes
     _send_stream: ObjectSendStream
@@ -59,7 +59,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         self._callback_fun = callback
         self._callback_lock = aiologic.Lock()
         self._callback_fun_sending = receive_callback
-        self._callbacK_sending_lock = aiologic.Lock()
+        self._callback_sending_lock = aiologic.Lock()
         self._q_tout = queue_timeout
 
     @staticmethod
