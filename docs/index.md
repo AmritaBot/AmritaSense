@@ -1,3 +1,4 @@
+---
 layout: home
 hero:
 name: "AmritaSense"
@@ -26,3 +27,4 @@ features:
 - icon: 🎯
   title: Transparent & Debuggable
   details: Built-in suspend/resume and step-by-step execution mechanisms make every step of the workflow visible, turning debugging and monitoring from a chore into a breeze.
+---
