@@ -26,15 +26,3 @@ features:
 - icon: 🎯
   title: Transparent & Debuggable
   details: Built-in suspend/resume and step-by-step execution mechanisms make every step of the workflow visible, turning debugging and monitoring from a chore into a breeze.
-
-# Welcome to AmritaSense
-
-AmritaSense is a **general-purpose workflow orchestration engine**. It treats workflows as programmable execution streams, replacing "graphs" with "instructions" so you can describe task logic in the most direct way possible.
-
-> **Any is thing all you need.**
-
-Here, any asynchronous task can be broken down into a combination of nodes and instructions. Whether you're building AI Agents, automation pipelines, or orchestrating complex business logic, AmritaSense provides powerful and flexible support.
-
-## Ready to Begin?
-
-Start your orchestration journey with the [Introduction](/guide/introduction), or dive right into the [Getting Started](/guide/getting-started) guide for hands-on experience.

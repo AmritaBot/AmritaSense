@@ -191,7 +191,7 @@ export default withMermaid({
           { text: "Appendix", link: "/guide/appendix" },
         ],
         footer: {
-          message: `LGPL V2 License`,
+          message: `Apache 2.0 License`,
           copyright: `© Amrita 2025-${new Date().getFullYear()}`,
         },
         socialLinks: [
@@ -331,7 +331,7 @@ export default withMermaid({
           { text: "附录", link: "/zh/guide/appendix" },
         ],
         footer: {
-          message: `LGPL V2 许可证约束`,
+          message: `Apache 2.0 许可证约束`,
           copyright: `© Amrita 2025-${new Date().getFullYear()}`,
         },
         socialLinks: [

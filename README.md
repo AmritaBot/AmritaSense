@@ -74,4 +74,6 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) and our [Code 
 
 ## License
 
-LGPL V2. See [LICENSE](LICENSE).
+Apache V2. See [LICENSE](LICENSE).
+
+(Version <0.2.0 is LGPL V2, when 0.2.0 released, the license will be changed to Apache V2)

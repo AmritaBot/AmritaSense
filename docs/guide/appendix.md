@@ -1,157 +1,160 @@
 # Appendix and Resources
 
-## 9.1 Glossary
+## 9.1 Glossary and Terminology
 
 ### 9.1.1 Workflow
 
-In AmritaSense, a workflow is an asynchronously executed sequence of nodes arranged in a specific order. It is not a static graph structure; it is an instruction sequence that the interpreter can step through, with support for interrupts and jumps.
+In AmritaSense, a workflow is an asynchronous execution stream composed of nodes arranged in a specific order. It is not a static graph structure but an instruction sequence that can be executed step by step by the interpreter, supporting interruption and jumps.
 
 ### 9.1.2 Node
 
-The smallest execution unit in a workflow. Any Python function or coroutine decorated with `@Node()` is a node. Nodes are atomic — they either execute completely or not at all. Conditionals, loop bodies, and exception handlers are all nodes.
+The smallest execution unit of a workflow. Any Python function or coroutine decorated with `@Node()` is a node. Nodes are atomic—they either execute completely or not at all. Conditions, loop bodies, exception handlers—everything is a node.
 
 ### 9.1.3 PointerVector
 
-AmritaSense's core addressing data structure. It is a variable-length integer array where each dimension corresponds to a nested level, and the value at that dimension represents the offset index within that level. In the interpreter loop, `PointerVector` acts as the program counter (PC), always pointing to the node currently being executed.
+AmritaSense's core addressing data structure. It is a variable-length integer array where each dimension corresponds to a nesting level, and the value at that dimension represents the offset index within that level. In the interpreter's main loop, `PointerVector` plays the role of the program counter (PC), always pointing to the node currently being executed.
 
 ### 9.1.4 Bubble
 
-A group of nodes wrapped in parentheses `()` forms an isolated address space after compilation. Each bubble has its own `near` address space, and jumps inside it do not affect outer scopes. Bubbles are the underlying mechanism AmritaSense uses to implement scope isolation and data encapsulation.
+An independent address space formed after compilation by nodes wrapped in parentheses `()`. Each Bubble has its own `near` address space, and jump operations inside it do not affect the outer layers. Bubble is the underlying mechanism by which AmritaSense achieves scope isolation and data encapsulation.
 
 ### 9.1.5 Instruction Set
 
-AmritaSense provides a complete set of control flow primitives, including `IF/ELIF/ELSE` (conditional branching), `WHILE/DO-WHILE` (loops), `GOTO` (unconditional jumps), `CALL` (subroutine calls), `TRY/CATCH/THEN/FIN` (exception handling), `NOP` (sentinel), and `INTERRUPT` (forced stop). All instructions are expanded into underlying node compositions at compile time and executed via pointer jumps at runtime.
+A complete set of control flow primitives provided by AmritaSense, including `IF/ELIF/ELSE` (conditional branching), `WHILE/DO-WHILE` (loops), `GOTO` (unconditional jump), `CALL` (subroutine call), `TRY/CATCH/THEN/FIN` (exception handling), `NOP` (sentinel), and `INTERRUPT` (forced termination). All instructions are expanded into low-level node compositions at compile time and completed through pointer jumps at runtime.
 
 ### 9.1.6 Self-Compile Instruction
 
-Instruction classes that implement the `SelfCompileInstruction` interface. During the `render()` stage, they automatically expand into standard `NodeCompose` structures via the `extract()` method. Both built-in and user-defined instructions use this mechanism to achieve compile-time optimization and zero runtime overhead.
+An instruction class that implements the `SelfCompileInstruction` interface. During the `render()` phase, they are automatically expanded into standard `NodeCompose` structures through the `extract()` method. Both built-in instructions and developer-defined custom instructions are based on this mechanism, achieving compile-time optimization and zero runtime overhead.
 
 ### 9.1.7 Interrupt
 
-A cooperative interrupt mechanism provided by AmritaSense. Workflows suspend at designated breakpoints and hand control back to the external system. During this window, the external system can inspect state, modify variables, and then resume execution with `resume()`. This is the foundation for building debuggers and external monitoring systems.
+A cooperative suspension mechanism provided by AmritaSense. The workflow actively suspends at specified markers, yielding control back to the external system. The external system can inspect state and modify variables during this window, then resume execution via `resume()`. This is the foundational capability for building debuggers and external monitoring systems.
 
-### 9.1.8 Depends
+### 9.1.8 Depends (Dependency Injection)
 
-A dependency injection pattern inspired by FastAPI. Nodes declare required resources through `Depends(factory)` in their function signatures. AmritaSense's dependency resolution system supports concurrent resolution, runtime injection, and type matching. If a factory function returns `None`, the workflow terminates immediately.
+A dependency injection pattern inspired by FastAPI. Nodes declare the resources they need by declaring `Depends(factory)` in their function signatures. AmritaSense's dependency resolution system supports concurrent resolution, runtime injection, and type matching. If a factory function returns `None`, the workflow will terminate immediately.
 
 ### 9.1.9 Alias
 
-A globally unique symbolic name bound to a node via the `ALIAS` instruction. It is registered in `alias2vector_map` at compile time and resolved at runtime by `GOTO` and `CALL`. This is the basis of AmritaSense's symbolic addressing system.
+A globally unique symbol name bound to a node via the `ALIAS` instruction. Registered into `alias2vector_map` at compile time for `GOTO` and `CALL` to look up and resolve at runtime. This is the foundation of AmritaSense's symbolic addressing system.
 
 ### 9.1.10 Subprogram
 
-A sequence of nodes defined by the `ARCHIVED_NODES` instruction, skipped by `SubprogramJumpNode`, and only accessed via `CALL` or external injection. Subprograms can contain interrupt handling logic, debugging utilities, or reusable modules without affecting normal execution flow.
+A sequence of nodes defined by the `ARCHIVED_NODES` instruction, skipped by `SubprogramJumpNode`, and accessible only through `CALL` or external injection. Subprograms can store interrupt handling logic, debugging tools, or reusable functional modules without affecting the normal execution flow.
 
-### 9.1.11 Other Core Terms
+### 9.1.11 Other Core Terminology
 
-- **Interpret Lock**: an `aiologic.Lock` instance that ensures only one node executes at a time; it is the mutex foundation for safe external calls.
-- **Jump Mark**: the `_jump_marked` flag. When `True`, the interpreter skips the regular pointer advancement step and starts the next round from the jump target.
-- **Exception Penetration**: exceptions marked by `exception_ignored` are not caught by any `CATCH` block and propagate to the top-level handler.
-- **Call Stack**: a `Stack[PointerVector]` that manages return addresses for subroutine calls.
+- **Interpret Lock**: An `aiologic.Lock` instance that guarantees only one node is executing at a time, forming the mutual exclusion basis for safe external invocation.
+- **Jump Mark**: The `_jump_marked` flag. When `True`, the interpreter skips the regular pointer advancement step and the next cycle starts from the jump target.
+- **Exception Penetration**: Exceptions marked via `exception_ignored` cannot be caught by any `CATCH` block and propagate directly to the top-level handler.
+- **Call Stack**: `Stack[PointerVector]`, managing return addresses for subroutine calls.
 
-### 9.1.12 Acronyms
+### 9.1.12 Abbreviations
 
 - **API**: Application Programming Interface
 - **DI**: Dependency Injection
 - **PC**: Program Counter
 - **JSON**: JavaScript Object Notation
 - **HTTP**: Hypertext Transfer Protocol
-- **LGPL**: GNU Lesser General Public License
 - **ISA**: Instruction Set Architecture
 
-### 9.1.13 Logging
+### 9.1.13 Primitive
 
-AmritaSense uses a shared `logger` object in `amrita_sense.logging`, built on top of `loguru`. The logger is configured with a default format and respects the `LOG_LEVEL` environment variable. It is used across the interpreter, node rendering, and runtime helpers to provide runtime diagnostics and troubleshooting information.
+**Primitive** is a core concept in computer architecture, referring to the **smallest indivisible operation unit** defined within a processor's Instruction Set Architecture (ISA). In an ISA, primitives dictate the most fundamental capabilities a processor can execute—such as addition, data loading, conditional branching—and all complex programs are ultimately composed of these primitives. Primitives define "what the hardware can do"; software achieves arbitrarily complex logic through the combination of primitives.
 
-### 9.1.14 WeakValueLRUCache
+In AmritaSense, **workflows are similarly built upon a set of primitives**:
 
-`WeakValueLRUCache` is a weak-reference-based least-recently-used cache implementation in `amrita_sense.weakcache`. It is used by the hook matcher to pool reusable `aiologic.Lock` objects while allowing locks to be reclaimed by garbage collection when no longer in use. This avoids memory leaks in long-lived event systems and keeps lock reuse efficient.
+- **Nodes are execution primitives**: Every function wrapped by `@Node()` is an indivisible atomic execution unit. The interpreter will not interrupt execution inside a node; a node either runs completely or not at all.
+- **Instructions are control flow primitives**: `IF`, `GOTO`, `CALL`, `TRY`, and other instructions are the smallest semantic units of flow control. They define the most basic control flow operations the interpreter can execute—conditional jump, unconditional jump, subroutine call, exception capture.
+- **Instructions define the architectural boundary**: Just as an ISA defines the contract between hardware and software, AmritaSense's instruction set defines the stable boundary between "what the compiler can generate" and "what the interpreter can execute." Self-compile instructions (`SelfCompileInstruction`) expand into low-level primitive nodes at compile time; the runtime only processes these already-expanded primitives.
+
+The core value of primitives lies in the **unity of simplicity and completeness**: each primitive does only one thing, but a set of primitives combined can express arbitrarily complex logic. This is the theoretical root of AmritaSense's design philosophy that "simplicity is truth."
 
 ## 9.2 Project Resources
 
 ### 9.2.1 GitHub Repositories
 
-- **AmritaSense repository**: [https://github.com/AmritaBot/AmritaSense](https://github.com/AmritaBot/AmritaSense)
-- **AmritaCore repository**: [https://github.com/AmritaBot/AmritaCore](https://github.com/AmritaBot/AmritaCore)
-- **Issue reporting**: file bug reports and feature requests in the appropriate repository
-- **Pull requests**: contributions via PRs are welcome
+- **AmritaSense Repository**: [https://github.com/AmritaBot/AmritaSense](https://github.com/AmritaBot/AmritaSense)
+- **AmritaCore Repository**: [https://github.com/AmritaBot/AmritaCore](https://github.com/AmritaBot/AmritaCore)
+- **Issue Reports**: Submit bug reports and feature requests in the corresponding repository
+- **Pull Requests**: Code contributions via PR are welcome
 
 ### 9.2.2 Official Websites
 
-- **AmritaSense documentation**: [https://sense.amritabot.com](https://sense.amritabot.com)
-- **AmritaCore documentation**: [https://core.amritabot.com](https://core.amritabot.com)
-- **Guides and tutorials**: each documentation site provides complete guides and API references
+- **AmritaSense Documentation**: [https://sense.amritabot.com](https://sense.amritabot.com) (this page)
+- **AmritaCore Documentation**: [https://core.amritabot.com](https://core.amritabot.com)
+- **Comprehensive Guides and Tutorials**: Both documentation sites provide complete guides and API references
 
 ### 9.2.3 Contribution Guide
 
-Contributions to AmritaSense are welcome. Follow this workflow:
+Contributions to AmritaSense are welcome. The contribution process is as follows:
 
-1. Fork the repository
-2. Create a branch for your changes
-3. Add tests to ensure existing functionality is not broken
-4. Update documentation to match code changes
-5. Submit a pull request with a clear description
+1. **Fork the repository**: Create a personal copy of the project
+2. **Create a branch**: Make changes in a new branch
+3. **Write tests**: Ensure changes do not break existing functionality
+4. **Update documentation**: Keep documentation in sync with code
+5. **Submit a pull request**: Describe the changes and submit for review
 
-**Code style guidelines**:
+**Code Style Guide**:
 
-- follow PEP 8 Python style conventions
-- document public functions and classes with docstrings
-- use type hints for function parameters and return values
-- keep functions focused and concise
-- core business logic should be hand-authored
+- Follow the PEP 8 Python style guide
+- Write docstrings for all public functions and classes
+- Use type hints for all function parameters and return values
+- Keep functions focused and concise
+- Core business logic must be written by humans (see the AIGC policy in the repository for details)
 
-For more details, see the `CONTRIBUTING.md` file in each repository.
+For more information, refer to the `CONTRIBUTING.md` file in each project repository.
 
 ### 9.2.4 License
 
-- **AmritaSense**: released under LGPL v2
-- **AmritaCore**: released under MIT
+- **AmritaSense**: Released under the **Apache 2.0** license
+- **AmritaCore**: Released under the **MIT** license (will be changed to Apache 2.0 in the future)
 
-See each repository's `LICENSE` file for the full license text.
+For the complete license text, refer to the `LICENSE` file in each repository.
 
 ## 9.3 Community and Support
 
-### 9.3.1 Discussions and Feedback
+### 9.3.1 Discussion and Feedback
 
-- **Discord**: [https://discord.gg/byAD3sbjjj](https://discord.gg/byAD3sbjjj)
-- **QQ group**: 1006893368
-- **GitHub Discussions**: participate in technical conversations on the repository discussion board
+- **Discord Server**: [https://discord.gg/byAD3sbjjj](https://discord.gg/byAD3sbjjj)
+- **QQ Group**: 1006893368
+- **GitHub Discussions**: Participate in technical discussions in the repository's discussion section
 
-### 9.3.2 Issue Reporting
+### 9.3.2 Submitting Issues
 
-When reporting an issue, follow these steps:
+Please follow these steps when reporting issues:
 
 1. Search existing issues to avoid duplicates
 2. Provide a clear, descriptive title
 3. Include complete reproduction steps and code snippets
-4. Specify the runtime environment (OS, Python version, library versions)
+4. Specify the runtime environment (OS, Python version, library version)
 
 ### 9.3.3 Code of Conduct
 
-The Amrita community follows a contributor covenant-style code of conduct:
+The Amrita community follows the Contributor Covenant Code of Conduct:
 
-- **Respect others**: treat everyone with courtesy and consideration
-- **Be constructive**: give feedback that helps improve the project
-- **Be inclusive**: welcome contributors from diverse backgrounds
-- **Focus on quality**: strive to improve the project through thoughtful work
+- **Be respectful**: Treat everyone with respect regardless of background
+- **Be constructive**: Provide constructive feedback and suggestions
+- **Be inclusive**: Welcome people from all backgrounds
+- **Focus on quality**: Strive to improve the quality of the project
 
 ## 9.4 Design Philosophy and Related Resources
 
 ### 9.4.1 Design Philosophy
 
-- **Everything is a node**: conditionals, loop bodies, and exception handlers are all instances of `Node`
-- **Instructions instead of graphs**: workflows are nonlinear execution flows over a linear node array, where jumps rewrite the pointer
-- **Simplicity is truth**: implement complete control flow with minimal code
+- **"Everything is a node"**: Conditions, loop bodies, exception handlers—they are all instances of `Node`
+- **"Instructions replace graphs"**: Workflows are nonlinear execution streams on linear node arrays; jumps are pointer rewrites
+- **"Simplicity is truth"**: Achieving complete control flow with minimal code
 
-### 9.4.2 Related Resources
+### 9.4.2 Related Technical Resources
 
-- **Python official docs**: [https://docs.python.org/3/](https://docs.python.org/3/)
-- **Python asyncio docs**: [https://docs.python.org/3/library/asyncio.html](https://docs.python.org/3/library/asyncio.html)
-- **AmritaCore docs**: [https://core.amritabot.com](https://core.amritabot.com)
-- **VitePress docs**: [https://vitepress.dev/](https://vitepress.dev/)
+- **Python Official Documentation**: [https://docs.python.org/3/](https://docs.python.org/3/)
+- **Python asyncio Documentation**: [https://docs.python.org/3/library/asyncio.html](https://docs.python.org/3/library/asyncio.html)
+- **AmritaCore Documentation**: [https://core.amritabot.com](https://core.amritabot.com) (The upper-layer infrastructure of the Amrita ecosystem)
+- **VitePress Documentation**: [https://vitepress.dev/](https://vitepress.dev/) (The tool used to build this site)
 
 ### 9.4.3 Recommended Reading
 
-- “Why flowcharts need not be graphs” — a core article for understanding AmritaSense design
-- “KISS principle” — Keep It Simple, Stupid, the design philosophy guiding AmritaSense
-- “Unix philosophy” — small, focused, composable tools as the basis of modular design
+- **"Why must a flowchart be a diagram?"** — The core article for understanding AmritaSense's design philosophy
+- **"KISS Principle"**: Keep It Simple, Stupid—the design philosophy followed by AmritaSense
+- **"Unix Philosophy"**: Small, focused, composable—the modular design foundation of AmritaSense
