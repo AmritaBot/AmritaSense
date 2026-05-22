@@ -2,8 +2,6 @@
 
 In complex workflow scenarios, execution alone is not enough. We need the ability to pause the execution flow when necessary, allow external inspection or intervention, and then continue running. AmritaSense builds this capability into the core of the interpreter.
 
----
-
 ## 3.4.1 Interrupt mechanism overview
 
 AmritaSense provides the ability for **external requests to pause the internal execution flow at specified points**. We call this capability **flow interruption**.
@@ -17,8 +15,6 @@ The workflow interpreter provides two types of native suspension points:
 
 These two breakpoint designs have completely different locations and capabilities, and we will unpack them one by one.
 
----
-
 ## 3.4.2 Interaction model for suspension
 
 The suspension model divides the participants into two roles:
@@ -26,15 +22,13 @@ The suspension model divides the participants into two roles:
 - **Waiter (internal execution flow)**: listens for externally supplied suspend instructions and, when reaching a matching marker, suspends, yields control, and waits to be resumed.
 - **Operator (external caller)**: proactively sends suspend requests, waits for the execution flow to pause at a matching marker, then inspects or manipulates state before resuming.
 
-The underlying capability is provided by the `SuspendObjectStream` base class, which is also the shared flow-control foundation for AmritaCore and AmritaSense. The interaction relies on two core mechanisms:
+The underlying capability is provided by the `SuspendObjectStream` base class, which is also the shared flow-control foundation for AmritaCore and AmritaSense. The interpreter uses `object_io._wait_for_continue()` to pause at two kinds of tags: `WorkflowInterpreter::each_node` for the between-node global breakpoint, and each node’s own `NodeSuspend::{node name}`-style tag for pre-execution suspension. The external I/O stream is decoupled from the interpreter loop, so custom `SuspendObjectStream` subclasses can provide additional streaming behaviors without changing the core execution model.
 
 1. **Waiter logic**
    The interpreter continually checks whether an external suspend signal is ready. If the current marker matches the specified tag or global hook, it creates a dedicated waiting future, preserves the current execution context (including pointer vector and call stack), and blocks the execution flow until an external resume signal arrives.
 
 2. **Operator logic**
    The external caller preconfigures suspend signals on a `SuspendObjectStream` instance (specifying one or more target tags) and then enters a waiting state. When the internal flow reaches a matching marker and yields control, the operator is awakened. At that point, the operator can safely inspect workflow state, modify values or pointers, and call `resume()` to unblock the waiting future and wake the execution flow.
-
----
 
 ### Full suspension interaction sequence diagram
 
@@ -54,6 +48,8 @@ sequenceDiagram
     SOS-->>Outer: hand control back to external caller
     deactivate SOS
 
+    note over SOS: The object_io stream remains available for custom external I/O.
+
     Outer->>SOS: call resume() to wake
     activate SOS
     SOS->>Inner: future.set_result() unblocks
@@ -61,7 +57,11 @@ sequenceDiagram
     deactivate SOS
 ```
 
----
+## 3.4.3 Event system and custom hooks
+
+AmritaSense also provides a runtime event/hook system that runs in parallel with workflow execution. Custom events are defined by subclassing `BaseEvent`, handlers are registered with `on_event(event_type)`, and events are dispatched through `MatcherFactory.trigger_event(...)`.
+
+For a full description of the event and hook system, see the standalone advanced guide page: `Advanced > Event System`.
 
 ## 3.4.3 Between-node breakpoint
 
@@ -82,9 +82,7 @@ At this point, the interpreter is in a stable “between nodes” state: the pre
 If you redirect the target at this point, you must **operate directly on the pointer**. Do not use standard jump APIs, or you may corrupt interpreter state.
 :::
 
----
-
-## 3.4.4 Pre-execution breakpoint
+## 3.4.5 Pre-execution breakpoint
 
 **Trigger timing:** after a specific node is loaded by the address resolver, but before its function body executes.
 
@@ -102,9 +100,7 @@ When suspended here, the following are true:
 Therefore, any jump or modification at this breakpoint must strictly use official interpreter APIs such as `jump_to` or `jump_near`, allowing the interpreter to update internal state through its standard process instead of directly manipulating the pointer vector.
 :::
 
----
-
-## 3.4.5 Forced flow interruption
+## 3.4.6 Forced flow interruption
 
 In addition to the cooperative suspension mechanism, AmritaSense provides an emergency termination mechanism: `InterruptNotice`.
 
@@ -122,9 +118,7 @@ There are two ways to use it:
 > **Difference from suspend**
 > Suspend is recoverable — the execution flow pauses and can continue with `resume()`. `InterruptNotice` is an **irreversible termination** — once triggered, the current workflow is completely finished and cannot resume from the termination point. If you need to run again, you must re-render the workflow and create a new interpreter instance.
 
----
-
-## 3.4.6 Summary
+## 3.4.7 Summary
 
 AmritaSense’s interruption system, from lightweight cooperative suspension to global forced termination, forms a complete runtime control matrix. The core value of this system is:
 

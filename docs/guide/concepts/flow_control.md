@@ -2,8 +2,6 @@
 
 After understanding the address space, pointer vectors, and node jumps, we can dive into AmritaSense’s **flow control** capabilities. This is the core competitive advantage of AmritaSense as a general-purpose workflow orchestration engine. It provides a complete, Turing-complete set of control flow primitives, so you can orchestrate arbitrarily complex asynchronous tasks with an intuition close to that of a programming language.
 
----
-
 ## 3.3.1 Conditional branching
 
 AmritaSense is natively Turing-complete, and it includes a first-class conditional branching syntax. Unlike graph-based workflow engines that simulate branching with “routing functions + string maps,” AmritaSense makes conditional branches a built-in primitive.
@@ -26,8 +24,6 @@ It fully reproduces Python-style `elif` chain syntax. The number of `ELIF` entri
 - **The underlying type of each condition is `Node[bool]`**: the condition expression itself is also a node. That means the condition can be a simple function, an asynchronous function, or even a complex node with dependency injection. This design ensures the philosophy of “everything is a node” is consistent throughout.
 - **Seamless sync/async mixing**: whether the condition returns `bool` synchronously or returns an awaitable `bool` asynchronously, the engine normalizes it to a unified execution interface automatically.
 - **Static address calculation at compile time**: all branch jump offsets are computed during `render()`, so runtime execution only involves pointer vector arithmetic. There is no graph traversal or string hashing overhead.
-
----
 
 ## 3.3.2 Loops
 
@@ -69,8 +65,6 @@ def early_exit():
 
 Sense loops do not provide a native `continue` keyword, but they support a zero-cost equivalent: simply `return` early from the current node. The interpreter will naturally advance to the next loop condition check (or to the loop entry point), yielding behavior equivalent to `continue`.
 
----
-
 ## 3.3.3 Exception handling
 
 AmritaSense natively provides a **node-domain TRY/CATCH exception handling system**. This is a capability that traditional workflow engines often lack. In AmritaSense, exception handling is a first-class citizen alongside conditionals and loops.
@@ -106,8 +100,6 @@ pc = WorkflowPC(nd, exception_ignored=(CriticalError,))
 ```
 
 This design lets developers mark exceptions as “non-recoverable” or “globally handled,” ensuring they are not accidentally swallowed by intermediate `CATCH` logic. This is important for complex, multi-layered workflows — local fault tolerance should not intercept critical signals.
-
----
 
 ### Summary
 

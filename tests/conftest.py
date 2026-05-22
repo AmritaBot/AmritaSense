@@ -13,6 +13,3 @@ def pytest_collection_modifyitems(items: list[pytest.Item]):
     session_scope_marker = pytest.mark.asyncio(loop_scope="session")
     for async_test in pytest_asyncio_tests:
         async_test.add_marker(session_scope_marker, append=False)
-    from amrita_core import init
-
-    init()

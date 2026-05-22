@@ -2,8 +2,6 @@
 
 AmritaSense provides two standard loop paradigms: `WHILE` (check before executing) and `DO-WHILE` (execute before checking). Both are `SelfCompileInstruction` and expand at compile time into a fixed structure containing jump nodes. At runtime, the loop semantics are implemented entirely through pointer offsets and `jump_near`, without any external state flags.
 
----
-
 ## Compile-time expansion structure
 
 ### WHILE loop
@@ -41,8 +39,6 @@ AmritaSense provides two standard loop paradigms: `WHILE` (check before executin
 > **Key difference**
 > WHILE checks the condition before the loop body; DO-WHILE executes the loop body before the condition. Both use `NOP` as the unified loop exit.
 
----
-
 ## Runtime execution flow
 
 ### WHILE
@@ -75,8 +71,6 @@ Within `action` or `do_node`, you can `raise BreakLoop` to implement `break` sem
 
 Returning early from `action` or `do_node` ends the current node execution. The interpreter then naturally advances to `CheckUpNode` (for `WHILE`) or `DowhileNode` (for `DO-WHILE`), starting the next iteration. This behavior is equivalent to `continue`.
 
----
-
 ## `GOTO` restrictions inside loops
 
 The compile-time structure of `WHILE` and `DO-WHILE` is fixed. `WhileNode` and `DONode` rely on `call_offset` and `jump_near` relative offsets to perform condition checks and body execution.
@@ -88,8 +82,6 @@ If a `GOTO` inside the loop body jumps outside the loop structure:
 - the interpreter may enter unpredictable states
 
 Therefore, **do not use `GOTO` to jump out of a loop**. Use `BreakLoop` to exit the loop, and use `CALL` for reusable subroutine execution.
-
----
 
 ## Usage example
 
@@ -125,8 +117,6 @@ def fetch():
 retry = DO(fetch).WHILE(has_more)
 ```
 
----
-
 ## When to use WHILE vs DO-WHILE
 
 | Scenario                                            | Recommended |
@@ -135,8 +125,6 @@ retry = DO(fetch).WHILE(has_more)
 | The loop body must execute at least once            | `DO-WHILE`  |
 | The condition must be evaluated before the body     | `WHILE`     |
 | The condition only becomes available after the body | `DO-WHILE`  |
-
----
 
 > **Condition nodes are nodes**
 > Unlike graph model frameworks that hardcode conditions into routing functions, AmritaSense treats the loop condition itself as a `Node[bool]`. That means the condition can be asynchronous, can accept dependency injection, and can be suspended before evaluation. This is the direct embodiment of the “everything is a node” philosophy in loop structures.

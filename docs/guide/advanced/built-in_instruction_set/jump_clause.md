@@ -5,8 +5,6 @@
 > **Common foundation**
 > Both rely on the same alias registry (`ALIAS`), perform address resolution during `_pre_check`, and use the `@markup` decorator to manage jump markers. Understanding these common mechanisms helps clarify the difference between them.
 
----
-
 ## Non-self-compiled direct nodes
 
 `GOTO` and `CALL` are **not** `SelfCompileInstruction`. They do not expand into `NodeCompose` at compile time; instead, they exist as single jump nodes in the workflow array.
@@ -16,8 +14,6 @@ That means:
 - they are compiled as a single `JumpNode` or `CallNode` element
 - runtime behavior is expressed entirely through address resolution and pointer rewriting
 - they do not create new Bubbles or nesting scopes
-
----
 
 ## GOTO
 
@@ -41,8 +37,6 @@ That means:
 - **Error handling jumps**: jump directly to a centralized error handler when a failure is detected.
 - **Branch merging**: multiple conditional branches converge on the same `NOP` point.
 - **State machine transitions**: jump to different next states based on runtime conditions.
-
----
 
 ## CALL
 
@@ -69,8 +63,6 @@ That means:
 - **Modular decomposition**: split complex workflows into independent subprocedures and keep the main flow simple.
 - **Interrupt handling**: external systems can invoke predefined interrupt handlers via `call_sub(interrupt=True)`.
 
----
-
 ## GOTO vs CALL: comparison
 
 | Feature           | GOTO                                       | CALL                                       |
@@ -81,16 +73,12 @@ That means:
 | Use cases         | one-way jump, branch merge, error handling | subroutine reuse, modular flow, interrupts |
 | Underlying API    | `pc.jump_to(addr)`                         | `pc.call_sub(addr)`                        |
 
----
-
 ## Usage notes
 
 - **GOTO is not a substitute for loops**: `GOTO` does not provide return semantics. Jumping out of a loop with `GOTO` will not correctly manage the loop state. Use `BreakLoop` for loop exit and `CALL` for reusable subroutines.
 - **CALL targets must be addressable**: the target node or entry node must have `address_able=True`, which is required by `ALIAS`.
 - **GOTO and CALL share alias space**: both look up aliases in `alias2vector_map`. Avoid alias name conflicts.
 - **CALL return depends on stack integrity**: a `GOTO` inside a subroutine sets `_jump_marked`, which can cause `call_sub` to skip stack restoration. Understand that `GOTO` inside a subroutine can override normal return behavior.
-
----
 
 ## Example
 

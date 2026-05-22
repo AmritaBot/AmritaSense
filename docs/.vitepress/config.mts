@@ -120,6 +120,10 @@ export default withMermaid({
                 link: "/guide/advanced/dependency_injection",
               },
               {
+                text: "Event System",
+                link: "/guide/advanced/event_system",
+              },
+              {
                 text: "Locating & Scope",
                 link: "/guide/advanced/locating_and_space",
               },
@@ -177,6 +181,10 @@ export default withMermaid({
               {
                 text: "Self-Compile Instructions",
                 link: "/reference/api/self-compile",
+              },
+              {
+                text: "SuspendObjectStream",
+                link: "/reference/api/suspend-object-stream",
               },
             ],
           },
@@ -258,6 +266,10 @@ export default withMermaid({
                 link: "/zh/guide/advanced/dependency_injection",
               },
               {
+                text: "事件系统",
+                link: "/zh/guide/advanced/event_system",
+              },
+              {
                 text: "定位与空间",
                 link: "/zh/guide/advanced/locating_and_space",
               },
@@ -310,6 +322,10 @@ export default withMermaid({
               { text: "类型系统", link: "/zh/reference/api/types" },
               { text: "异常系统", link: "/zh/reference/api/exceptions" },
               { text: "自编译指令", link: "/zh/reference/api/self-compile" },
+              {
+                text: "SuspendObjectStream",
+                link: "/zh/reference/api/suspend-object-stream",
+              },
             ],
           },
           { text: "附录", link: "/zh/guide/appendix" },

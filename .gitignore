@@ -364,3 +364,6 @@ test-results.xml
 # Pytest
 
 test-results.xml
+
+# Other
+temp/

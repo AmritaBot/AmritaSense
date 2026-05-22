@@ -9,8 +9,6 @@ from inspect import iscoroutinefunction
 from typing import Any, Generic, TypeVar, cast
 
 import aiologic
-from amrita_core import SuspendObjectStream, logger
-from amrita_core.hook.matcher import DependsFactory, MatcherFactory
 
 from amrita_sense.exceptions import (
     BreakLoop,
@@ -19,8 +17,11 @@ from amrita_sense.exceptions import (
     InterruptNotice,
     NullPointerException,
 )
+from amrita_sense.hook.matcher import DependsFactory, MatcherFactory
+from amrita_sense.logging import logger
 from amrita_sense.node.core import BaseNode, NodeComposeRendered
 from amrita_sense.node.self_compile import SelfCompileInstruction
+from amrita_sense.streaming import SuspendObjectStream
 from amrita_sense.types import PointerVector, Stack
 
 PC_CHECKPOINT = "WorkflowInterpreter::each_node"
@@ -528,12 +529,12 @@ class WorkflowInterpreter(Generic[io_T]):
 
         fun = node.func
 
-        success, args, kw_rsved, kw2rsev = MatcherFactory._resolve_dependencies(
+        fail, kw_rsved, kw2rsev = MatcherFactory._resolve_dependencies(
             node.fun_sign, ava_args, ava_kwargs
         )
-        if not success:
+        if fail is not None:
             raise DependsResolveFailed(
-                f"Function {fun.__name__} in {node.tag} could not be resolved due to missing argument dependencies."
+                f"Function {fun.__name__} in {node.tag} could not be resolved due to reason `{fail.value}`"
             )
         if kw2rsev and not await MatcherFactory._do_runtime_resolve(
             runtime_args={},
@@ -554,8 +555,8 @@ class WorkflowInterpreter(Generic[io_T]):
             f"Address is {self._pointer}, Type of node is {node.__class__.__name__}"
         )
         if iscoroutinefunction(fun):
-            return await fun(*args, **kw_rsved)
+            return await fun(**kw_rsved)
         elif node.wrap_to_async:
-            return await asyncio.to_thread(fun, *args, **kw_rsved)
+            return await asyncio.to_thread(fun, **kw_rsved)
         else:
-            return fun(*args, **kw_rsved)
+            return fun(**kw_rsved)

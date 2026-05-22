@@ -2,8 +2,6 @@
 
 `NOP` and `INTERRUPT` are two special atomic instructions in AmritaSense’s instruction set. They are not `SelfCompileInstruction` and have no compile-time expansion. Instead, they exist as individual nodes in the workflow, and their behavior is defined purely at runtime.
 
----
-
 ## NOP sentinel instruction
 
 `NOP` (No Operation) is an **empty sentinel node**. Its significance is not in doing work, but in **standing in place** to provide a valid jump target.
@@ -36,8 +34,6 @@ IF(cond, GOTO("then")) >> ... >> ALIAS(NOP, "end_if")
 **As a subroutine return point**: subroutines archived in `ARCHIVED_NODES` often end with `NOP`. After the subroutine finishes, the interpreter steps to `NOP`, and `call_sub` then pops the return address.
 
 **As an empty ELSE branch**: `IF(cond, do).ELSE(NOP)` expresses “do nothing when the condition is false” explicitly.
-
----
 
 ## INTERRUPT forced termination instruction
 
@@ -75,8 +71,6 @@ The only exception is when `InterruptNotice` is explicitly included in the `exce
 - **External signal response**: when an external system issues a termination signal, the next node boundary can trigger `INTERRUPT`.
 - **Emergency safety stop**: insert `INTERRUPT` in the workflow when an unrecoverable error or dangerous condition occurs.
 - **Timeout handling**: a node can check timeout conditions before execution and raise `INTERRUPT` to force termination.
-
----
 
 ## Comparison summary
 

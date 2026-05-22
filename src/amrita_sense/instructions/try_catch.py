@@ -1,6 +1,3 @@
-from __future__ import annotations
-
-import inspect
 import sys
 from collections.abc import Callable
 from types import FrameType
@@ -8,6 +5,7 @@ from typing import Any
 
 from typing_extensions import Self
 
+from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
@@ -20,7 +18,7 @@ class TryNode(BaseNode):
     wrap_to_async: bool
     address_able: bool
     fun_frame: FrameType
-    fun_sign: inspect.Signature
+    fun_sign: DependencyMeta
     _do_node_addr: int
     _catch_addr_chain: list[tuple[type[BaseException], int]]
     _finally_addr: int | None

@@ -4,8 +4,6 @@ AmritaSense provides a complete subroutine call mechanism. Unlike `GOTO`’s one
 
 This chapter starts from the interpreter’s low-level API and explains call stack management, argument passing, and how to invoke subroutines in node code.
 
----
-
 ## 4.3.1 `call_sub`: the interpreter’s low-level call primitive
 
 `call_sub` is a low-level call primitive provided by `WorkflowInterpreter`. Both the composition-level `CALL` instruction and node-internal subroutine calls ultimately use it. Its core workflow is:
@@ -29,8 +27,6 @@ This design lets the same call primitive serve both internal reuse and external 
 ### Jump mark priority
 
 After the subroutine completes, `call_sub` checks the `_jump_marked` flag. If the subroutine executed a jump operation such as `GOTO`, that flag is set to `True`. In that case, the `finally` block **does not restore the original execution pointer** — the new jump target is preserved, and the interpreter continues from there. This ensures subroutine-internal jumps can correctly affect the main workflow control flow.
-
----
 
 ## 4.3.2 Passing arguments to subroutines
 
@@ -60,8 +56,6 @@ Subroutine nodes can use both operands passed via `call_sub` and dependencies de
 ::: tip
 If a subroutine entry node declares a dependency via `Depends` and that provider returns `None`, the workflow raises an exception and terminates. This is different from an event system where a `None` return might be treated as a “skip.” Node execution is atomic, and failed dependency resolution means the node cannot run.
 :::
-
----
 
 ## 4.3.3 Call stack and return address restoration
 
@@ -98,8 +92,6 @@ Every `call_sub` pushes the current address, and every return pops the top addre
 ### Jump override and return suppression
 
 If the subroutine executes `GOTO` or another jump operation, `_jump_marked` is set to `True`. In that case, `call_sub` skips restoring the saved pointer and does not pop the return address. This means the subroutine’s internal jump can “override” normal return behavior. Developers should understand that `GOTO` inside a subroutine may prevent automatic return stack cleanup and may require explicit stack management.
-
----
 
 ### Summary
 

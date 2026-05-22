@@ -2,8 +2,6 @@
 
 运行时系统负责执行编译后的工作流图，管理指针推进、调用栈和跳转控制。AmritaSense 的核心运行时是 `WorkflowInterpreter`——它不是一个“图调度器”，而是一个**指令解释器**，以步进循环的方式逐节点执行编译产物。
 
----
-
 ## WorkflowInterpreter
 
 ```python
@@ -24,8 +22,6 @@ class WorkflowInterpreter(Generic[io_T]):
 **泛型参数**
 
 - `io_T`：协变的 `SuspendObjectStream` 子类型。当 `io_T = SuspendObjectStream` 时，解释器编排纯异步任务；当 `io_T = ChatObject` 时，节点获得 LLM 对话能力。同一套指令集和解释器逻辑，通过类型参数实现能力替换。
-
----
 
 ### 构造参数
 
@@ -48,8 +44,6 @@ def __init__(
 - `extra_args` / `extra_kwargs`：传递给每个节点的额外参数，供依赖注入使用
 - `addr_stack`：可选的外部调用栈。若不传，解释器内部创建一个新的 `Stack[PointerVector]`
 
----
-
 ### 核心属性
 
 - `_graph: NodeComposeRendered`：编译后的只读工作流图，解释器从中读取节点
@@ -60,8 +54,6 @@ def __init__(
 - `_ava_args / _ava_kwargs`：执行期可用参数池，供依赖注入系统从中匹配节点的参数签名
 - `_exc_ignored: tuple[type[BaseException], ...]`：运行时自动包含 `InterruptNotice` 和 `BreakLoop`。这些异常不会被任何 `CATCH` 块捕获，直接穿透到顶层
 - `object_io: io_T`：泛型的外部 I/O 接口。节点可通过 `pc.object_io` 进行流式产出、挂起控制
-
----
 
 ### 主要方法
 
@@ -78,8 +70,6 @@ def __init__(
 **`get_graph() -> NodeComposeRendered`**
 
 返回当前工作流的编译产物。调试节点常通过此方法读取工作流结构。
-
----
 
 #### 跳转操作
 
@@ -105,8 +95,6 @@ def __init__(
 
 跳转到顶层的指定绝对索引。
 
----
-
 #### 子程序调用
 
 **`call_sub(addr, /, \*extra_arg, interrupt=False, **extra_kwargs) -> Any`\*\*
@@ -129,8 +117,6 @@ def __init__(
 
 在当前层级内以近距地址调用子程序。
 
----
-
 #### 主执行循环
 
 **`async run() -> None`**
@@ -152,8 +138,6 @@ def __init__(
 外层 `try` 捕获 `InterruptNotice` 后清理调用栈和指针，干净退出。
 
 此方法让外部系统可以在每次节点执行前后介入——配合挂起机制和 `interrupt=True` 的 `call_sub`，构成了完整的调试器基础。
-
----
 
 ### 使用示例
 

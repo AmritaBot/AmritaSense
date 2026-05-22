@@ -1,4 +1,7 @@
 from datetime import datetime, timedelta
+from typing import Generic, TypeVar
+
+T = TypeVar("T")
 
 
 class TimeInsighter:
@@ -63,3 +66,10 @@ class TimeInsighter:
             tb: Traceback if an exception occurred, None otherwise.
         """
         return self.__exit__(exc_type, exc, tb)
+
+
+class Ref(Generic[T]):
+    value: T
+
+    def __init__(self, value: T) -> None:
+        self.value = value

@@ -19,7 +19,8 @@ AmritaSense 工作流引擎深度集成了 AmritaCore 的依赖注入（Dependen
 ### 基本语法
 
 ```python
-from amrita_core.hook.matcher import Depends
+from amrita_sense.hook.matcher import Depends
+from amrita_sense.runtime.deps import POINTER_DEPENDS, ADDR, NEAR_OFFSET
 
 @Node()
 def my_node(
@@ -80,7 +81,21 @@ def async_node(result: str = Depends(async_dependency)):
     print(f"Received: {result}")
 ```
 
-## 4.1.4 关键行为：返回 None 将直接“炸掉”工作流
+## 4.1.5 事件与钩子集成
+
+AmritaSense 对节点和事件处理器使用相同的依赖匹配机制。这意味着事件回调也可以声明 `Depends(...)` 依赖项，运行时在调用回调前会解析这些依赖。
+
+```python
+from amrita_sense.hook.matcher import Depends
+
+async def on_event(event: Any, pc: WorkflowInterpreter = Depends(POINTER_DEPENDS)):
+    # 事件处理器同样可以通过 Depends 获取运行时上下文
+    pass
+```
+
+事件/钩子系统通过与节点执行相同的 `MatcherFactory` 机制解析依赖，因此整个引擎中的行为是一致的。
+
+## 4.1.6 关键行为：返回 None 将直接“炸掉”工作流
 
 依赖注入系统有一个重要的行为特性：**如果依赖提供者函数返回 `None`，整个工作流将被终止**。
 
@@ -130,8 +145,8 @@ def failing_dependency():
     return None  # 这会导致工作流终止
 
 TRY(
-    Node(lambda: print("This won't execute"))
-).CATCH(DependsResolveFailed, Node(lambda: print("Caught dependency failure")))
+    NodeType(lambda: print("This won't execute"))
+).CATCH(DependsResolveFailed, NodeType(lambda: print("Caught dependency failure")))
 ```
 
 这种设计确保了依赖注入系统的健壮性和可预测性，同时为开发者提供了清晰的错误处理机制。

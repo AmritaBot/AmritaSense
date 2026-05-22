@@ -2,8 +2,6 @@
 
 In AmritaSense, nodes are the basic units of execution flow. Built-in instructions are ultimately expanded into node compositions, while custom nodes are the direct way developers encapsulate their business logic. This chapter explains node essence, lifecycle, and how to use `POINTER_DEPENDS` to gain full interpreter control when necessary.
 
----
-
 ## 4.6.1 The `@Node` decorator and node essence
 
 The `@Node()` decorator converts an ordinary Python function or coroutine into a workflow node. It does not do anything complex — it simply packages the function object, signature metadata, and a few data fields into a `Node` instance.
@@ -33,8 +31,6 @@ Each node is essentially a thin wrapper around the original function. It preserv
 - **`address_able`**: whether the node can be referenced by `ALIAS`; only `True` nodes can become `GOTO` or `CALL` targets
 
 **Everything is a node** — this is AmritaSense’s core philosophy. Conditionals, loop bodies, exception handlers, and GOTO targets are all `Node` or `BaseNode` instances. Custom nodes are no exception.
-
----
 
 ## 4.6.2 Handling sync and async nodes
 
@@ -84,8 +80,6 @@ This is appropriate for extremely lightweight sync operations, such as simple co
 
 The `Node` class is also memory-optimized using `__slots__`, avoiding a default `__dict__` and keeping each node as lightweight as possible.
 
----
-
 ## 4.6.3 Node lifecycle and atomicity
 
 ### Lifecycle
@@ -107,8 +101,6 @@ Node atomicity is guaranteed by the **interpreter lock** and **cooperative inter
 ### Pre-check mechanism
 
 If a custom node class inherits from `BaseNode`, it can override `_pre_check`. This method is called before each node execution and can access the current interpreter instance to perform address validation, alias lookup, or other checks. `CallNode` and `JumpNode` both use this mechanism to resolve aliases to addresses before their first execution.
-
----
 
 ## 4.6.4 `POINTER_DEPENDS`: access to the interpreter
 
@@ -140,7 +132,22 @@ With interpreter access, nodes can directly manipulate pointers and the call sta
 
 Therefore, **inject `POINTER_DEPENDS` only when necessary**. Most nodes should use normal Python logic and composition-level instructions (`IF`, `WHILE`, `CALL`) to express control flow, and only directly access the interpreter when instructions cannot express the desired behavior.
 
----
+## 4.6.5 Safe runtime integration
+
+Custom nodes that need runtime context should use `POINTER_DEPENDS` to access `WorkflowInterpreter` rather than manipulating internal interpreter state directly. The interpreter exposes safe APIs such as:
+
+- `jump_to(addr)`
+- `jump_near(addr)`
+- `jump_offset(offset)`
+- `call_sub(addr, *args, interrupt=False)`
+- `find_addr_alias(alias)`
+- `object_io`
+
+Because `object_io` is a generic `SuspendObjectStream` subclass, custom nodes can also participate in external suspend/resume or streaming I/O patterns without changing the core interpreter loop.
+
+::: tip
+If you only need data dependencies, prefer `Depends(...)` with provider functions. Use `POINTER_DEPENDS` only for workflow control or low-level runtime inspection.
+:::
 
 ### Summary
 

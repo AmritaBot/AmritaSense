@@ -1,0 +1,136 @@
+# Runtime System
+
+The runtime system executes compiled workflow graphs, manages the program counter, handles call stacks, and performs dependency injection at node execution time. `WorkflowInterpreter` is the core execution engine in AmritaSense and is designed for step-by-step interpretation rather than bulk graph traversal.
+
+## WorkflowInterpreter
+
+```python
+class WorkflowInterpreter(Generic[io_T]):
+    ...
+```
+
+`WorkflowInterpreter` is the main engine for executing a rendered workflow graph. It tracks the current execution pointer using `PointerVector`, manages subroutine calls through a return address stack, and supports external interruption and streaming via a generic `object_io` interface.
+
+### Constructor
+
+```python
+WorkflowInterpreter(
+    node_compose: NodeComposeRendered | SelfCompileInstruction,
+    object_io: SuspendObjectStream[Any] | None = None,
+    *,
+    exception_ignored: tuple[type[BaseException], ...] = (),
+    extra_args: tuple = (),
+    extra_kwargs: dict[str, Any] | None = None,
+    addr_stack: Stack[PointerVector] | None = None,
+)
+```
+
+Arguments:
+
+- `node_compose`: A rendered workflow graph or a self-compiling instruction.
+- `object_io`: Optional external I/O object. Defaults to a new `SuspendObjectStream`.
+- `exception_ignored`: Exception types to bypass TRY/CATCH blocks.
+- `extra_args` / `extra_kwargs`: Additional runtime values available for dependency injection.
+- `addr_stack`: Optional return address stack.
+
+### Key attributes
+
+- `_graph`: The compiled workflow graph being executed.
+- `_pointer`: Current `PointerVector` execution address.
+- `_ret_addr_stack`: Return address stack for subroutine calls.
+- `_jump_marked`: Flag indicating whether a jump operation occurred.
+- `_interpret_lock`: Async lock used to guarantee one-node-at-a-time execution.
+- `object_io`: External I/O stream used for suspend/resume and streaming output.
+
+### Important methods
+
+#### `async run() -> None`
+
+Execute the entire workflow to completion. This method internally iterates over `run_step_by()` and consumes all generated results.
+
+#### `async run_step_by() -> AsyncGenerator[Any, None]`
+
+Execute the workflow step by step, yielding the result of each node execution. This is the main entry point for external monitoring and cooperative suspension.
+
+The generated sequence includes:
+
+- waiting for `object_io` suspend signals at the global `WorkflowInterpreter::each_node` checkpoint
+- acquiring `_interpret_lock`
+- executing the current node via `_call()`
+- advancing the pointer unless a jump was marked
+
+#### `jump_to(addr: list[int])`
+
+Perform an absolute jump to a new address. This sets the current pointer using a full `PointerVector` replacement.
+
+#### `jump_near(addr: int)`
+
+Replace the last dimension of the current pointer within the current scope.
+
+#### `jump_offset(offset: int)`
+
+Apply a relative offset to the current pointer position.
+
+#### `jump_to_top(addr: int)`
+
+Jump to an address at the top-level workflow.
+
+#### `jump_offset_top(offset: int)`
+
+Apply a relative offset at the top level and reset nested dimensions.
+
+#### `async call_sub(addr, /, *extra_arg, interrupt: bool = False, **extra_kwargs)`
+
+Call a subroutine at the specified address. It pushes the current pointer onto the return address stack, switches execution to the subroutine, and restores the pointer after the call.
+
+- `interrupt=True` acquires the interpreter lock during the call, making it safe for external injection.
+- `interrupt=False` is the normal internal call path.
+
+#### `async call_near(addr: int, *ag, interrupt: bool = False, **kw)`
+
+Call a subroutine within the current scope using a relative near address.
+
+#### `async call_offset(offset: int, *ag, interrupt: bool = False, **kw)`
+
+Call a subroutine by applying a relative offset to the current pointer.
+
+#### `find_addr_alias(alias: str) -> list[int]`
+
+Resolve an alias to its absolute address vector. Raises `NullPointerException` if the alias does not exist.
+
+#### `find_addr(addr: list[int]) -> BaseNode | NodeComposeRendered`
+
+Find a node or rendered composition by absolute address.
+
+#### `find_node_alias(alias: str) -> BaseNode | NodeComposeRendered`
+
+Resolve an alias and return the corresponding node object.
+
+### Execution behavior
+
+`WorkflowInterpreter` preserves execution atomicity by holding `_interpret_lock` while a single node is executed. It only checks suspend points at safe boundaries:
+
+- before each node execution via the global checkpoint `WorkflowInterpreter::each_node`
+- before each individual node via the node’s tag
+
+The `object_io` implementation is responsible for coordinating suspension and resumption.
+
+### Example
+
+```python
+from amrita_sense.node.core import Node
+from amrita_sense.runtime.workflow import WorkflowInterpreter
+
+@Node()
+async def a():
+    return 1
+
+@Node()
+async def b():
+    return 2
+
+compose = a >> b
+rendered = compose.render()
+pc = WorkflowInterpreter(rendered)
+await pc.run()
+```

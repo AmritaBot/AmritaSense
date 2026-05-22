@@ -2,8 +2,6 @@
 
 AmritaSense 定义了一套精简且职责明确的异常体系，用于处理工作流执行过程中的各种错误与中断。每种异常类型都有清晰的语义边界和使用约束。
 
----
-
 ## InterruptNotice
 
 ```python
@@ -36,8 +34,6 @@ Python 的 `except Exception` 不会捕获 `BaseException` 的子类。因此，
 4. 重置 `_jump_marked` 标记
 5. 工作流干净退出，不留下残留状态
 
----
-
 ## NullPointerException
 
 ```python
@@ -58,8 +54,6 @@ class NullPointerException(Exception):
 **与别名校验的关系**
 
 `NullPointerException` 是运行时地址失效时的兜底异常。在实际使用中，如果通过 `ALIAS` + `GOTO`/`CALL` 正常寻址，拼写错误会在 `_pre_check` 阶段被拦截并提供纠错建议。裸地址 `list[int]` 直接使用时，若地址无效才会在运行时抛出此异常。
-
----
 
 ## BreakLoop
 
@@ -95,8 +89,6 @@ def process_item():
 ```
 
 **注意**：开发者**不应**手动将 `BreakLoop` 加入 `exception_ignored`——它在解释器初始化时已自动加入。如果额外添加，不会产生新效果；如果试图移除，会导致循环内的 CATCH 块意外捕获 `BreakLoop`，破坏循环语义。
-
----
 
 ## DependsException 及其子类
 
@@ -142,8 +134,6 @@ class DependsInjectFailed(Exception):
 **关键行为：`Depends` 返回 `None` 直接终止**
 
 与事件系统的“返回 `None` 则跳过处理器”不同，在节点执行中，如果某个 `Depends` 声明的依赖工厂返回了 `None`，工作流会**直接抛出异常并终止**。节点是原子执行单元，依赖解析失败意味着节点无法运行——这不是可以“跳过”的场景。因此，为节点设计的依赖工厂函数应始终返回有效值（或在无法提供时抛出明确的异常，而非返回 `None`）。
-
----
 
 ## 异常层次结构
 

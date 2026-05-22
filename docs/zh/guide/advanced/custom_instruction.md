@@ -2,8 +2,6 @@
 
 AmritaSense 的内置指令集已经覆盖了条件分支、循环、异常处理等核心控制流。但当这些基本指令的组合反复出现、形成固定模式时，就可以通过 `SelfCompileInstruction` 将其封装为**新的指令**。这种扩展不侵入解释器，只在编译期展开为标准节点组合，运行时与内置指令完全等效。
 
----
-
 ## 4.7.1 自编译指令接口：SelfCompileInstruction
 
 `SelfCompileInstruction` 是一个抽象基类，定义了所有自编译指令的统一入口：
@@ -31,8 +29,6 @@ class SelfCompileInstruction(ABC):
 2. `extract()` 只能依赖编译期已知的信息（构造参数）
 3. 如果展开后的结构包含跳转，地址计算必须在 `extract()` 内完成
 4. 返回的 `NodeCompose` 会被自动递归渲染，无需手动调用 `render()`
-
----
 
 ## 4.7.2 实现模式：extract() 与地址计算
 
@@ -81,8 +77,6 @@ workflow = start >> LoggedNode(process_data, "数据处理") >> end
 ```python
 workflow = start >> log_start >> process_data >> log_end >> end
 ```
-
----
 
 ## 4.7.3 案例一：重试器
 
@@ -153,8 +147,6 @@ WHILE(condition).ACTION(TRY(call_api).CATCH(Exception, on_error)) >> use_cache >
 - 跳转地址由内置指令自动计算，`RetryClause` 无需手动管理偏移量
 - 用户看到的只是 `RetryClause(...)`，底层展开细节完全透明
 
----
-
 ## 4.7.4 案例二：条件执行包装器
 
 将“条件满足时执行某节点，否则跳过”这个常见模式封装为单一指令。
@@ -195,8 +187,6 @@ class ExecuteWhenElse(SelfCompileInstruction):
             IF(self._cond, self._action).ELSE(self._other)
         )
 ```
-
----
 
 ## 自定义指令的设计原则
 

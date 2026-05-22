@@ -59,6 +59,14 @@ A sequence of nodes defined by the `ARCHIVED_NODES` instruction, skipped by `Sub
 - **LGPL**: GNU Lesser General Public License
 - **ISA**: Instruction Set Architecture
 
+### 9.1.13 Logging
+
+AmritaSense uses a shared `logger` object in `amrita_sense.logging`, built on top of `loguru`. The logger is configured with a default format and respects the `LOG_LEVEL` environment variable. It is used across the interpreter, node rendering, and runtime helpers to provide runtime diagnostics and troubleshooting information.
+
+### 9.1.14 WeakValueLRUCache
+
+`WeakValueLRUCache` is a weak-reference-based least-recently-used cache implementation in `amrita_sense.weakcache`. It is used by the hook matcher to pool reusable `aiologic.Lock` objects while allowing locks to be reclaimed by garbage collection when no longer in use. This avoids memory leaks in long-lived event systems and keeps lock reuse efficient.
+
 ## 9.2 Project Resources
 
 ### 9.2.1 GitHub Repositories

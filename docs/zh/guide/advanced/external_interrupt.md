@@ -5,8 +5,6 @@ AmritaSense 提供了一套安全的外部调用机制，允许**外部系统在
 > **区分：流程挂起 vs. 外部调用**
 > 第 3.4 节介绍的流程挂起（Suspend）是通过 `SuspendObjectStream` 暂停执行流，等待外部 `resume()` 后继续。而本节讨论的是在挂起窗口或节点边界，**由外部主动注入一个完整的子程序**，执行完毕后自动返回。两者可以组合使用，但属于不同维度的能力。
 
----
-
 ## 4.4.1 解释锁与安全外部调用原理
 
 外部注入操作的核心是 `aiologic.Lock`（解释锁），它确保了注入的原子性，避免与正常执行流产生竞态。
@@ -40,8 +38,6 @@ await interpreter.call_sub(
 - **外部系统**（如另一个协程、调试器、HTTP 接口）必须使用 `interrupt=True`，因为它不持有锁。
 
 这种设计让同一套 `call_sub` API 同时服务于内部复用和外部注入，仅通过一个布尔参数区分。
-
----
 
 ## 4.4.2 中断程序的存储结构
 
@@ -81,8 +77,6 @@ interrupt_handlers = ARCHIVED_NODES(
 
 在工作流编排中，将 `interrupt_handlers` 放在末尾或合适位置即可。
 
----
-
 ## 4.4.3 SubprogramJumpNode 的执行逻辑
 
 `SubprogramJumpNode` 是一个轻量级节点，专门用于跳过后续的存储区。其实现非常简单：
@@ -95,8 +89,6 @@ interrupt_handlers = ARCHIVED_NODES(
 ### 为什么不用 GOTO？
 
 `SubprogramJumpNode` 是专门为跳过存储区设计的，语义更明确。而 `GOTO` 是通用跳转指令，可能会被误用。使用专用的跳转节点可以降低开发者混淆的风险。
-
----
 
 ## 4.4.4 构建安全的可注入节点库
 

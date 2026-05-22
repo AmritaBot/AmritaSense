@@ -6,10 +6,12 @@ from collections.abc import Awaitable, Callable
 from types import FrameType
 from typing import TYPE_CHECKING, Any, Generic, TypeVar, overload
 
-from amrita_core import logger
 from typing_extensions import Self
 
 from amrita_sense.exceptions import NullPointerException
+from amrita_sense.hook.fun_typing import DependencyMeta
+from amrita_sense.hook.matcher import sign_func
+from amrita_sense.logging import logger
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.utils import TimeInsighter
 
@@ -40,7 +42,7 @@ class BaseNode:
     wrap_to_async: bool
     address_able: bool
     fun_frame: FrameType
-    fun_sign: inspect.Signature
+    fun_sign: DependencyMeta
 
     def _init(
         self,
@@ -67,7 +69,7 @@ class BaseNode:
         frame = frame or inspect.currentframe()
         if not frame:
             raise RuntimeError("No frame found")
-        fun_sign: inspect.Signature = inspect.signature(func)
+        fun_sign = sign_func(func)
         self.fun_sign = fun_sign
         self.fun_frame = frame
         self.func = func
@@ -152,7 +154,7 @@ class Node(BaseNode, Generic[NODE_T]):
     wrap_to_async: bool
     address_able: bool
     fun_frame: FrameType
-    fun_sign: inspect.Signature
+    fun_sign: DependencyMeta
     __slots__ = (
         "address_able",
         "fun_frame",

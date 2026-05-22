@@ -1,11 +1,11 @@
 import difflib
-import inspect
 from collections.abc import Callable
 from types import FrameType
 from typing import Any
 
 from typing_extensions import override
 
+from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.node.core import BaseNode
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 
@@ -16,7 +16,7 @@ class JumpNode(BaseNode):
     wrap_to_async: bool
     address_able: bool
     fun_frame: FrameType
-    fun_sign: inspect.Signature
+    fun_sign: DependencyMeta
     _node_addr: list[int]
     _alias_or_idata: str | list[int]
     __slots__ = (

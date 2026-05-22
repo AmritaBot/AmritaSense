@@ -4,8 +4,6 @@ In AmritaSense, a workflow is not a static graph of node connections; it is a **
 
 This chapter dives into the core mechanisms that make up this addressing system: compile-time alias binding, runtime address resolution, and Bubble scope isolation.
 
----
-
 ## 4.2.1 Compile-time binding: the ALIAS alias system
 
 `ALIAS` is the **compile-time foundation** of the locating system. It binds a node to a globally unique symbol name and registers it into `alias2vector_map` during render time so that GOTO and CALL can resolve it at runtime.

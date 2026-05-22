@@ -2,8 +2,6 @@
 
 自编译指令是 AmritaSense 实现高级控制流的核心机制。它们在工作流渲染阶段自动展开为标准的底层节点组合，使得开发者可以像使用内置指令一样，使用自己封装的复杂编排模式。
 
----
-
 ## SelfCompileInstruction
 
 ```python
@@ -25,8 +23,6 @@ class SelfCompileInstruction(ABC):
 **设计理念**
 
 自编译指令是 AmritaSense 扩展性的基石。内置的 `IF`、`WHILE`、`TRY` 等全部实现自这一接口，而开发者可以通过继承它来创建自己的控制流原语——封装的是**编排模式**，而非具体业务逻辑。
-
----
 
 ## 内置自编译指令
 
@@ -54,8 +50,6 @@ AmritaSense 的内置指令集全部是 `SelfCompileInstruction` 的子类。以
 ### 注意：CALL 不是自编译指令
 
 `CALL` 指令对应的 `CallNode` 直接继承自 `BaseNode`，是一个**普通节点**。它在编译期不展开，只是作为单个节点存在于工作流数组中，执行时通过 `_pre_check` 解析别名并调用 `pc.call_sub`。这与 `GOTO`（`JumpNode`）的设计一致——两者都是“原子”跳转节点，而非自编译结构。
-
----
 
 ## 自定义自编译指令
 
@@ -87,8 +81,6 @@ class LoggedNode(SelfCompileInstruction):
 ```
 
 使用：`LoggedNode(process_data, "数据处理")` 等价于手写 `log_start >> process_data >> log_end`。
-
----
 
 ### 设计原则
 

@@ -1,12 +1,13 @@
 [project]
 name = "amrita-sense"
-version = "0.1.0"
-description = "Next-Gen workflow engine."
+version = "0.2.0"
+description = "Next-Gen event stream and workflow engine."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "aiologic>=0.16.0",
-    "amrita-core>=0.8.6",
+    "anyio>=4.13.0",
+    "loguru>=0.7.3",
 ]
 [project.urls]
 "Homepage" = "https://github.com/AmritaBot/AmritaSense"

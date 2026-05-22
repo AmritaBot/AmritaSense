@@ -2,8 +2,6 @@
 
 AmritaSense provides a complete exception handling instruction system that aligns closely with Python’s `try-except-else-finally`. Before using it, ask yourself: **when should you use instruction-based exception handling, and when should you write `try-except` inside a node?**
 
----
-
 ## Choosing between two exception handling modes
 
 ### Inline try-catch inside a node
@@ -56,8 +54,6 @@ TRY(call_api).CATCH(TimeoutError, use_cache).CATCH(AuthError, refresh_token).FIN
 > **Core principle**
 > Use Python for exceptions that belong inside a node. Use instructions for workflow-level exception control. They can be mixed — a TRY block may contain nodes that use their own inline try-catch.
 
----
-
 ## Instruction syntax and semantics
 
 ### Full syntax
@@ -86,8 +82,6 @@ TRY(do).CATCH(exc1, handler1).CATCH(exc2, handler2).FINALLY(cleanup)
 2. A single `TRY` structure may define at most one `FINALLY` and one `THEN`.
 3. `CATCH` may appear multiple times and is matched top-to-bottom with short-circuit behavior.
 
----
-
 ## Runtime execution logic
 
 `TryClause` is a `SelfCompileInstruction` and expands at compile time into:
@@ -110,8 +104,6 @@ The runtime behavior of `TryNode` is:
    - if no catch matches, re-raise the exception
 4. **Regardless of exception**: the `finally` block executes via `call_near` if defined.
 
----
-
 ## Exception penetration rules
 
 When the `WorkflowInterpreter` is initialized with `exception_ignored`, those exception types are not caught by any `CATCH` block:
@@ -128,8 +120,6 @@ When `TryNode` encounters one of these exceptions, it re-raises it immediately, 
 - **`InterruptNotice`** can terminate the entire workflow and is not swallowed by a local TRY.
 - **`BreakLoop`** can jump out of the innermost loop and is not intercepted by intermediate exception handlers.
 - **Critical errors** can bypass local fault tolerance and reach a global handler.
-
----
 
 ## Usage examples
 
@@ -177,8 +167,6 @@ TRY(risky_op)\
 ```python
 TRY(acquire_resource).FINALLY(release_resource)
 ```
-
----
 
 ## Dependency injection in exception handlers
 

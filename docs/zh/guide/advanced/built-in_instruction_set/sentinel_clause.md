@@ -2,8 +2,6 @@
 
 `NOP` 和 `INTERRUPT` 是 AmritaSense 指令集中两个特殊的“原子”指令。它们不是 `SelfCompileInstruction`，没有编译期展开的空间结构，而是直接作为单个节点存在于工作流中，其功能完全体现在运行时的行为上。
 
----
-
 ## NOP 哨兵指令
 
 `NOP`（No Operation）是一个**空操作哨兵节点**。它存在的意义不是“做什么”，而是“站在哪里”，为跳转指令提供一个合法的目标地址。
@@ -36,8 +34,6 @@ NOP: _Node[None] = _no_operation
 **作为子程序的返回点**：`ARCHIVED_NODES` 中的子程序以 `NOP` 结尾，子程序执行完毕后，解释器步进到 `NOP`，随即 `call_sub` 的 `finally` 块弹栈恢复调用者。
 
 **作为 ELSE 空分支**：`IF(cond, do).ELSE(NOP)` —— 语义上表示“条件不成立时什么都不做”，`NOP` 让这个意图显式化。
-
----
 
 ## INTERRUPT 强制终止指令
 
@@ -78,8 +74,6 @@ INTERRUPT: _Node[NoReturn] = _interrput_operation
 - **外部信号响应**：工作流执行过程中，外部系统发出终止信号，下一个节点边界检查到信号后，通过跳转或直接放置 `INTERRUPT` 来终止工作流
 - **紧急安全停止**：在检测到不可恢复的错误或危险状态时，编排中主动插入的 `INTERRUPT` 节点触发立即退出
 - **超时处理**：`@Node()` 节点在开始执行前检查超时条件，若超时则返回 `INTERRUPT`，强制终止后续流程
-
----
 
 ## 对比总结
 

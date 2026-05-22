@@ -19,7 +19,8 @@ Dependency injection is implemented through `Depends()`. `Depends()` accepts a d
 ### Syntax
 
 ```python
-from amrita_core.hook.matcher import Depends
+from amrita_sense.hook.matcher import Depends
+from amrita_sense.runtime.deps import POINTER_DEPENDS, ADDR, NEAR_OFFSET
 
 @Node()
 def my_node(
@@ -79,7 +80,21 @@ def async_node(result: str = Depends(async_dependency)):
     print(f"Received: {result}")
 ```
 
-## 4.1.4 Important behavior: returning None terminates the workflow
+## 4.1.5 Event and hook integration
+
+AmritaSense uses the same dependency matcher for workflow nodes and hook/event handlers. That means event listener callbacks can also declare `Depends(...)` dependencies, and the runtime will resolve them before invoking the callback. This makes it possible to share the same dependency provider functions across normal nodes and external hooks.
+
+```python
+from amrita_sense.hook.matcher import Depends
+
+async def on_event(event: Any, pc: WorkflowInterpreter = Depends(POINTER_DEPENDS)):
+    # Event handlers can also receive runtime context via Depends
+    pass
+```
+
+The event/hook system resolves dependencies through the same `MatcherFactory` machinery used by node execution, so the behavior is consistent across the engine.
+
+## 4.1.6 Important behavior: returning None terminates the workflow
 
 The dependency injection system has an important behavior: **if a dependency provider function returns `None`, the workflow terminates immediately**.
 
@@ -127,8 +142,8 @@ def failing_dependency():
     return None
 
 TRY(
-    Node(lambda: print("This won't execute"))
-).CATCH(DependsResolveFailed, Node(lambda: print("Caught dependency failure")))
+    NodeType(lambda: print("This won't execute"))
+).CATCH(DependsResolveFailed, NodeType(lambda: print("Caught dependency failure")))
 ```
 
 This design ensures that dependency injection remains robust and predictable while giving developers a clear error handling mechanism.

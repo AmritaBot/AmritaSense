@@ -1,4 +1,3 @@
-import inspect
 from collections.abc import Callable
 from types import FrameType
 from typing import Any
@@ -6,6 +5,7 @@ from typing import Any
 from typing_extensions import Self
 
 from amrita_sense.exceptions import BreakLoop
+from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
@@ -18,7 +18,7 @@ class DONode(BaseNode):
     wrap_to_async: bool
     address_able: bool
     fun_frame: FrameType
-    fun_sign: inspect.Signature
+    fun_sign: DependencyMeta
     _do_offset: int
     _jmp_addr: int
     _break_addr: int
@@ -58,7 +58,7 @@ class DowhileNode(BaseNode):
     wrap_to_async: bool
     address_able: bool
     fun_frame: FrameType
-    fun_sign: inspect.Signature
+    fun_sign: DependencyMeta
     _back_addr: int
     _condi_offset: int
     _then_addr: int

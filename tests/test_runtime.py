@@ -1,7 +1,6 @@
 from typing import Any
 
 import pytest
-from amrita_core.hook.matcher import DependsFactory, MatcherFactory
 
 from amrita_sense.exceptions import (
     DependsInjectFailed,
@@ -9,6 +8,7 @@ from amrita_sense.exceptions import (
     InterruptNotice,
     NullPointerException,
 )
+from amrita_sense.hook.matcher import DependsFactory, FailedEnum, MatcherFactory
 from amrita_sense.node.core import NodeCompose
 from amrita_sense.node.wrapper import Node as NodeDecorator
 from amrita_sense.runtime.workflow import WorkflowInterpreter
@@ -124,7 +124,7 @@ class TestWorkflowInterpreter:
 
         original = MatcherFactory._resolve_dependencies
         MatcherFactory._resolve_dependencies = classmethod(
-            lambda *args, **kwargs: (False, [], {}, {})  # pyright: ignore[reportAttributeAccessIssue]
+            lambda *args, **kwargs: (FailedEnum.RESOLVE_FAILED, {}, {})  # pyright: ignore[reportAttributeAccessIssue]
         )
         try:
             with pytest.raises(DependsResolveFailed):
@@ -144,7 +144,7 @@ class TestWorkflowInterpreter:
         original_resolve = MatcherFactory._resolve_dependencies
         original_runtime = MatcherFactory._do_runtime_resolve
         MatcherFactory._resolve_dependencies = classmethod(
-            lambda *args, **kwargs: (True, [], {}, {"x": DependsFactory(lambda: None)})  # pyright: ignore[reportAttributeAccessIssue]
+            lambda *args, **kwargs: (None, {}, {"x": DependsFactory(lambda: None)})  # pyright: ignore[reportAttributeAccessIssue]
         )
 
         async def _fake_runtime_resolve(*args: Any, **kwargs: Any) -> bool:

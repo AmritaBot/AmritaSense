@@ -2,8 +2,6 @@
 
 AmritaSense 的节点系统是整个工作流引擎的基础。所有工作流元素——无论是业务函数、控制流指令还是编排容器——最终都是节点的实例或组合。
 
----
-
 ## BaseNode
 
 `BaseNode` 是所有节点的抽象基类。它定义了节点在 AmritaSense 运行时中的通用接口和最小元数据集。开发者通常不直接继承 `BaseNode`，而是使用 `@Node()` 装饰器或继承 `Node`，但在实现自定义指令的底层跳转节点时可能会用到。
@@ -35,8 +33,6 @@ class BaseNode:
 
 **重要**：`BaseNode` 及其子类使用 `__slots__` 定义属性，避免了默认的 `__dict__` 开销，让每个节点实例尽可能紧凑。这对于可能包含数百上千个节点的工作流来说，内存优势会非常明显。
 
----
-
 ## Node
 
 `Node` 是 `BaseNode` 的泛型具体实现，也是开发者最常接触的节点类型。使用 `@Node()` 装饰器创建的节点就是 `Node` 实例。它将一个普通的 Python 函数或协程包装为工作流的基本执行单元。
@@ -67,8 +63,6 @@ def my_function(arg1: str) -> str:
 - 如果节点函数签名中声明了 `WorkflowInterpreter` 类型的参数（通过 `POINTER_DEPENDS` 注入），节点在执行时将获得当前解释器实例的完全访问权
 - 节点的 `__call__` 属性直接返回原始函数对象，使得 `node(...)` 等价于 `func(...)`
 
----
-
 ## NodeCompose
 
 `NodeCompose` 是节点编排的容器。它维护一个有序的节点列表，并通过 `__rshift__` 支持 `>>` 链式追加。`NodeCompose` 同时也是 `SelfCompileInstruction.extract()` 的标准返回类型——自编译指令最终都将自身的语义展开为一个 `NodeCompose`。
@@ -96,8 +90,6 @@ workflow = NodeCompose(node_a, node_b)
 # 或更简洁的写法：
 workflow = node_a >> node_b >> node_c
 ```
-
----
 
 ## NodeComposeRendered
 
