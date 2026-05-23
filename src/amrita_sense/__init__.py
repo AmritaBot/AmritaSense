@@ -5,6 +5,9 @@ from .exceptions import (
     InterruptNotice,
     NullPointerException,
 )
+from .hook.event import BaseEvent
+from .hook.matcher import EventRegistry, Matcher, MatcherFactory, sign_func
+from .hook.on import on_event
 from .instructions import (
     ALIAS,
     ARCHIVED_NODES,
@@ -31,10 +34,14 @@ __all__ = [
     "NOP",
     "POINTER_DEPENDS",
     "WHILE",
+    "BaseEvent",
     "DependsException",
     "DependsInjectFailed",
     "DependsResolveFailed",
+    "EventRegistry",
     "InterruptNotice",
+    "Matcher",
+    "MatcherFactory",
     "Node",
     "NodeCompose",
     "NodeComposeRendered",
@@ -44,4 +51,6 @@ __all__ = [
     "Stack",
     "Try",
     "WorkflowInterpreter",
+    "on_event",
+    "sign_func",
 ]

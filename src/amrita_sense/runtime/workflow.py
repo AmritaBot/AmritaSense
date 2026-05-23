@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncGenerator, Callable
 from contextlib import nullcontext
-from copy import deepcopy
 from functools import wraps
 from inspect import iscoroutinefunction
 from typing import Any, Generic, TypeVar, cast
@@ -85,7 +84,7 @@ class WorkflowInterpreter(Generic[io_T]):
         self._pointer = PointerVector()
         self._ava_args = (self, *extra_args)
         extra_kwargs = extra_kwargs or {}
-        self._ava_kwargs = deepcopy(extra_kwargs)
+        self._ava_kwargs = (extra_kwargs).copy()
         self._exc_ignored = (*exception_ignored, InterruptNotice, BreakLoop)
         object_io = object_io or SuspendObjectStream()
         self.object_io = cast(io_T, object_io)
