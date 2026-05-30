@@ -39,8 +39,8 @@ Because `Node` implements `__rshift__`, nodes can be composed using `>>`.
 Example:
 
 ```python
-a = Node(lambda: 1)
-b = Node(lambda x: x + 1)
+a = NodeType(lambda: 1, wrap_to_async=False, address_able=False, tag=None)
+b = NodeType(lambda x: x + 1, wrap_to_async=False, address_able=False, tag=None)
 workflow = a >> b
 ```
 

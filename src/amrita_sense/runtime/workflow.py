@@ -108,6 +108,7 @@ class WorkflowInterpreter(Generic[io_T]):
         self._jump_marked = False
         self._interpret_lock = aiologic.Lock()
         self._middleware = middleware
+
     def get_graph(self) -> NodeComposeRendered:
         """Return the compiled workflow graph being executed.
 

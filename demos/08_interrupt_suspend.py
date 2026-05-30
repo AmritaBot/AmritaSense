@@ -10,20 +10,18 @@ from amrita_sense import NOP, Node, WorkflowInterpreter
 
 
 @Node()
-async def step_one() -> int:
+async def step_one() -> None:
     print("[1] First step")
-    return 1
 
 
 @Node()
-async def step_two(prev: int) -> int:
-    print(f"[2] Received previous result: {prev}")
-    return prev + 1
+async def step_two() -> None:
+    print("[2] Second step")
 
 
 @Node()
-async def step_three(prev: int) -> None:
-    print(f"[3] Final result: {prev}")
+async def step_three() -> None:
+    print("[3] Third step")
 
 
 async def main() -> None:

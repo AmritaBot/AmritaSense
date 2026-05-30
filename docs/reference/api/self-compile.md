@@ -39,8 +39,8 @@ Example:
 class CustomInstruction(SelfCompileInstruction):
     def extract(self):
         return NodeCompose(
-            Node(lambda: ...),
-            Node(lambda: ...),
+            NodeType(lambda: ..., wrap_to_async=False, address_able=False, tag=None),
+            NodeType(lambda: ..., wrap_to_async=False, address_able=False, tag=None),
         )
 ```
 

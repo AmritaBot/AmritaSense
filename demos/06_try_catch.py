@@ -6,7 +6,7 @@ Usage:
 
 import asyncio
 
-from amrita_sense import NOP, Node, NodeType, Try, WorkflowInterpreter
+from amrita_sense import NOP, Node, Try, WorkflowInterpreter
 
 
 @Node()
@@ -16,8 +16,8 @@ async def may_fail() -> str:
 
 
 @Node()
-async def handle_error(exc_val: ValueError):
-    """Catch ValueError and return fallback"""
+async def handle_error(exc_val: ValueError) -> None:
+    """Catch ValueError"""
     print(f"Caught: {exc_val}")
 
 
@@ -44,11 +44,13 @@ async def example_1() -> None:
 async def example_2() -> None:
     """Normal execution + THEN + FINALLY"""
     print("\n=== Example 2: normal execution + THEN + FINALLY ===")
+
+    @Node()
+    async def always_ok() -> str:
+        return "all good"
+
     comp = (
-        Try(NodeType(lambda: "all good", wrap_to_async=False, address_able=False, tag=None))  # type: ignore[arg-type]
-        .THEN(on_success)
-        .CATCH(ValueError, handle_error)
-        .FINALLY(cleanup)
+        Try(always_ok).THEN(on_success).CATCH(ValueError, handle_error).FINALLY(cleanup)
         >> NOP
     )
     rendered = comp.render()

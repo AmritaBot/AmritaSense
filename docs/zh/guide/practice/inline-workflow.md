@@ -47,12 +47,13 @@ class SimpleWorkflow:
     @Node()
     async def double(self) -> int:
         """将 self.value 翻倍。"""
-        return self.value * 2
+        self.value *= 2
+        return self.value
 
     @Node()
-    async def format(self, prev: int) -> str:
-        """格式化翻倍后的值。`prev` 是 `double` 的返回值。"""
-        self.result = f"已处理: {prev}"
+    async def format(self) -> str:
+        """格式化 self.value 的结果。"""
+        self.result = f"已处理: {self.value}"
         return self.result
 
     async def run(self) -> str | None:
@@ -74,13 +75,9 @@ print(result)  # "已处理: 42"
 
 `@Node()` 正常装饰实例方法。Python 的方法绑定在函数调用前注入 `self`——它永远不会出现在 DI 的依赖解析过程中。你不需要通过 `extra_args` 或 `extra_kwargs` 来传递 `self`。
 
-### 节点间数据流通过 DI 实现
-
-前一个节点的返回值被向前传递，通过类型匹配注入到下一个节点的参数中。在上面的示例中，`double` 返回 `int`，`format` 声明了 `prev: int`——DI 系统自动将它们匹配。
-
 ### 类字段作为共享状态
 
-节点直接读写 `self.xxx`。这是跨节点共享可变状态的自然方式，无需通过返回值层层传递。
+节点直接读写 `self.xxx`。节点的返回值**不会**自动流入下一个节点的 DI 上下文——使用 `self` 上的实例字段来跨节点共享状态。
 
 ## 真实示例
 

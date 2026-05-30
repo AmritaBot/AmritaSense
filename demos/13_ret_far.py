@@ -1,4 +1,4 @@
-"""13_ret_far.py — CALL + RET_FAR nested return
+"""13_ret_far.py — Manual push + GOTO + RET_FAR pop-and-return
 
 Usage:
     python demos/13_ret_far.py
@@ -6,37 +6,51 @@ Usage:
 
 import asyncio
 
-from amrita_sense import ALIAS, ARCHIVED_NODES, CALL, NOP, Node, WorkflowInterpreter
-from amrita_sense.instructions import RET_FAR
+from amrita_sense import ALIAS, NOP, Node, PointerVector, WorkflowInterpreter
+from amrita_sense.instructions import GOTO, RET_FAR
 
 
 @Node()
-async def deep_work() -> object:
-    """Deep task: simulate an early-exit condition"""
-    print("  Entering deep task...")
-    print("  Early exit condition met — executing RET_FAR")
-    return RET_FAR()  # Pop return address and jump back to the outermost caller
+async def start() -> None:
+    print("Start")
 
 
 @Node()
-async def never_reached() -> None:
-    print("  This line should never print (RET_FAR already jumped out)")
+async def save_ret_addr(pc: WorkflowInterpreter) -> None:
+    """Manually push a return destination onto _ret_addr_stack."""
+    print("  Saving return address...")
+    return_dest = PointerVector(pc.find_addr_alias("after"))
+    pc._ret_addr_stack.push(return_dest)
 
 
 @Node()
-async def back_to_top() -> None:
-    print("Back to top level")
+async def doing_work() -> None:
+    """The section we GOTO into."""
+    print("  Doing work in the jumped-to section")
+
+
+@Node()
+async def after_return() -> None:
+    """RET_FAR pops _ret_addr_stack and jumps here."""
+    print("Back here (popped via RET_FAR)")
 
 
 async def main() -> None:
     print("=== RET_FAR example ===")
-    sub = ARCHIVED_NODES(ALIAS(deep_work, "deep"))
+    # Pattern: manual push → GOTO → RET_FAR pop-and-return
+    #   1) save_ret_addr pushes "after" address onto _ret_addr_stack
+    #   2) GOTO("work") jumps to the work section
+    #   3) RET_FAR() pops the saved address and jumps back
     comp = (
-        Node(lambda: print("Start"))  # type: ignore[arg-type]
-        >> CALL("deep")
-        >> back_to_top
+        start
+        >> save_ret_addr
+        >> GOTO("work")
+        >> ALIAS(after_return, "after")
+        >> GOTO("end")
+        >> ALIAS(doing_work, "work")
+        >> RET_FAR()
+        >> ALIAS(NOP, "end")
         >> NOP
-        >> sub
     )
     await WorkflowInterpreter(comp.render()).run()
 

@@ -15,6 +15,7 @@ from amrita_sense.hook.on import on_event
 @dataclass
 class AuditEvent(ConstructableEvent):
     """Constructable event — triggered by TRIGGER_EVENT in a workflow"""
+
     action: str
 
     @property
@@ -38,7 +39,7 @@ async def audit_handler(event: AuditEvent) -> None:
 
 @Node()
 async def do_work() -> str:
-    print("执行核心逻辑...")
+    print("Executing core logic...")
     return "completed"
 
 

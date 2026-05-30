@@ -10,18 +10,18 @@ from amrita_sense import NOP, Node, WorkflowInterpreter
 
 
 @Node()
-async def a() -> int:
-    return 1
+async def a() -> None:
+    print("Node A")
 
 
 @Node()
-async def b(prev: int) -> int:
-    return prev * 10
+async def b() -> None:
+    print("Node B")
 
 
 @Node()
-async def c(prev: int) -> None:
-    print(f"Final value: {prev}")
+async def c() -> None:
+    print("Node C")
 
 
 async def main() -> None:
@@ -33,9 +33,6 @@ async def main() -> None:
         step += 1
         ptr = interpreter._pointer.base_addr
         print(f"Step {step}: output={result!r}, pointer={ptr}")
-
-        # Inspect state and decide next action here.
-        # e.g.: if step >= 2: break
 
 
 if __name__ == "__main__":

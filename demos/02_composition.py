@@ -1,4 +1,4 @@
-"""02_composition.py — Multi-node chain + DI return-value passing
+"""02_composition.py — Multi-node chain
 
 Usage:
     python demos/02_composition.py
@@ -10,19 +10,18 @@ from amrita_sense import NOP, Node, WorkflowInterpreter
 
 
 @Node()
-async def double() -> int:
-    return 42
+async def double() -> None:
+    pass  # placeholder: real logic goes here
 
 
 @Node()
-async def add_one(value: int) -> int:
-    # DI injects the return value (42) from double into `value`
-    return value + 1
+async def add_one() -> None:
+    pass  # placeholder: real logic goes here
 
 
 @Node()
-async def print_result(value: int) -> None:
-    print(f"Final result: {value}")
+async def print_result() -> None:
+    print("Composition complete")
 
 
 async def main() -> None:

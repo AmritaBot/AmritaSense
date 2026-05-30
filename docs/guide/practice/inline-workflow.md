@@ -47,12 +47,13 @@ class SimpleWorkflow:
     @Node()
     async def double(self) -> int:
         """Double the value stored on self."""
-        return self.value * 2
+        self.value *= 2
+        return self.value
 
     @Node()
-    async def format(self, prev: int) -> str:
-        """Format the doubled value. `prev` is the return value of `double`."""
-        self.result = f"processed: {prev}"
+    async def format(self) -> str:
+        """Format the doubled value from self.value."""
+        self.result = f"processed: {self.value}"
         return self.result
 
     async def run(self) -> str | None:
@@ -74,13 +75,9 @@ print(result)  # "processed: 42"
 
 `@Node()` decorates instance methods normally. Python's method binding injects `self` before the function is called — it never appears in the DI dependency resolution. You don't need `extra_args` or `extra_kwargs` just to pass `self` into your nodes.
 
-### Inter-node data flow via DI
-
-The return value of one node is fed forward and matched by type to the next node's parameter. In the example above, `double` returns `int`, and `format` declares `prev: int` — the DI system matches them automatically.
-
 ### Class fields as shared state
 
-Nodes read and write `self.xxx` directly. This is the natural way to share mutable state across nodes without threading return values through every step.
+Nodes read and write `self.xxx` directly. Node return values do **not** automatically flow into the next node's DI context — use instance fields on `self` to share state across nodes.
 
 ## Real-World Example
 

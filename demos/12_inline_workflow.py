@@ -21,12 +21,12 @@ class SimpleWorkflow:
         self.interpreter = WorkflowInterpreter(rendered)
 
     @Node()
-    async def double(self) -> int:
-        return self.value * 2
+    async def double(self) -> None:
+        self.value *= 2
 
     @Node()
-    async def format(self, prev: int) -> str:
-        self.result = f"Processed: {prev}"
+    async def format(self) -> str:
+        self.result = f"Processed: {self.value}"
         return self.result
 
     async def run(self) -> str | None:

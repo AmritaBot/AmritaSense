@@ -9,49 +9,48 @@ import asyncio
 from amrita_sense import DO, NOP, WHILE, Node, WorkflowInterpreter
 from amrita_sense.exceptions import BreakLoop
 
-
-@Node()
-def counter() -> int:
-    """Increment and return the counter on each call"""
-    if not hasattr(counter, "n"):
-        counter.n = 1  # type: ignore[attr-defined]
-    else:
-        counter.n += 1  # type: ignore[attr-defined]
-    return counter.n  # type: ignore[attr-defined]
+_counter = 0
 
 
 @Node()
-async def under_three(n: int) -> bool:
-    """WHILE loop condition"""
-    return n < 3
+def bump() -> None:
+    global _counter
+    _counter += 1
 
 
 @Node()
-def body(n: int) -> None:
-    """Loop body"""
-    print(f"  WHILE iteration {n}")
+def under_three() -> bool:
+    return _counter < 3
 
 
 @Node()
-def early_break(n: int) -> None:
-    """DO loop body: break out on iteration 3"""
-    print(f"  DO-WHILE iteration {n}")
-    if n >= 3:
+def body() -> None:
+    print(f"  WHILE iteration {_counter}")
+
+
+@Node()
+def cond_dowhile() -> bool:
+    return _counter < 5
+
+
+@Node()
+def do_body() -> None:
+    print(f"  DO-WHILE iteration {_counter}")
+    if _counter >= 3:
         raise BreakLoop
 
 
 async def main() -> None:
+    global _counter
+
     print("=== WHILE example ===")
-    wf = (counter >> WHILE(under_three).ACTION(body) >> NOP).render()
+    _counter = 0
+    wf = (bump >> WHILE(under_three).ACTION(body) >> NOP).render()
     await WorkflowInterpreter(wf).run()
 
-    # Reset counter
-    counter.n = 0  # type: ignore[attr-defined]
-
     print("\n=== DO-WHILE example ===")
-    wf2 = (
-        counter >> DO(early_break).WHILE(Node(lambda n: n < 5, wrap_to_async=False)) >> NOP  # type: ignore[arg-type]
-    ).render()
+    _counter = 0
+    wf2 = (bump >> DO(do_body).WHILE(cond_dowhile) >> NOP).render()
     await WorkflowInterpreter(wf2).run()
 
 

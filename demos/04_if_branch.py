@@ -6,48 +6,36 @@ Usage:
 
 import asyncio
 
-from amrita_sense import IF, NOP, Node, WorkflowInterpreter
+from amrita_sense import IF, NOP, Node, NodeType, WorkflowInterpreter
 
 
 @Node()
-async def check_score() -> int:
-    """Simulate returning a score"""
-    return 85
-
-
-@Node()
-async def grade_a(score: int) -> str:
-    print(f"Score {score}: Excellent")
+async def grade_a() -> str:
+    print("Excellent")
     return "A"
 
 
 @Node()
-async def grade_b(score: int) -> str:
-    print(f"Score {score}: Good")
+async def grade_b() -> str:
+    print("Good")
     return "B"
 
 
 @Node()
-async def grade_c(score: int) -> str:
-    print(f"Score {score}: Pass")
+async def grade_c() -> str:
+    print("Pass")
     return "C"
 
 
-@Node()
-async def finished(grade: str) -> None:
-    print(f"Final grade: {grade}")
-
-
 async def main() -> None:
+    # Inline condition nodes via NodeType
+    cond_a = NodeType(lambda: False, wrap_to_async=False, address_able=False, tag=None)
+    cond_b = NodeType(lambda: True, wrap_to_async=False, address_able=False, tag=None)
+
     comp = (
-        IF(
-            Node(lambda score: score >= 90, wrap_to_async=False),  # type: ignore[arg-type]
-            grade_a,
-        )
-        .ELIF(Node(lambda score: score >= 75, wrap_to_async=False), grade_b)  # type: ignore[arg-type]
+        IF(cond_a, grade_a)  # type: ignore[arg-type]
+        .ELIF(cond_b, grade_b)  # type: ignore[arg-type]
         .ELSE(grade_c)
-        >> check_score
-        >> finished
         >> NOP
     )
     rendered = comp.render()

@@ -468,4 +468,5 @@ class NodeComposeRendered:
         """
         yield from self._graph
 
+
 self_compile.NodeCompose = NodeCompose  # For import.

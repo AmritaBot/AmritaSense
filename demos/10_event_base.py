@@ -15,6 +15,7 @@ from amrita_sense.hook.on import on_event
 @dataclass
 class NotifyEvent(BaseEvent[str]):
     """Custom event"""
+
     message: str
 
     @property
@@ -40,7 +41,7 @@ async def produce_event() -> str:
 
 @Node()
 async def finish(result: str) -> None:
-    print(f"工作流完成: {result}")
+    print(f"[Finish] Workflow completed: {result}")
 
 
 async def main() -> None:

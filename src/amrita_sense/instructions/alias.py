@@ -3,7 +3,7 @@ from types import FrameType
 from typing import Any
 
 from amrita_sense.hook.fun_typing import DependencyMeta
-from amrita_sense.node.core import BaseNode, Node
+from amrita_sense.node.core import BaseNode
 from amrita_sense.node.self_compile import SelfCompileInstruction
 
 
@@ -27,6 +27,7 @@ class AliasNode(BaseNode):
     address_able: bool
     fun_frame: FrameType
     fun_sign: DependencyMeta
+    node: BaseNode
     __slots__ = (
         "address_able",
         "alias",
@@ -38,7 +39,7 @@ class AliasNode(BaseNode):
         "wrap_to_async",
     )
 
-    def __init__(self, node: Node, alias: str):
+    def __init__(self, node: BaseNode, alias: str):
         """Initialize an alias node wrapping another node.
 
         Args:
@@ -72,7 +73,7 @@ class AliasNode(BaseNode):
         return self.node.__call__(*args, **kwds)
 
 
-def ALIAS(node: Node, alias: str) -> AliasNode:
+def ALIAS(node: BaseNode, alias: str) -> AliasNode:
     """Create an alias node for the specified node.
 
     This factory function creates an AliasNode that wraps the given node and
