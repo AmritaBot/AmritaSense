@@ -6,7 +6,7 @@ Usage:
 
 import asyncio
 
-from amrita_sense import ALIAS, ARCHIVED_NODES, CALL, NOP, Node, WorkflowInterpreter
+from amrita_sense import ALIAS, ARCHIVED_NODES, CALL, Node, WorkflowInterpreter
 from amrita_sense.instructions import GOTO
 
 
@@ -40,14 +40,14 @@ async def main() -> None:
     print("=== GOTO example ===")
 
     # GOTO("target") skips skip_me, goes directly to after_jump
-    comp = start >> GOTO("target") >> skip_me >> ALIAS(after_jump, "target") >> NOP
+    comp = start >> GOTO("target") >> skip_me >> ALIAS(after_jump, "target")
     await WorkflowInterpreter(comp.render()).run()
 
     print("\n=== CALL example ===")
 
     # CALL("greeter") invokes the subroutine, then returns to continue
     sub = ARCHIVED_NODES(ALIAS(reusable_greet, "greeter"))
-    comp2 = start >> CALL("greeter") >> done >> NOP >> sub
+    comp2 = start >> CALL("greeter") >> done >> sub
     await WorkflowInterpreter(comp2.render()).run()
 
 

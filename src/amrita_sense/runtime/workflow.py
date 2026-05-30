@@ -168,7 +168,7 @@ class WorkflowInterpreter(Generic[io_T]):
                 fun(*args, **kwargs)
 
         if not TYPE_CHECKING:
-            return wrapper
+            return wrapper  # Make the behavior of the function visible to type checkers
         return fun
 
     @markup
@@ -437,16 +437,16 @@ class WorkflowInterpreter(Generic[io_T]):
             return False
 
         current_node: BaseNode | NodeComposeRendered = current_container[end_idx]
-        if isinstance(current_node, NodeComposeRendered) and current_node._graph:
+        if isinstance(current_node, NodeComposeRendered) and current_node:
             pointer.append(0)
             logger.debug(f"Entered nested container, new pointer: {pointer}")
             return True
 
         next_idx = end_idx + 1
-        if next_idx < len(current_container._graph):
+        if next_idx < len(current_container):
             # Check if the next node is a NodeComposeRendered that should be entered immediately
             next_node = current_container[next_idx]
-            if isinstance(next_node, NodeComposeRendered) and next_node._graph:
+            if isinstance(next_node, NodeComposeRendered) and next_node:
                 pointer[-1] = next_idx
                 pointer.append(0)
                 logger.debug(
@@ -476,11 +476,11 @@ class WorkflowInterpreter(Generic[io_T]):
 
             if isinstance(parent_container, NodeComposeRendered):
                 current_parent_idx = pointer[-1]
-                if current_parent_idx + 1 < len(parent_container._graph):
+                if current_parent_idx + 1 < len(parent_container):
                     next_parent_node = parent_container[current_parent_idx + 1]
                     if (
                         isinstance(next_parent_node, NodeComposeRendered)
-                        and next_parent_node._graph
+                        and next_parent_node
                     ):
                         pointer[-1] = current_parent_idx + 1
                         pointer.append(0)
@@ -513,7 +513,7 @@ class WorkflowInterpreter(Generic[io_T]):
 
         for i, chunk in enumerate(addr):
             if isinstance(current_chunk, NodeComposeRendered):
-                if chunk >= len(current_chunk._graph):
+                if chunk >= len(current_chunk):
                     return None
                 current_chunk = current_chunk[chunk]
             else:

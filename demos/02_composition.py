@@ -6,7 +6,7 @@ Usage:
 
 import asyncio
 
-from amrita_sense import NOP, Node, WorkflowInterpreter
+from amrita_sense import Node, WorkflowInterpreter
 
 
 @Node()
@@ -25,7 +25,7 @@ async def print_result() -> None:
 
 
 async def main() -> None:
-    composition = double >> add_one >> print_result >> NOP
+    composition = double >> add_one >> print_result
     rendered = composition.render()
     interpreter = WorkflowInterpreter(rendered)
     await interpreter.run()

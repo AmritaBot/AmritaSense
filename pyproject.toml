@@ -3,7 +3,7 @@ name = "amrita-sense"
 version = "0.2.3"
 description = "Next-Gen event stream and workflow engine."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10, <3.15"
 dependencies = [
     "aiologic>=0.16.0",
     "anyio>=4.13.0",

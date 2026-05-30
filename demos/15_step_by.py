@@ -6,7 +6,7 @@ Usage:
 
 import asyncio
 
-from amrita_sense import NOP, Node, WorkflowInterpreter
+from amrita_sense import Node, WorkflowInterpreter
 
 
 @Node()
@@ -25,7 +25,7 @@ async def c() -> None:
 
 
 async def main() -> None:
-    comp = (a >> b >> c >> NOP).render()
+    comp = (a >> b >> c).render()
     interpreter = WorkflowInterpreter(comp)
 
     step = 0

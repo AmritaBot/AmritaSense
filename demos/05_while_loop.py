@@ -6,7 +6,7 @@ Usage:
 
 import asyncio
 
-from amrita_sense import DO, NOP, WHILE, Node, WorkflowInterpreter
+from amrita_sense import DO, WHILE, Node, WorkflowInterpreter
 from amrita_sense.exceptions import BreakLoop
 
 _counter = 0
@@ -45,12 +45,12 @@ async def main() -> None:
 
     print("=== WHILE example ===")
     _counter = 0
-    wf = (bump >> WHILE(under_three).ACTION(body) >> NOP).render()
+    wf = (bump >> WHILE(under_three).ACTION(body)).render()
     await WorkflowInterpreter(wf).run()
 
     print("\n=== DO-WHILE example ===")
     _counter = 0
-    wf2 = (bump >> DO(do_body).WHILE(cond_dowhile) >> NOP).render()
+    wf2 = (bump >> DO(do_body).WHILE(cond_dowhile)).render()
     await WorkflowInterpreter(wf2).run()
 
 

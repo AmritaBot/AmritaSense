@@ -7,7 +7,7 @@ Usage:
 import asyncio
 from dataclasses import dataclass
 
-from amrita_sense import NOP, TRIGGER_EVENT, Node, WorkflowInterpreter
+from amrita_sense import TRIGGER_EVENT, Node, WorkflowInterpreter
 from amrita_sense.hook.event import ConstructableEvent
 from amrita_sense.hook.on import on_event
 
@@ -44,7 +44,7 @@ async def do_work() -> str:
 
 
 async def main() -> None:
-    comp = (do_work >> TRIGGER_EVENT(AuditEvent) >> NOP).render()
+    comp = (do_work >> TRIGGER_EVENT(AuditEvent)).render()
     await WorkflowInterpreter(comp).run()
 
 

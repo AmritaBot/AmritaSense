@@ -335,6 +335,13 @@ class NodeComposeRendered:
         """
         return bool(self._graph if hasattr(self, "_graph") else False)
 
+    def __len__(self) -> int:
+        """Return the number of nodes in the rendered graph.
+
+        Returns:
+            Number of nodes in the rendered graph.
+        """
+        return len(self._graph) if hasattr(self, "_graph") else -1
     def _build(
         self,
         current_path: list[int] | None = None,

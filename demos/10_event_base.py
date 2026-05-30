@@ -45,9 +45,8 @@ async def finish(result: str) -> None:
 
 
 async def main() -> None:
-    from amrita_sense import NOP
 
-    comp = (produce_event >> finish >> NOP).render()
+    comp = (produce_event >> finish).render()
     await WorkflowInterpreter(comp).run()
 
 

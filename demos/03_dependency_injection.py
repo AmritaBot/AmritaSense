@@ -6,7 +6,7 @@ Usage:
 
 import asyncio
 
-from amrita_sense import NOP, Node, WorkflowInterpreter
+from amrita_sense import Node, WorkflowInterpreter
 
 
 @Node()
@@ -22,7 +22,7 @@ async def display(message: str) -> None:
 
 
 async def main() -> None:
-    composition = greet >> display >> NOP
+    composition = greet >> display
     rendered = composition.render()
     interpreter = WorkflowInterpreter(
         rendered,

@@ -6,7 +6,7 @@ Usage:
 
 import asyncio
 
-from amrita_sense import INTERRUPT, NOP, Node, WorkflowInterpreter
+from amrita_sense import INTERRUPT, Node, WorkflowInterpreter
 from amrita_sense.exceptions import InterruptNotice
 
 
@@ -30,7 +30,7 @@ async def this_wont_run(value: int) -> None:
 
 async def main() -> None:
     print("=== InterruptNotice forced termination example ===")
-    comp = (normal_work >> critical_check >> this_wont_run >> NOP).render()
+    comp = (normal_work >> critical_check >> this_wont_run).render()
 
     try:
         await WorkflowInterpreter(comp).run()
@@ -38,7 +38,7 @@ async def main() -> None:
         print(f"Workflow terminated: {e}")
 
     print("\n=== INTERRUPT instruction example ===")
-    comp2 = (normal_work >> INTERRUPT >> this_wont_run >> NOP).render()
+    comp2 = (normal_work >> INTERRUPT >> this_wont_run).render()
     try:
         await WorkflowInterpreter(comp2).run()
     except InterruptNotice:

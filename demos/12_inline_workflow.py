@@ -6,7 +6,7 @@ Usage:
 
 import asyncio
 
-from amrita_sense import NOP, Node, WorkflowInterpreter
+from amrita_sense import Node, WorkflowInterpreter
 
 
 class SimpleWorkflow:
@@ -17,7 +17,7 @@ class SimpleWorkflow:
         self.result: str | None = None
 
         # Compose → render → create interpreter
-        rendered = (self.double >> self.format >> NOP).render()
+        rendered = (self.double >> self.format).render()
         self.interpreter = WorkflowInterpreter(rendered)
 
     @Node()

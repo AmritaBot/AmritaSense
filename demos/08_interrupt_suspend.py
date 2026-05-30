@@ -6,7 +6,7 @@ Usage:
 
 import asyncio
 
-from amrita_sense import NOP, Node, WorkflowInterpreter
+from amrita_sense import Node, WorkflowInterpreter
 
 
 @Node()
@@ -26,7 +26,7 @@ async def step_three() -> None:
 
 async def main() -> None:
     print("=== Using run_step_by() to inspect between steps ===")
-    comp = (step_one >> step_two >> step_three >> NOP).render()
+    comp = (step_one >> step_two >> step_three).render()
     interpreter = WorkflowInterpreter(comp)
 
     async for result in interpreter.run_step_by():

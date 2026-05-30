@@ -71,7 +71,6 @@ comp = (
     >> ALIAS(doing_work, "work")
     >> RET_FAR()
     >> ALIAS(NOP, "end")
-    >> NOP
 )
 await WorkflowInterpreter(comp.render()).run()
 ```
