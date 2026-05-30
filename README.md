@@ -49,6 +49,7 @@ pip install amrita-sense
 ## Quick Look
 
 ```python
+import asyncio
 from amrita_sense import Node, WorkflowInterpreter as WorkflowPC, IF, NOP
 
 @Node()
@@ -59,7 +60,9 @@ def action(): print("Done")
 
 flow = IF(condition, action) >> NOP
 pc = WorkflowPC(flow.render())
-pc.run_sync()
+
+if __name__ == "__main__":
+  asyncio.run(pc.run())
 ```
 
 See more demos in `demos/`
