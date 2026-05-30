@@ -19,6 +19,7 @@ class SelfCompileInstruction(ABC):
 **核心方法**
 
 - `extract() -> NodeCompose`：将指令展开为底层节点组合。必须返回一个 `NodeCompose` 实例，该实例会被框架自动递归渲染。
+- `__rshift__(other) -> NodeCompose`：支持 `>>` 运算符，使自编译指令可以直接与普通节点组合。语法糖：`instruction >> node` 等价于 `NodeCompose(instruction, node)`。
 
 **设计理念**
 

@@ -22,6 +22,7 @@ WorkflowInterpreter(
     extra_args: tuple = (),
     extra_kwargs: dict[str, Any] | None = None,
     addr_stack: Stack[PointerVector] | None = None,
+    middleware: Callable[['WorkflowInterpreter'], Awaitable[Any]] | None = None,
 )
 ```
 
@@ -32,6 +33,7 @@ Arguments:
 - `exception_ignored`: Exception types to bypass TRY/CATCH blocks.
 - `extra_args` / `extra_kwargs`: Additional runtime values available for dependency injection.
 - `addr_stack`: Optional return address stack.
+- `middleware`: Optional async callable that receives the `WorkflowInterpreter` instance. When set, `run_step_by()` and `call_sub()` delegate to the middleware instead of calling nodes directly. The middleware can decide whether and how to execute nodes, transform results, or inject custom logic around every step.
 
 ### Key attributes
 
@@ -79,6 +81,14 @@ Jump to an address at the top-level workflow.
 
 Apply a relative offset at the top level and reset nested dimensions.
 
+#### `jump_far_ptr(offset: list[int])`
+
+Perform a multi-dimensional absolute jump. Replaces the entire `_pointer` with the given address vector via `far_to()`. Used by `RET_FAR` to return from nested scopes.
+
+#### `jump_offset_far(offset: list[int])`
+
+Apply a multi-dimensional offset to the current pointer position. Unlike `jump_offset()` which only adjusts the innermost dimension, this applies an offset vector across all nesting levels.
+
 #### `async call_sub(addr, /, *extra_arg, interrupt: bool = False, **extra_kwargs)`
 
 Call a subroutine at the specified address. It pushes the current pointer onto the return address stack, switches execution to the subroutine, and restores the pointer after the call.
@@ -93,6 +103,10 @@ Call a subroutine within the current scope using a relative near address.
 #### `async call_offset(offset: int, *ag, interrupt: bool = False, **kw)`
 
 Call a subroutine by applying a relative offset to the current pointer.
+
+#### `async call_offset_far(offset: list[int], *ag, interrupt: bool = False, **kw)`
+
+Call a subroutine at a multi-dimensional offset from the current position. Applies `offset_far()` to compute the target address, then delegates to `call_sub()`. Useful for invoking nodes across nested scopes.
 
 #### `find_addr_alias(alias: str) -> list[int]`
 

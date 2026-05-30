@@ -87,22 +87,24 @@ TRY(do).CATCH(exc1, handler1).CATCH(exc2, handler2).FINALLY(cleanup)
 `TryClause` is a `SelfCompileInstruction` and expands at compile time into:
 
 ```text
-[TryNode, try_body, ..., CatchHandler_1, catch_body_1, ..., FinNode, fin_body, NOP]
+[TryNode, try_body, ..., CatchHandler_1, catch_body_1, ..., FinNode(opt), fin_body(opt), NOP(escape)]
 ```
+
+The `NOP` at the end is an **escape sentinel** — every execution path (success, caught, uncaught, finally) ends with `pc.jump_near(self._escape_addr)` to reach it. This ensures control never falls through into the next instruction in the enclosing composition.
 
 The runtime behavior of `TryNode` is:
 
 1. **Execute the TRY block** via `call_near`.
 2. **If no exception occurs**:
    - if `THEN` is defined, call `then_body` via `call_near`
-   - jump to `FIN` or `NOP`
 3. **If an exception occurs**:
    - `TryNode` catches `BaseException`
-   - if the exception type is in `_exc_ignored`, it is re-raised
+   - if the exception type is in `_exc_ignored`, it is re-raised immediately
    - iterate through `_catch_addr_chain` and match exception types with `isinstance`
    - execute the first matching `CATCH` block via `call_near`
    - if no catch matches, re-raise the exception
 4. **Regardless of exception**: the `finally` block executes via `call_near` if defined.
+5. **After all blocks complete**: jump to the escape NOP sentinel via `pc.jump_near(self._escape_addr)`.
 
 ## Exception penetration rules
 

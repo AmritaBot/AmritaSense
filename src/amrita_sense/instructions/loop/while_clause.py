@@ -87,7 +87,7 @@ class CheckUpNode(BaseNode):
 
     def __init__(self, jump_near: int):
         self._jump_addr = jump_near
-        super()._init(self._while_checkup, None, False, False)
+        self._init(self._while_checkup, None, False, False)
 
     def _while_checkup(self, pc: WorkflowInterpreter):
         pc.jump_near(self._jump_addr)

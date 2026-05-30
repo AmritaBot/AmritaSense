@@ -1,6 +1,6 @@
 [project]
 name = "amrita-sense"
-version = "0.2.1"
+version = "0.2.2"
 description = "Next-Gen event stream and workflow engine."
 readme = "README.md"
 requires-python = ">=3.10"

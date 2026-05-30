@@ -16,6 +16,7 @@ from .instructions import (
     IF,
     INTERRUPT,
     NOP,
+    TRIGGER_EVENT,
     WHILE,
     Try,
 )
@@ -33,6 +34,7 @@ __all__ = [
     "INTERRUPT",
     "NOP",
     "POINTER_DEPENDS",
+    "TRIGGER_EVENT",
     "WHILE",
     "BaseEvent",
     "DependsException",

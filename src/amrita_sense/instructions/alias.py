@@ -1,6 +1,8 @@
 from collections.abc import Callable
+from types import FrameType
 from typing import Any
 
+from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.node.core import BaseNode, Node
 from amrita_sense.node.self_compile import SelfCompileInstruction
 
@@ -19,8 +21,22 @@ class AliasNode(BaseNode):
         func: Reference to the underlying node's function for direct execution.
     """
 
-    __slots__ = ("alias", "node")
+    tag: str
     func: Callable[..., Any]
+    wrap_to_async: bool
+    address_able: bool
+    fun_frame: FrameType
+    fun_sign: DependencyMeta
+    __slots__ = (
+        "address_able",
+        "alias",
+        "fun_frame",
+        "fun_sign",
+        "func",
+        "node",
+        "tag",
+        "wrap_to_async",
+    )
 
     def __init__(self, node: Node, alias: str):
         """Initialize an alias node wrapping another node.
@@ -35,7 +51,7 @@ class AliasNode(BaseNode):
         if isinstance(node, SelfCompileInstruction):
             raise ValueError("Alias node can't be SelfCompileInstruction")
         self.node = node
-        super()._init(
+        self._init(
             self.node.func,
             tag=f"Alias::{alias}",
             wrap_to_async=node.wrap_to_async,

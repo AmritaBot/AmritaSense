@@ -21,9 +21,7 @@
     </a>
   </p>
 
-> ### _"Any is thing all you need."_
->
-> ### _"Let developers return with Python again."_
+> ### _"Sense is all you need."_
 
 </center>
 

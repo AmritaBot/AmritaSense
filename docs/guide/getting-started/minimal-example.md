@@ -32,3 +32,5 @@ We use the `render()` method to convert the workflow into an executable data str
 `WorkflowInterpreter` is the workflow interpreter and scheduler runtime, and we use it to execute the workflow.
 
 Finally, we launch the workflow with `asyncio.run(interpreter.run())`. If everything goes well, you should see logs in the console and a "Hello, World!" message.
+
+> **More examples**: See the `demos/` directory in the source repository for more standalone, runnable examples covering all core features.

@@ -21,11 +21,11 @@ def Node(
 
 **这里分别作出解释：**
 
-- `tag`：节点的标签，用于**标识**节点，用于外部断点调试与可视化，详情请见[执行与中断](/zh/guide/concepts/exec_and_interrupt)。这里只需要直到`tag`可以重复。
+- `tag`：节点的标签，用于**标识**节点，用于外部断点调试与可视化，详情请见[执行与中断](/zh/guide/concepts/exec_and_interrupt)。这里只需要知道`tag`可以重复。
 - `wrap_to_async`：是否将**同步函数**转换为异步函数。
-- `address_able`：是否允许节点被其他节点引用（通过`ALIAS`，后为会讲到）。
+- `address_able`：是否允许节点被其他节点引用（通过`ALIAS`，后面会讲到）。
 
-使用`@Node()`装饰器会返回一个`Node`对象，`Node`事实上是一个带有函数元信息的包装类，集成自BaseNode，实现了`__call__`方法的函数包装对象。并且它也可以作为普通函数使用，函数签名来自函数本身。
+使用`@Node()`装饰器会返回一个`Node`对象，`Node`事实上是一个带有函数元信息的包装类，继承自BaseNode，实现了`__call__`方法的函数包装对象。并且它也可以作为普通函数使用，函数签名来自函数本身。
 
 那么我们如何把节点串起来呢？这里引入了编排的概念。
 
@@ -71,7 +71,7 @@ def __init__(
 
 这些参数只能通过kwargs传入，不能通过args传入。
 
-- `exception_ignored`: 传入一个元组，包含要被忽略的异常类型。被忽略的异常类型在内部的异常捕捉链中**不会被捕获**，会被重新抛出。它的默认值是`(InteruptNotice,BreakLoop)`。
+- `exception_ignored`: 传入一个元组，包含要被忽略的异常类型。被忽略的异常类型在内部的异常捕捉链中**不会被捕获**，会被重新抛出。它的默认值是`(InterruptNotice,BreakLoop)`。
 - `extra_args`: 传入一个元组，包含额外的参数。这些参数会通过类型绑定依赖注入的方式传递给内部函数。
 - `extra_kwargs`: 传入一个字典，包含额外的关键字参数。这些参数会通过类型绑定依赖注入的方式传递给内部函数。
 
@@ -124,7 +124,7 @@ async def my_fun(a: int, b: int) -> int:
 
 ### 传参与绑定
 
-参数通过`WorkflowInterperter`构造函数的`extra_args`与`extra_kwargs`参数传入。它们的作用是什么？
+参数通过`WorkflowInterpreter`构造函数的`extra_args`与`extra_kwargs`参数传入。它们的作用是什么？
 
 - `extra_args`: 可用的位置参数实参，通过**参数的类型**与**函数的参数类型**进行匹配。
 - `extra_kwargs`: 可用的关键字参数实参，通过**参数名**与**函数的参数名**进行匹配。并且优先级高于`extra_args`，并且不能进行类型匹配。
@@ -148,7 +148,7 @@ interpreter = WorkflowInterpreter(my_func>>NOP,extra_args=a,extra_kwargs=b)
 ...
 ```
 
-在这个例子中，虽然`arg`的类型是`MyType`，并且参数元组中也有一个`MyType`参数，但是`extra_args`中第一个参数是`MyOtherType`，所以`arg`会被`extra_args`中的第一个参数替换。
+在这个例子中，`extra_kwargs` 优先匹配，但 `b["arg"]` 的类型 `MyOtherType` 与签名的 `MyType` 不一致；随后回落至 `extra_args` 按类型匹配，第一个 `MyOtherType` 也不匹配，但 `extra_args` 会按顺序尝试直到找到第一个 `MyType` 实例并注入成功。如果一直找不到匹配项，则报错终止。
 
 来看看第二个例子：
 
@@ -169,6 +169,6 @@ interpreter = WorkflowInterpreter(my_func>>NOP,extra_args=a,extra_kwargs=b)
 这个程序会报错。因为`extra_kwargs`的参数不能进行类型匹配，并且`extra_args`的参数中不存在同类型的参数。
 
 ::: warning
-值的注意的是，函数签名中不能使用`*args`和`**kwargs`，这会导致参数无法进行匹配。
+值得注意的是，函数签名中不能使用`*args`和`**kwargs`，这会导致参数无法进行匹配。
 同时，对于使用`extra_args`注入的参数，则**必须**在形式参数中声明类型，否则将以报错结束。
 :::

@@ -10,6 +10,17 @@ Self-compile instructions are a special extension point that can expand into exe
 class SelfCompileInstruction(ABC):
     @abstractmethod
     def extract(self) -> NodeCompose: ...
+
+    def __rshift__(self, other) -> NodeCompose:
+        """Create a node composition using the right-shift operator.
+
+        This enables the `instruction >> node` syntax for composing
+        self-compile instructions with regular nodes.
+
+        Returns:
+            A new NodeCompose containing this instruction and the other element.
+        """
+        return NodeCompose(self, other)
 ```
 
 When a `SelfCompileInstruction` is encountered during `NodeCompose.render()`, the interpreter calls `extract()` to obtain a `NodeCompose` fragment. That fragment is then rendered and inserted into the final workflow graph.

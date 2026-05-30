@@ -147,7 +147,7 @@ export default withMermaid({
                     link: "/guide/advanced/built-in_instruction_set/while_clause",
                   },
                   {
-                    text: "Jump Instructions (GOTO/CALL)",
+                    text: "Call & Transfer Instructions (GOTO/CALL)",
                     link: "/guide/advanced/built-in_instruction_set/jump_clause",
                   },
                   {
@@ -169,7 +169,17 @@ export default withMermaid({
           },
           {
             text: "Integration & Practice",
-            items: [{ text: "Under Construction..." }],
+            items: [
+              {
+                text: "Inline Workflows",
+                link: "/guide/practice/inline-workflow",
+              },
+              {
+                text: "Manual Stack Management",
+                link: "/guide/practice/manual-stack-management",
+              },
+              { text: "Under Construction..." },
+            ],
           },
           {
             text: "API Reference",
@@ -290,7 +300,7 @@ export default withMermaid({
                     link: "/zh/guide/advanced/built-in_instruction_set/while_clause",
                   },
                   {
-                    text: "跳转指令 (GOTO/CALL)",
+                    text: "调用与转移指令 (GOTO/CALL)",
                     link: "/zh/guide/advanced/built-in_instruction_set/jump_clause",
                   },
                   {
@@ -312,7 +322,17 @@ export default withMermaid({
           },
           {
             text: "集成与实践",
-            items: [{ text: "正在施工中......" }],
+            items: [
+              {
+                text: "内联工作流",
+                link: "/zh/guide/practice/inline-workflow",
+              },
+              {
+                text: "手动栈空间管理分配",
+                link: "/zh/guide/practice/manual-stack-management",
+              },
+              { text: "正在施工中......" },
+            ],
           },
           {
             text: "API参考",

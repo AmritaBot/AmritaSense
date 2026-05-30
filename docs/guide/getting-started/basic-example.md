@@ -54,3 +54,5 @@ graph LR;
 ```
 
 Of course, `IF` also supports `ELIF` and `ELSE`. We will cover those in later chapters.
+
+> **More examples**: See the `demos/` directory in the source repository for more standalone, runnable examples covering all core features.

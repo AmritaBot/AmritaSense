@@ -32,3 +32,5 @@ if __name__ == "__main__":
 `WorkflowInterpreter`是工作流的解释与调度运行时，我们使用它来执行工作流。
 
 最后，我们使用`asyncio.run(interpreter.run())`启动工作流。如果不出意外，您会在控制台看到日志和一个“Hello, World!”消息。
+
+> **更多示例**：源码仓库的 `demos/` 目录包含了更多覆盖全部核心功能的可独立运行示例。

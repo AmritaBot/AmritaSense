@@ -23,11 +23,13 @@ class TryNode(BaseNode):
     _catch_addr_chain: list[tuple[type[BaseException], int]]
     _finally_addr: int | None
     _else_addr: int | None
+    _escape_addr: int
 
     __slots__ = (
         "_catch_addr_chain",
         "_do_node_addr",
         "_else_addr",
+        "_escape_addr",
         "_finally_addr",
         "address_able",
         "fun_frame",
@@ -43,20 +45,22 @@ class TryNode(BaseNode):
         catch_lst: list[tuple[type[BaseException], int]],
         fin_addr: int | None,
         els_addr: int | None,
+        escape_addr: int,
     ) -> None:
         self._do_node_addr = do_addr
         self._catch_addr_chain = catch_lst
         self._finally_addr = fin_addr
         self._else_addr = els_addr
-        super()._init(
+        self._escape_addr = escape_addr
+        self._init(
             self._worker, "TryNode::worker", address_able=False, wrap_to_async=False
         )
 
     async def _worker(self, pc: WorkflowInterpreter):
         try:
             await pc.call_near(self._do_node_addr)
-        except BaseException:
-            exc_type, exc_val, exc_tb = sys.exc_info()
+        except BaseException as exc_val:
+            exc_type, _, exc_tb = sys.exc_info()
             if isinstance(exc_val, pc._exc_ignored):
                 raise
             idx: int | None = None
@@ -76,6 +80,7 @@ class TryNode(BaseNode):
         finally:
             if self._finally_addr is not None:
                 await pc.call_near(self._finally_addr)
+        pc.jump_near(self._escape_addr)
 
 
 class TryClause(SelfCompileInstruction):
@@ -141,8 +146,10 @@ class TryClause(SelfCompileInstruction):
         if self._finally:
             cp += (self._finally,)
             finally_addr = len(cp) - 1
+        cp.append(NOP)
+        escape_addr = len(cp) - 1
 
-        cp[0] = TryNode(1, catch_chain, finally_addr, then_addr)
+        cp[0] = TryNode(1, catch_chain, finally_addr, then_addr, escape_addr)
         return NodeCompose(*cp)
 
 

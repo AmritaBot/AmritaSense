@@ -116,3 +116,5 @@ main = (
     >> subprogram
 )
 ```
+
+> **Manual stack management**: For scenarios requiring explicit control over the return address stack — such as early exit from nested scopes or custom stack unwinding — see the `RET_FAR` instruction documented in [Advanced Topic: Manual Stack Space Management](/guide/practice/manual-stack-management).

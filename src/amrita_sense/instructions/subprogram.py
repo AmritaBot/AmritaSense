@@ -83,7 +83,7 @@ class CallNode(BaseNode):
 
     def __init__(self, alias: str, tag: str | None = None):
         self._alias = alias
-        super()._init(self.__call__, tag, False, True)
+        self._init(self.__call__, tag, False, True)
 
     @override
     def _pre_check(self, pointer: WorkflowInterpreter) -> None:

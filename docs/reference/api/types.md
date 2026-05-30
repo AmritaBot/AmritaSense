@@ -30,3 +30,23 @@ Key operations:
 - `resize(size: int)`: Change the maximum capacity.
 
 The stack is protected by a lock and raises `OverflowError` if capacity is exceeded.
+
+## Event Types
+
+### BaseEvent
+
+`BaseEvent` is the abstract base class for all events in AmritaSense's event system. It is a generic dataclass parameterized by a string subtype (`stringSub_T`). Subclasses must implement both `event_type` (property) and `get_event_type()` (method) to return the event's type identifier.
+
+### ConstructableEvent
+
+`ConstructableEvent` extends `BaseEvent` with a `constructor()` class method that enables on-demand event construction during workflow execution. It is used with the `TRIGGER_EVENT` instruction.
+
+```python
+@dataclass
+class ConstructableEvent(BaseEvent):
+    @abstractmethod
+    @classmethod
+    def constructor(cls, *args, **kwargs) -> Self | Awaitable[Self]: ...
+```
+
+Subclasses must implement `constructor()`, which can return either a synchronous or asynchronous result. The runtime calls this method to build the event instance before dispatching it through `MatcherFactory.trigger_event()`.

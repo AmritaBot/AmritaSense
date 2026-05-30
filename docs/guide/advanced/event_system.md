@@ -80,3 +80,73 @@ async def complete_task_node() -> str:
 ## Handler Order and Blocking
 
 Handlers for the same event type execute in ascending order of priority. A handler can immediately terminate the entire event chain by raising `CancelException`, or skip itself and let the next handler continue by raising `PassException`. Standard dispatch is cooperative — unless explicitly interrupted, all matching handlers are executed in order.
+
+## ConstructableEvent and TRIGGER_EVENT
+
+### ConstructableEvent
+
+`ConstructableEvent` extends `BaseEvent` with a `constructor()` class method that enables events to be constructed **on-demand during workflow execution**. This is the key difference from `BaseEvent`: while `BaseEvent` requires you to instantiate the event before dispatching, `ConstructableEvent` allows you to embed event construction directly into a workflow composition via `TRIGGER_EVENT`.
+
+```python
+@dataclass
+class ConstructableEvent(BaseEvent):
+    @abstractmethod
+    @classmethod
+    def constructor(cls, *args, **kwargs) -> Self | Awaitable[Self]: ...
+```
+
+Subclasses must implement `constructor()`, which can be sync or async. The runtime calls this method to build the event instance before dispatching it through `MatcherFactory.trigger_event()`.
+
+### TRIGGER_EVENT Instruction
+
+`TRIGGER_EVENT` is a **self-compile instruction** that triggers a constructable event as part of a workflow composition. It accepts a `ConstructableEvent` subclass and expands at render time into a three-node sequence:
+
+```text
+[EventTrigger → event.constructor() → NOP]
+```
+
+#### Runtime flow
+
+1. `EventTrigger` calls `pc.call_offset(1)` to invoke the constructor node at offset +1
+2. Validates the returned value is a `BaseEvent` instance
+3. Dispatches the event via `MatcherFactory.trigger_event(event, ...)`, passing along `extra_args`/`extra_kwargs`
+4. Jumps to offset +2 (`NOP`) to continue normal execution
+
+#### Example
+
+```python
+from dataclasses import dataclass
+
+from amrita_sense.hook.event import ConstructableEvent
+from amrita_sense.hook.on import on_event
+from amrita_sense.instructions import TRIGGER_EVENT
+from amrita_sense.node.core import Node
+
+@dataclass
+class OrderPlacedEvent(ConstructableEvent[str]):
+    order_id: str
+
+    @property
+    def event_type(self) -> str:
+        return "order.placed"
+
+    def get_event_type(self) -> str:
+        return self.event_type
+
+    @classmethod
+    def constructor(cls, order_id: str = "auto-generated") -> "OrderPlacedEvent":
+        return cls(order_id=order_id)
+
+@on_event("order.placed")
+async def notify_warehouse(event: OrderPlacedEvent):
+    print(f"Warehouse notified: {event.order_id}")
+
+@Node()
+async def checkout() -> str:
+    return "checkout complete"
+
+# Compose: checkout, then trigger the event
+workflow = checkout >> TRIGGER_EVENT(OrderPlacedEvent)
+```
+
+Because `TRIGGER_EVENT` is a `SelfCompileInstruction`, it can be composed with `>>` just like regular nodes. The constructor receives `extra_args` and `extra_kwargs` from the interpreter, so it can be parameterized at runtime through the same DI mechanism.

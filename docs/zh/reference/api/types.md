@@ -72,3 +72,23 @@ class PointerVector:
 - **绝对寻址**: 使用完整的地址向量
 - **相对寻址**: 在同一层级内进行偏移
 - **近寻址**: 修改当前层级索引，保持其他层级不变
+
+## 事件类型
+
+### BaseEvent
+
+`BaseEvent` 是 AmritaSense 事件系统中所有事件的抽象基类。它是一个泛型数据类，由字符串子类型（`stringSub_T`）参数化。子类必须实现 `event_type`（属性）和 `get_event_type()`（方法）来返回事件的类型标识。
+
+### ConstructableEvent
+
+`ConstructableEvent` 继承自 `BaseEvent`，额外定义了一个 `constructor()` 类方法，使事件能够在工作流执行期间按需构造。它与 `TRIGGER_EVENT` 指令配合使用。
+
+```python
+@dataclass
+class ConstructableEvent(BaseEvent):
+    @abstractmethod
+    @classmethod
+    def constructor(cls, *args, **kwargs) -> Self | Awaitable[Self]: ...
+```
+
+子类必须实现 `constructor()`，可返回同步或异步结果。运行时调用此方法构建事件实例，然后通过 `MatcherFactory.trigger_event()` 分发。

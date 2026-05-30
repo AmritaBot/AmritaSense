@@ -62,7 +62,7 @@ class ConditionJumpNode(BaseNode):
         frame = inspect.currentframe()
         if not frame:
             raise RuntimeError("No frame found")
-        super()._init(
+        self._init(
             self._do, tag=None, wrap_to_async=True, address_able=True, frame=frame
         )
 
@@ -217,9 +217,7 @@ class ELSENode(BaseNode):
     )
 
     def __init__(self, do_offset: int, then_offset: int):
-        super()._init(
-            self._else_worker, tag=None, wrap_to_async=True, address_able=True
-        )
+        self._init(self._else_worker, tag=None, wrap_to_async=True, address_able=True)
         self._do_offset = do_offset
         self._then_offset = then_offset
 

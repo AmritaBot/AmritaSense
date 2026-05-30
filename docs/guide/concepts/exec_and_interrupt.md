@@ -63,7 +63,7 @@ AmritaSense also provides a runtime event/hook system that runs in parallel with
 
 For a full description of the event and hook system, see the standalone advanced guide page: `Advanced > Event System`.
 
-## 3.4.3 Between-node breakpoint
+## 3.4.4 Between-node breakpoint
 
 **Trigger timing:** after each node completes, as the interpreter enters the next loop iteration, after advancing the pointer and resolving the next location, but before executing the next node.
 

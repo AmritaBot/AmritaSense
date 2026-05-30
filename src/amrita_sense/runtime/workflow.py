@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import nullcontext
 from functools import wraps
 from inspect import iscoroutinefunction
-from typing import Any, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
 
 import aiologic
 
@@ -26,6 +26,7 @@ from amrita_sense.types import PointerVector, Stack
 PC_CHECKPOINT = "WorkflowInterpreter::each_node"
 NULL_CTX = nullcontext()
 io_T = TypeVar("io_T", bound=SuspendObjectStream, covariant=True)
+fun_T = TypeVar("fun_T", bound=Callable[..., Any], covariant=True)
 
 
 class WorkflowInterpreter(Generic[io_T]):
@@ -46,6 +47,7 @@ class WorkflowInterpreter(Generic[io_T]):
         _ret_addr_stack: Stack for managing return addresses during subroutine calls.
         _jump_marked: Flag indicating if a jump operation has been performed.
         _interpret_lock: Lock for ensuring thread-safe execution.
+        _middleware: Optional middleware function for custom execution logic.
     """
 
     _graph: NodeComposeRendered
@@ -57,6 +59,19 @@ class WorkflowInterpreter(Generic[io_T]):
     _ret_addr_stack: Stack[PointerVector]
     _jump_marked: bool
     _interpret_lock: aiologic.Lock
+    _middleware: Callable[["WorkflowInterpreter"], Awaitable[Any]] | None
+    __slots__ = (
+        "_ava_args",
+        "_ava_kwargs",
+        "_exc_ignored",
+        "_graph",
+        "_interpret_lock",
+        "_jump_marked",
+        "_middleware",
+        "_pointer",
+        "_ret_addr_stack",
+        "object_io",
+    )
 
     def __init__(
         self,
@@ -67,6 +82,7 @@ class WorkflowInterpreter(Generic[io_T]):
         extra_args: tuple = (),
         extra_kwargs: dict[str, Any] | None = None,
         addr_stack: Stack[PointerVector] | None = None,
+        middleware: Callable[["WorkflowInterpreter"], Awaitable[Any]] | None = None,
     ):
         """Initialize the workflow interpreter with a compiled workflow graph.
 
@@ -91,7 +107,7 @@ class WorkflowInterpreter(Generic[io_T]):
         self._ret_addr_stack = addr_stack or Stack()
         self._jump_marked = False
         self._interpret_lock = aiologic.Lock()
-
+        self._middleware = middleware
     def get_graph(self) -> NodeComposeRendered:
         """Return the compiled workflow graph being executed.
 
@@ -128,11 +144,13 @@ class WorkflowInterpreter(Generic[io_T]):
         return self.find_addr(self.find_addr_alias(alias))
 
     @staticmethod
-    def markup(fun: Callable[..., Any]):  # Used to mark a jump action
+    def markup(fun: fun_T) -> fun_T:  # Used to mark a pointer action
         """Decorator for marking methods that perform jump operations.
 
         This decorator automatically sets the _jump_marked flag when a jump method
         is called, preventing the pointer from advancing normally after the jump.
+
+        All decorated methods must be instance methods which return None.
 
         Args:
             fun: The method to decorate as a jump operation.
@@ -146,9 +164,11 @@ class WorkflowInterpreter(Generic[io_T]):
             self: WorkflowInterpreter = args[0]
             if not self._jump_marked:
                 self._jump_marked = True
-                return fun(*args, **kwargs)
+                fun(*args, **kwargs)
 
-        return wrapper
+        if not TYPE_CHECKING:
+            return wrapper
+        return fun
 
     @markup
     def jump_to(self, addr: list[int]) -> None:
@@ -196,6 +216,16 @@ class WorkflowInterpreter(Generic[io_T]):
         self._pointer.far_to(offset)
 
     @markup
+    def jump_offset_far(self, offset: list[int]) -> None:
+        """Jump using a multi-dimensional offset vector from the current pointer.
+
+        Args:
+            offset: Multi-dimensional offset vector to apply to the current pointer.
+        """
+        logger.info(f"Jumping far with offset {offset}")
+        self._pointer.offset_far(offset)
+
+    @markup
     def jump_to_top(self, addr: int) -> None:
         """Jump to an absolute address at the top level of the workflow.
 
@@ -231,6 +261,24 @@ class WorkflowInterpreter(Generic[io_T]):
         """
         ptr: PointerVector = self._pointer.copy().offset(offset)
         logger.info(f"Calling with offset {offset} at pointer {ptr}")
+        return await self.call_sub(ptr, *ag, interrupt, **kw)
+
+    async def call_offset_far(
+        self, offset: list[int], *ag, interrupt: bool = False, **kw
+    ) -> Any:
+        """Call a subroutine at a multi-dimensional offset from the current position.
+
+        Args:
+            offset: Multi-dimensional relative offset from current pointer position.
+            *ag: Additional positional arguments to pass to the subroutine.
+            interrupt: Whether to allow interruption during this call.
+            **kw: Additional keyword arguments to pass to the subroutine.
+
+        Returns:
+            The result of the subroutine call.
+        """
+        ptr: PointerVector = self._pointer.copy().offset_far(offset)
+        logger.info(f"Calling with far offset {offset} at pointer {ptr}")
         return await self.call_sub(ptr, *ag, interrupt, **kw)
 
     async def call_near(self, addr: int, *ag, interrupt: bool = False, **kw) -> Any:
@@ -277,7 +325,11 @@ class WorkflowInterpreter(Generic[io_T]):
         logger.info(f"Calling subroutine at {addr}")
         try:
             async with self._interpret_lock if interrupt else NULL_CTX:
-                return await self._call(self.find_addr, *extra_arg, **extra_kwargs)
+                return await (
+                    self._middleware(self)
+                    if self._middleware
+                    else self._call(self.find_addr, *extra_arg, **extra_kwargs)
+                )
         finally:
             ptr = self._ret_addr_stack.pop()
             if not self._jump_marked:
@@ -335,7 +387,11 @@ class WorkflowInterpreter(Generic[io_T]):
                         if not self._graph:
                             break
                         self._pointer.append(0)
-                    yield await self._call()
+                    yield (
+                        await self._middleware(self)
+                        if self._middleware
+                        else await self._call()
+                    )
                     if self._jump_marked:
                         self._jump_marked = False
                         continue

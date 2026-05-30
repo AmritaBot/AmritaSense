@@ -71,7 +71,7 @@ def __init__(
 
 These parameters must be passed as kwargs, not args.
 
-- `exception_ignored`: a tuple containing exception types to ignore. Ignored exceptions will not be caught by internal exception chains and are rethrown. The default is `(InteruptNotice, BreakLoop)`.
+- `exception_ignored`: a tuple containing exception types to ignore. Ignored exceptions will not be caught by internal exception chains and are rethrown. The default is `(InterruptNotice, BreakLoop)`.
 - `extra_args`: a tuple of extra positional arguments. These arguments are passed to internal functions by type-bound dependency injection.
 - `extra_kwargs`: a dictionary of extra keyword arguments. These are also passed by type-bound dependency injection.
 
@@ -146,7 +146,7 @@ interpreter = WorkflowInterpreter(my_func >> NOP, extra_args=a, extra_kwargs=b)
 ...
 ```
 
-In this example, even though `arg` is of type `MyType` and `extra_args` includes a `MyType`, the first element in `extra_args` is `MyOtherType`, so `arg` will be matched to the first `MyType` found in `extra_args`.
+In this example, `extra_kwargs` is tried first, but `b["arg"]` has type `MyOtherType` which does not match the signature's `MyType`. Matching then falls back to `extra_args` and scans in order, skipping the first mismatch and finding the first `MyType` instance. If no match is found, an error is raised.
 
 Let’s look at a second example:
 

@@ -35,6 +35,7 @@ def __init__(
     extra_args: tuple = (),
     extra_kwargs: dict[str, Any] | None = None,
     addr_stack: Stack[PointerVector] | None = None,
+    middleware: Callable[['WorkflowInterpreter'], Awaitable[Any]] | None = None,
 )
 ```
 
@@ -43,6 +44,7 @@ def __init__(
 - `exception_ignored`：声明为不可捕获的异常类型元组。`InterruptNotice` 和 `BreakLoop` 会被自动加入此元组
 - `extra_args` / `extra_kwargs`：传递给每个节点的额外参数，供依赖注入使用
 - `addr_stack`：可选的外部调用栈。若不传，解释器内部创建一个新的 `Stack[PointerVector]`
+- `middleware`：可选异步可调用对象，接收 `WorkflowInterpreter` 实例。设置后，`run_step_by()` 和 `call_sub()` 不再直接调用节点，而是将执行委托给 middleware。middleware 可自行决定是否执行节点、如何执行、以及如何转换结果。
 
 ### 核心属性
 
@@ -95,6 +97,14 @@ def __init__(
 
 跳转到顶层的指定绝对索引。
 
+**`jump_far_ptr(offset: list[int])`**
+
+多维绝对跳转。用 `far_to(offset)` 完整替换 `_pointer`。被 `RET_FAR` 用于从嵌套作用域返回。
+
+**`jump_offset_far(offset: list[int])`**
+
+多维相对偏移跳转。与 `jump_offset()` 只调整最内层维度不同，此方法通过 `offset_far()` 对所有嵌套层级同时施加偏移量。适用于跨层级的复杂跳转场景。
+
 #### 子程序调用
 
 **`call_sub(addr, /, \*extra_arg, interrupt=False, **extra_kwargs) -> Any`\*\*
@@ -109,9 +119,52 @@ def __init__(
 
 `interrupt=True` 用于外部系统在节点边界注入子程序。内部节点调用子程序时**必须**使用 `interrupt=False`，否则触发 `aiologic` 死锁检测。
 
+**`call_near(addr: int, \*ag, interrupt=False, **kw) -> Any`\*\*
+
+在当前层级内以近距地址调用子程序。通过 `near_to(addr)` 计算目标地址。
+
 **`call_offset(offset: int, \*ag, interrupt=False, **kw) -> Any`\*\*
 
 在当前指针上偏移 `offset` 后调用子程序。适用于三元组内 `ConditionJumpNode` 调用条件节点和行动节点。
+
+**`call_offset_far(offset: list[int], \*ag, interrupt=False, **kw) -> Any`\*\*
+
+以多维偏移调用子程序。先通过 `offset_far()` 计算目标地址，再委托给 `call_sub()` 执行。适用于跨嵌套层级调用子节点。
+
+#### `@markup` 装饰器
+
+`markup` 是一个静态方法装饰器，用于将方法标记为**指针操作**（跳转及其他修改程序计数器的操作）。被装饰的方法在调用时自动设置 `_jump_marked = True`，阻止主执行循环在方法完成后推进指针。
+
+装饰器的类型注解使用 `fun_T` TypeVar 保留原始方法签名。在 `TYPE_CHECKING` 下，它会返回原始函数以避免混淆静态类型检查器。所有被装饰的方法必须是返回 `None` 的实例方法。
+
+### 执行行为
+
+`WorkflowInterpreter` 通过持有 `_interpret_lock` 保证单个节点的执行原子性。它仅在安全边界检查挂起点：
+
+- 每个节点执行前通过全局检查点 `WorkflowInterpreter::each_node`
+- 每个节点通过其 tag 的检查点
+
+`object_io` 实现负责协调挂起与恢复。
+
+### 示例
+
+```python
+from amrita_sense.node.core import Node
+from amrita_sense.runtime.workflow import WorkflowInterpreter
+
+@Node()
+async def a():
+    return 1
+
+@Node()
+async def b():
+    return 2
+
+compose = a >> b
+rendered = compose.render()
+pc = WorkflowInterpreter(rendered)
+await pc.run()
+```
 
 **`call_near(addr: int, \*ag, interrupt=False, **kw) -> Any`\*\*
 

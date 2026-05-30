@@ -33,7 +33,7 @@ class JumpNode(BaseNode):
     def __init__(self, aliasOrIdata: str | list[int]):
         self._alias_or_idata = aliasOrIdata
         self._node_addr = []
-        super()._init(self._jump, None, False, True)
+        self._init(self._jump, None, False, True)
 
     def _jump(self, pc: WorkflowInterpreter):
         return pc.jump_to(self._node_addr)

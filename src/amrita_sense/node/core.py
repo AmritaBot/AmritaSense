@@ -15,6 +15,8 @@ from amrita_sense.logging import logger
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.utils import TimeInsighter
 
+from . import self_compile
+
 if TYPE_CHECKING:
     from amrita_sense.runtime.workflow import WorkflowInterpreter
 
@@ -119,7 +121,9 @@ class BaseNode:
         """
         ...
 
-    def __rshift__(self, other) -> NodeCompose:
+    def __rshift__(
+        self, other: BaseNode | SelfCompileInstruction | NodeCompose
+    ) -> NodeCompose:
         """Create a node composition using the right-shift operator.
 
         This enables the `node1 >> node2` syntax for composing workflows.
@@ -192,7 +196,7 @@ class Node(BaseNode, Generic[NODE_T]):
             address_able: Whether this node can be referenced by address.
             frame: Optional frame object for context capture.
         """
-        super()._init(*args, **kwargs)
+        self._init(*args, **kwargs)
 
     def __repr__(self) -> str:
         """Return a detailed string representation of the node.
@@ -224,7 +228,9 @@ class Node(BaseNode, Generic[NODE_T]):
             """
             return self.func
 
-    def __rshift__(self, other) -> NodeCompose:
+    def __rshift__(
+        self, other: BaseNode | SelfCompileInstruction | NodeCompose
+    ) -> NodeCompose:
         """Create a node composition using the right-shift operator.
 
         Args:
@@ -461,3 +467,5 @@ class NodeComposeRendered:
             Each node in the rendered graph sequentially.
         """
         yield from self._graph
+
+self_compile.NodeCompose = NodeCompose  # For import.

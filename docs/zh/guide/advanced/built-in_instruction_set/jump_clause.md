@@ -116,3 +116,5 @@ main = (
     >> subprogram         # 子程序放在末尾，正常流程跳过
 )
 ```
+
+> **手动栈空间管理**：对于需要显式控制返回地址栈的场景——如从嵌套作用域提前退出或自定义栈展开——请参见 `RET_FAR` 指令文档：[高级主题：手动栈空间管理分配](/zh/guide/practice/manual-stack-management)。
