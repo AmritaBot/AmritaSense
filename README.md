@@ -62,6 +62,8 @@ pc = WorkflowPC(flow.render())
 pc.run_sync()
 ```
 
+See more demos in `demos/`
+
 ## Documentation
 
 Full guides, concept explanations, and API reference at **[sense.amritabot.com](https://sense.amritabot.com)**.

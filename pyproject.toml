@@ -52,7 +52,7 @@ ignore = [
     "RUF003", # ambiguous-unicode-character-comment
 ]
 [tool.ruff.lint.per-file-ignores]
-"demo/*.py" = ["ASYNC250"]
+"demos/*.py" = ["ASYNC250"]
 "tests/*.py" = ["ASYNC250", "PERF401"]
 
 [tool.pyright]
