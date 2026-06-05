@@ -1,4 +1,4 @@
-"""13_ret_far.py — Manual push + GOTO + RET_FAR pop-and-return
+"""13_ret_far.py — PUSH_STACK + GOTO + RET_FAR pop-and-return
 
 Usage:
     python demos/13_ret_far.py
@@ -6,21 +6,13 @@ Usage:
 
 import asyncio
 
-from amrita_sense import ALIAS, NOP, Node, PointerVector, WorkflowInterpreter
-from amrita_sense.instructions import GOTO, RET_FAR
+from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
+from amrita_sense.instructions import GOTO, PUSH_STACK, RET_FAR
 
 
 @Node()
 async def start() -> None:
     print("Start")
-
-
-@Node()
-async def save_ret_addr(pc: WorkflowInterpreter) -> None:
-    """Manually push a return destination onto _ret_addr_stack."""
-    print("  Saving return address...")
-    return_dest = PointerVector(pc.find_addr_alias("after"))
-    pc._ret_addr_stack.push(return_dest)
 
 
 @Node()
@@ -36,14 +28,14 @@ async def after_return() -> None:
 
 
 async def main() -> None:
-    print("=== RET_FAR example ===")
-    # Pattern: manual push → GOTO → RET_FAR pop-and-return
-    #   1) save_ret_addr pushes "after" address onto _ret_addr_stack
+    print("=== PUSH_STACK + GOTO + RET_FAR example ===")
+    # Pattern: PUSH_STACK → GOTO → RET_FAR pop-and-return
+    #   1) PUSH_STACK("after") pushes "after" address onto _ret_addr_stack
     #   2) GOTO("work") jumps to the work section
     #   3) RET_FAR() pops the saved address and jumps back
     comp = (
         start
-        >> save_ret_addr
+        >> PUSH_STACK("after")
         >> GOTO("work")
         >> ALIAS(after_return, "after")
         >> GOTO("end")

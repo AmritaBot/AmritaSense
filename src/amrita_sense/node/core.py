@@ -342,6 +342,7 @@ class NodeComposeRendered:
             Number of nodes in the rendered graph.
         """
         return len(self._graph) if hasattr(self, "_graph") else -1
+
     def _build(
         self,
         current_path: list[int] | None = None,

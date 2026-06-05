@@ -68,7 +68,7 @@ class Stack(Generic[T]):
         """
         return bool(self.stack)
 
-    def push(self, item):
+    def push(self, item: T):
         """Push an item onto the stack.
 
         Args:

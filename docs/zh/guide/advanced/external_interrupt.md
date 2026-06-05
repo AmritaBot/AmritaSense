@@ -45,14 +45,14 @@ await interpreter.call_sub(
 
 ### `ARCHIVED_NODES` 的结构
 
-`ARCHIVED_NODES` 是一个自编译指令，它接收一系列 `ALIAS` 节点，自动生成如下结构：
+`ARCHIVED_NODES` 是一个自编译指令，它接收一系列节点（通常通过 `ALIAS` 标记以支持 `CALL` 寻址），自动生成如下结构：
 
 ```text
 SubprogramJumpNode -> ALIAS(node1, "name1") -> ALIAS(node2, "name2") -> ... -> NOP
 ```
 
 - `SubprogramJumpNode` 无条件跳转到末尾的 `NOP`，因此正常执行时整个存储区被跳过。
-- 每个节点都有别名，外部可以通过别名寻址，按需调用其中任意一个节点。
+- 每个节点可通过别名寻址，按需调用其中任意一个。
 
 ### 示例
 

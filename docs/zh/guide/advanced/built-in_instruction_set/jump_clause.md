@@ -117,4 +117,4 @@ main = (
 )
 ```
 
-> **手动栈空间管理**：对于需要显式控制返回地址栈的场景——如从嵌套作用域提前退出或自定义栈展开——请参见 `RET_FAR` 指令文档：[高级主题：手动栈空间管理分配](/zh/guide/practice/manual-stack-management)。
+> **手动栈空间管理**：`PUSH_STACK` + `GOTO` + `RET_FAR` 可显式控制返回地址栈，配合 `ARCHIVED_NODES` 还能实现子图式调用。完整说明请参见：[高级主题：手动栈空间管理分配](/zh/guide/practice/manual-stack-management)。

@@ -46,7 +46,7 @@ AmritaSense 的内置指令集全部是 `SelfCompileInstruction` 的子类。以
 
 ### 子程序存储指令
 
-- **`SubprogramStorage`**（`ARCHIVED_NODES` 的底层实现）：展开为 `[SubprogramJumpNode, AliasNode_1, AliasNode_2, ..., NOP]`。`SubprogramJumpNode` 在正常执行流中无条件跳过整个存储区，子程序内的别名节点仅通过 `CALL` 或外部注入访问。
+- **`SubprogramStorage`**（`ARCHIVED_NODES` 的底层实现）：展开为 `[SubprogramJumpNode, node_1, node_2, ..., NOP]`。接收任意 `BaseNode`（不限于 `ALIAS`），`SubprogramJumpNode` 在正常执行流中无条件跳过整个存储区。内部节点可通过 `CALL` 或 `GOTO` 寻址访问（若使用 `ALIAS` 标记）。
 
 ### 注意：CALL 不是自编译指令
 

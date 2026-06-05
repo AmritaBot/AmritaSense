@@ -1,7 +1,7 @@
 import difflib
 from collections.abc import Callable
 from types import FrameType
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from typing_extensions import override
 
@@ -10,9 +10,6 @@ from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.node.core import BaseNode, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.runtime.workflow import WorkflowInterpreter
-
-if TYPE_CHECKING:
-    from amrita_sense.instructions.alias import AliasNode
 
 
 class SubprogramJumpNode(BaseNode):
@@ -47,10 +44,10 @@ class SubprogramJumpNode(BaseNode):
 
 
 class SubprogramStorage(SelfCompileInstruction):
-    _nodes: tuple["AliasNode", ...]
+    _nodes: tuple[BaseNode, ...]
     __slots__ = ("_nodes",)
 
-    def __init__(self, *nodes: "AliasNode"):
+    def __init__(self, *nodes: BaseNode):
         self._nodes = nodes
 
     def extract(self) -> NodeCompose:
@@ -108,5 +105,5 @@ def CALL(alias: str) -> CallNode:
     return CallNode(alias)
 
 
-def ARCHIVED_NODES(*nodes: "AliasNode") -> SubprogramStorage:
+def ARCHIVED_NODES(*nodes: BaseNode) -> SubprogramStorage:
     return SubprogramStorage(*nodes)

@@ -117,4 +117,4 @@ main = (
 )
 ```
 
-> **Manual stack management**: For scenarios requiring explicit control over the return address stack — such as early exit from nested scopes or custom stack unwinding — see the `RET_FAR` instruction documented in [Advanced Topic: Manual Stack Space Management](/guide/practice/manual-stack-management).
+> **Manual stack management**: `PUSH_STACK` + `GOTO` + `RET_FAR` give you explicit control over the return address stack, and can be combined with `ARCHIVED_NODES` for subroutine-like patterns. See [Advanced Topic: Manual Stack Space Management](/guide/practice/manual-stack-management) for full details.
