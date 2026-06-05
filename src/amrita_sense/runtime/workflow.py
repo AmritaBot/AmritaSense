@@ -407,12 +407,11 @@ class WorkflowInterpreter(Generic[io_T]):
             self._ret_addr_stack.clear()
             self._pointer.clear()
             self._jump_marked = False
-
+    @property
     @deprecated(
         "Method of `_advance_pointer` is now `advance_pointer`, this compile method will be removed in `v0.3.0`",
         category=DeprecationWarning,
     )
-    @property
     def _advance_pointer(self):
         return self.advance_pointer
 

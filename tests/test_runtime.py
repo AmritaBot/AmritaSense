@@ -197,7 +197,7 @@ class TestWorkflowInterpreter:
         interpreter = WorkflowInterpreter(rendered)
         interpreter._pointer = PointerVector([0])
 
-        assert interpreter._advance_pointer()
+        assert interpreter.advance_pointer()
         assert interpreter._pointer == PointerVector([1, 0])
 
     def test_advance_pointer_backtrack_to_nested_sibling(self):
@@ -211,7 +211,7 @@ class TestWorkflowInterpreter:
         interpreter = WorkflowInterpreter(rendered)
         interpreter._pointer = PointerVector([0, 0])
 
-        assert interpreter._advance_pointer()
+        assert interpreter.advance_pointer()
         assert interpreter._pointer == PointerVector([1, 0])
 
     @pytest.mark.asyncio
@@ -279,10 +279,10 @@ class TestWorkflowInterpreter:
 
         interpreter = WorkflowInterpreter(NodeCompose(simple_node).render())
         interpreter._pointer = PointerVector()
-        assert not interpreter._advance_pointer()
+        assert not interpreter.advance_pointer()
 
         interpreter._pointer = PointerVector([0, 0])
-        assert not interpreter._advance_pointer()
+        assert not interpreter.advance_pointer()
 
     def test_advance_pointer_nested_and_backtrack(self):
         @NodeDecorator()
@@ -293,11 +293,11 @@ class TestWorkflowInterpreter:
         interpreter = WorkflowInterpreter(rendered)
 
         interpreter._pointer = PointerVector([0])
-        assert interpreter._advance_pointer()
+        assert interpreter.advance_pointer()
         assert interpreter._pointer == PointerVector([0, 0])
 
         interpreter._pointer = PointerVector([0, 0])
-        assert interpreter._advance_pointer()
+        assert interpreter.advance_pointer()
         assert interpreter._pointer == PointerVector([1])
 
     def test_advance_pointer_backtrack_from_nested_end(self):
@@ -309,4 +309,4 @@ class TestWorkflowInterpreter:
         interpreter = WorkflowInterpreter(rendered)
         interpreter._pointer = PointerVector([0, 0])
 
-        assert not interpreter._advance_pointer()
+        assert not interpreter.advance_pointer()
