@@ -24,7 +24,7 @@
 1. **地址解析**（`_pre_check` 阶段）：将别名查表解析为 `list[int]` 绝对地址，或直接验证裸地址的有效性
 2. **跳转标记**：调用 `pc.jump_to(addr)`，该方法受 `@markup` 保护，设置 `_jump_marked=True`
 3. **指针替换**：`_pointer` 被完整替换为目标地址向量
-4. **解释器响应**：主循环检测到 `_jump_marked`，跳过常规的 `_advance_pointer()` 步进，下一轮迭代从跳转目标开始执行
+4. **解释器响应**：主循环检测到 `_jump_marked`，跳过常规的 `advance_pointer()` 步进，下一轮迭代从跳转目标开始执行
 
 ### 关键特性
 

@@ -51,7 +51,7 @@ def __init__(
 - `_graph: NodeComposeRendered`：编译后的只读工作流图，解释器从中读取节点
 - `_pointer: PointerVector`：当前执行位置。解释器主循环始终以它指向的节点作为执行目标
 - `_ret_addr_stack: Stack[PointerVector]`：返回地址栈。`call_sub` 和 `CALL` 指令压入返回地址，执行完毕弹栈恢复
-- `_jump_marked: bool`：跳转标记。当 `True` 时，主循环跳过本次的 `_advance_pointer()` 步进，下一轮直接从跳转目标继续
+- `_jump_marked: bool`：跳转标记。当 `True` 时，主循环跳过本次的 `advance_pointer()` 步进，下一轮直接从跳转目标继续
 - `_interpret_lock: aiologic.Lock`：解释锁。每次迭代获取一次，保证单个节点的执行原子性。同时也是外部安全调用的互斥锁
 - `_ava_args / _ava_kwargs`：执行期可用参数池，供依赖注入系统从中匹配节点的参数签名
 - `_exc_ignored: tuple[type[BaseException], ...]`：运行时自动包含 `InterruptNotice` 和 `BreakLoop`。这些异常不会被任何 `CATCH` 块捕获，直接穿透到顶层
@@ -137,6 +137,36 @@ def __init__(
 
 装饰器的类型注解使用 `fun_T` TypeVar 保留原始方法签名。在 `TYPE_CHECKING` 下，它会返回原始函数以避免混淆静态类型检查器。所有被装饰的方法必须是返回 `None` 的实例方法。
 
+#### 指针推进
+
+**`advance_pointer(ptr: PointerVector | None = None) -> bool`**
+
+推进执行指针到工作流图中的下一个节点。此方法实现了嵌套工作流结构的导航逻辑，处理顺序执行和层级遍历。
+
+**参数**
+
+- `ptr`：可选的外部指针向量。传入后，方法将推进此参数所指的指针，而**不会改变解释器自身的 `_pointer`**。默认为 `None` 时，推进解释器自身的 `_pointer`。此参数使外部系统可以在不破坏解释器状态的前提下，预演指针推进路径。
+
+**返回值**
+
+- `True`：指针成功推进到下一个节点
+- `False`：已到达工作流末尾，无更多节点可执行
+
+**推进算法**
+
+1. 从 `ptr`（或 `self._pointer`）开始，沿 `base_addr` 逐层定位到当前节点所在容器
+2. 若当前节点是**非空 `NodeComposeRendered`** → 指针进入嵌套容器（`append(0)`），返回 `True`
+3. 若当前节点有**后继兄弟节点**：
+   - 兄弟节点是非空 `NodeComposeRendered` → 进入该嵌套容器，返回 `True`
+   - 否则 → 移动到兄弟节点，返回 `True`
+4. 若当前节点无后继 → 沿指针栈**逐层向上回溯**，寻找父容器的下一个兄弟
+5. 回溯中寻得后继 → 按相同逻辑处理，返回 `True`
+6. 回溯到顶层仍未找到 → 返回 `False`（工作流结束）
+
+**弃用说明**
+
+`_advance_pointer` 属性已在 v0.3.0 弃用，请使用 `advance_pointer()` 方法。旧属性仅作为兼容性委托存在，将在未来版本中移除。
+
 ### 执行行为
 
 `WorkflowInterpreter` 通过持有 `_interpret_lock` 保证单个节点的执行原子性。它仅在安全边界检查挂起点：
@@ -185,7 +215,7 @@ await pc.run()
 3. 在 `PC_CHECKPOINT` 断点等待外部挂起
 4. 执行当前节点（`_call()`）
 5. 若 `_jump_marked`，重置标记并跳过指针推进
-6. 否则调用 `_advance_pointer()` 推进指针
+6. 否则调用 `advance_pointer()` 推进指针
 7. 指针推进失败（到达末尾）则退出
 
 外层 `try` 捕获 `InterruptNotice` 后清理调用栈和指针，干净退出。

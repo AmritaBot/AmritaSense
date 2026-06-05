@@ -8,6 +8,7 @@ from inspect import iscoroutinefunction
 from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
 
 import aiologic
+from typing_extensions import deprecated
 
 from amrita_sense.exceptions import (
     BreakLoop,
@@ -129,9 +130,9 @@ class WorkflowInterpreter(Generic[io_T]):
         Raises:
             NullPointerException: If the alias does not exist in the graph.
         """
-        if alias not in self._graph.alias2vector_map:
+        if alias not in self.get_graph().alias2vector_map:
             raise NullPointerException(f"{alias} is not a valid alias")
-        return self._graph.alias2vector_map[alias]
+        return self.get_graph().alias2vector_map[alias]
 
     def find_node_alias(self, alias: str) -> BaseNode | NodeComposeRendered:
         """Find a node by its alias and return the node object.
@@ -381,11 +382,12 @@ class WorkflowInterpreter(Generic[io_T]):
                 ):
                     raise RuntimeError("Runtime arguments cannot be resolved")
             self._ava_args = tuple(session_args)
+            graph = self.get_graph()
             while True:
                 await self.object_io._wait_for_continue(PC_CHECKPOINT)
                 async with self._interpret_lock:
                     if not self._pointer:
-                        if not self._graph:
+                        if not graph:
                             break
                         self._pointer.append(0)
                     yield (
@@ -397,7 +399,7 @@ class WorkflowInterpreter(Generic[io_T]):
                         self._jump_marked = False
                         continue
 
-                    if not self._advance_pointer():
+                    if not self.advance_pointer():
                         break
         except InterruptNotice as e:
             logger.info(f"Interrupt notice at {self._pointer} :{e.message}")
@@ -406,24 +408,35 @@ class WorkflowInterpreter(Generic[io_T]):
             self._pointer.clear()
             self._jump_marked = False
 
-    def _advance_pointer(self) -> bool:
-        """Advance the execution pointer to the next node in the workflow.
+    @deprecated(
+        "Method of `_advance_pointer` is now `advance_pointer`, this compile method will be removed in `v0.3.0`",
+        category=DeprecationWarning,
+    )
+    @property
+    def _advance_pointer(self):
+        return self.advance_pointer
 
-        This internal method implements the complex logic for navigating through
+    def advance_pointer(self, ptr: PointerVector | None = None) -> bool:
+        """Advance the execution pointer to the next node with ptr arg by the graph.
+
+        This method implements the logic for navigating through
         nested workflow structures, handling both sequential execution and
         hierarchical traversal.
 
+        Args:
+            ptr (PointerVector, optional): ptr to advance to. If None, advance to the next node in the current container of interpreter.
+
         Returns:
-            True if the pointer was successfully advanced, False if at the end of workflow.
+            bool: True if the pointer was successfully advanced, False if at the end of workflow.
         """
-        if not self._pointer:
+        pointer: PointerVector = ptr if ptr is not None else self._pointer
+        if not pointer:
             logger.debug("Pointer is empty, cannot advance")
             return False
 
-        pointer: PointerVector = self._pointer
         logger.debug(f"Advancing pointer from {pointer}")
-
-        current_container: BaseNode | NodeComposeRendered = self._graph
+        graph: NodeComposeRendered = self.get_graph()
+        current_container: BaseNode | NodeComposeRendered = graph
         for idx in pointer.base_addr[:-1]:
             if isinstance(current_container, NodeComposeRendered):
                 current_container = current_container[idx]
@@ -464,7 +477,7 @@ class WorkflowInterpreter(Generic[io_T]):
                 return False
 
             parent_path: list[int] = pointer.base_addr[:-1]
-            parent_container: BaseNode | NodeComposeRendered = self._graph
+            parent_container: BaseNode | NodeComposeRendered = graph
             for idx in parent_path:
                 if isinstance(parent_container, NodeComposeRendered):
                     parent_container = parent_container[idx]
@@ -508,7 +521,7 @@ class WorkflowInterpreter(Generic[io_T]):
         Returns:
             The node at the specified address, or None if it doesn't exist.
         """
-        graph: NodeComposeRendered = self._graph
+        graph: NodeComposeRendered = self.get_graph()
         current_chunk: NodeComposeRendered | BaseNode = graph
 
         for i, chunk in enumerate(addr):
@@ -570,7 +583,9 @@ class WorkflowInterpreter(Generic[io_T]):
         addr_getter = addr_getter or self.find_addr
         node: BaseNode | NodeComposeRendered = addr_getter(self._pointer.base_addr)
         if isinstance(node, NodeComposeRendered):
-            raise RuntimeError("Cannot call a NodeCompose.")
+            raise RuntimeError(
+                f"Cannot call a NodeCompose in addr {self._pointer.base_addr}."
+            )
         await self.object_io._wait_for_continue(node.tag)
 
         node._pre_check(self)

@@ -120,6 +120,34 @@ Find a node or rendered composition by absolute address.
 
 Resolve an alias and return the corresponding node object.
 
+#### `advance_pointer(ptr: PointerVector | None = None) -> bool`
+
+Advance the execution pointer to the next node in the workflow graph. This method implements the logic for navigating through nested workflow structures, handling both sequential execution and hierarchical traversal.
+
+**Parameters**
+
+- `ptr`: Optional external pointer vector to advance. When provided, the method advances this pointer **without modifying the interpreter's own `_pointer`**. Defaults to `None`, in which case `self._pointer` is advanced. This enables external systems to preview pointer advancement paths without disturbing interpreter state.
+
+**Returns**
+
+- `True` if the pointer was successfully advanced to the next node.
+- `False` if the end of the workflow has been reached.
+
+**Algorithm**
+
+1. Starting from `ptr` (or `self._pointer`), traverse `base_addr` layer-by-layer to locate the container of the current node.
+2. If the current node is a **non-empty `NodeComposeRendered`** → enter the nested container (`append(0)`), return `True`.
+3. If the current node has a **next sibling**:
+   - Sibling is a non-empty `NodeComposeRendered` → enter that nested container, return `True`.
+   - Otherwise → move to the sibling node, return `True`.
+4. If no next sibling → **backtrack up** the pointer stack layer-by-layer, looking for a parent container's next sibling.
+5. If a next sibling is found during backtracking → apply the same logic, return `True`.
+6. If backtracking reaches the top level with no more siblings → return `False` (end of workflow).
+
+**Deprecation**
+
+The `_advance_pointer` property is deprecated since v0.3.0. Use `advance_pointer()` instead. The old property exists only as a compatibility shim and will be removed in a future version.
+
 ### Execution behavior
 
 `WorkflowInterpreter` preserves execution atomicity by holding `_interpret_lock` while a single node is executed. It only checks suspend points at safe boundaries:

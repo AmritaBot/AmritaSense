@@ -24,7 +24,7 @@ That means:
 1. **Address resolution** (`_pre_check`): resolve alias names through the alias table, or validate raw addresses.
 2. **Jump marker**: call `pc.jump_to(addr)`, which is guarded by `@markup` and sets `_jump_marked=True`.
 3. **Pointer replacement**: replace `_pointer` completely with the target address vector.
-4. **Interpreter response**: the main loop sees `_jump_marked` and skips normal `_advance_pointer()`, continuing from the jump target.
+4. **Interpreter response**: the main loop sees `_jump_marked` and skips normal `advance_pointer()`, continuing from the jump target.
 
 ### Key characteristics
 
