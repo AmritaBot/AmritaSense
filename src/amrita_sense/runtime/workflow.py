@@ -6,7 +6,15 @@ from concurrent.futures import InvalidStateError
 from contextlib import nullcontext
 from functools import wraps
 from inspect import iscoroutinefunction
-from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, cast, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Generic,
+    Literal,
+    TypeVar,
+    cast,
+    overload,
+)
 
 import aiologic
 from typing_extensions import deprecated
@@ -66,6 +74,7 @@ class WorkflowInterpreter(Generic[io_T]):
     _interpret_lock: aiologic.Lock
     _waiter_fut: asyncio.Future[None] | None
     _middleware: Callable[["WorkflowInterpreter"], Awaitable[Any]] | None
+    _terminated: bool
     object_io: io_T
     __slots__ = (
         "_ava_args",
@@ -80,6 +89,7 @@ class WorkflowInterpreter(Generic[io_T]):
         "_pointer",
         "_ret_addr_stack",
         "_sub_interpreters",
+        "_terminated",
         "_waiter_fut",
         "object_io",
     )
@@ -127,6 +137,7 @@ class WorkflowInterpreter(Generic[io_T]):
         self._waiter_fut = None
         if parent_interpreter is not None:
             parent_interpreter.sub_interpreters[self._interpreter_id] = self
+        self._terminated = False
 
     def get_graph(self) -> NodeComposeRendered:
         """Return the compiled workflow graph being executed.
@@ -394,6 +405,39 @@ class WorkflowInterpreter(Generic[io_T]):
             if not self._jump_marked:
                 self._pointer = ptr
 
+    @property
+    def terminated(self) -> bool:
+        return self._terminated
+
+    async def terminate(self):
+        """Mark interpreter as terminated, wait for it to finish."""
+
+        if not self._terminated:
+            self._terminated = True
+            if self._waiter_fut and not self._waiter_fut.done():
+                await self._waiter_fut
+
+    def terminate_all(
+        self,
+    ) -> asyncio.Future[
+        list[
+            list  # TODO: When Python3.11 EOL, use `type` keyword to define nested type
+            | BaseException
+            | None
+        ]
+    ]:
+        """Mark this interpreter and all sub interpreter to done, wait them.
+
+        Returns:
+            list: A list of all sub interpreter's exc value or None.
+        """
+
+        return asyncio.gather(
+            self.terminate(),
+            *[i.terminate_all() for i in self.sub_interpreters.values()],
+            return_exceptions=True,
+        )
+
     async def run(self):
         """Execute the entire workflow to completion.
 
@@ -443,6 +487,8 @@ class WorkflowInterpreter(Generic[io_T]):
             self._ava_args = tuple(session_args)
             graph = self.get_graph()
             while True:
+                if self._terminated:
+                    break
                 await self.object_io._wait_for_continue(PC_CHECKPOINT)
                 async with self._interpret_lock:
                     if not self._pointer:
@@ -504,16 +550,18 @@ class WorkflowInterpreter(Generic[io_T]):
         return fut
 
     @overload
-    async def wait_all(self, /) -> None: ...
+    async def wait_all(self, *, exclude_self: bool = False) -> None: ...
     @overload
     async def wait_all(
-        self, return_exc: Literal[True]
+        self, return_exc: Literal[True], exclude_self: bool = False
     ) -> list[BaseException | None]: ...
     @overload
-    async def wait_all(self, return_exc: Literal[False]) -> None: ...
+    async def wait_all(
+        self, return_exc: Literal[False], exclude_self: bool = False
+    ) -> None: ...
 
     async def wait_all(
-        self, return_exc: bool = False
+        self, return_exc: bool = False, exclude_self: bool = False
     ) -> None | list[BaseException | None]:
         """Wait all interpreter (self and sub)
 
@@ -522,9 +570,11 @@ class WorkflowInterpreter(Generic[io_T]):
         Returns:
             None: No return value.
         """
+        futs = ([self.wait] if not exclude_self else []) + [
+            sub.wait for sub in self._sub_interpreters.values()
+        ]
         rst: list[BaseException | None] = await asyncio.gather(
-            self.wait,
-            *(sub.wait for sub in self._sub_interpreters.values()),
+            *futs,
             return_exceptions=return_exc,
         )
         if return_exc:
