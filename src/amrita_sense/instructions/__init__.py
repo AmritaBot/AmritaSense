@@ -1,4 +1,5 @@
 from .alias import ALIAS
+from .func_block import FUN_BLOCK
 from .if_clause import IF
 from .jump import GOTO
 from .loop.do_while import DO
@@ -14,6 +15,7 @@ __all__ = (
     "ARCHIVED_NODES",
     "CALL",
     "DO",
+    "FUN_BLOCK",
     "GOTO",
     "IF",
     "INTERRUPT",

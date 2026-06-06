@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator, Awaitable, Callable
-from concurrent.futures import InvalidStateError
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import nullcontext
 from functools import wraps
 from inspect import iscoroutinefunction
@@ -15,6 +14,7 @@ from typing import (
     cast,
     overload,
 )
+from uuid import uuid4
 
 import aiologic
 from typing_extensions import deprecated
@@ -23,6 +23,7 @@ from amrita_sense.exceptions import (
     BreakLoop,
     DependsInjectFailed,
     DependsResolveFailed,
+    IllegalState,
     InterruptNotice,
     NullPointerException,
 )
@@ -68,28 +69,37 @@ class WorkflowInterpreter(Generic[io_T]):
     _ava_kwargs: dict[str, Any]
     _exc_ignored: tuple[type[BaseException], ...]
     _ret_addr_stack: Stack[PointerVector]
-    _parent_interpreter: "WorkflowInterpreter | None"
-    _sub_interpreters: dict[int, "WorkflowInterpreter"]
-    _interpreter_id: int  # Instance id
+
+    _interpreter_id: str  # Instance id
     _interpret_lock: aiologic.Lock
+
+    _parent_interpreter: WorkflowInterpreter | None
+    _glob_top_mod_lock: aiologic.Lock
+    _top_interpreter: WorkflowInterpreter | None
+
+    _sub_interpreters_all: dict[str, WorkflowInterpreter] | None
+    _sub_interpreters: dict[str, WorkflowInterpreter]
     _waiter_fut: asyncio.Future[None] | None
-    _middleware: Callable[["WorkflowInterpreter"], Awaitable[Any]] | None
-    _terminated: bool
+    _middleware: Callable[[WorkflowInterpreter], Awaitable[Any]] | None
+    _pending_stop: bool
     object_io: io_T
     __slots__ = (
         "_ava_args",
         "_ava_kwargs",
         "_exc_ignored",
+        "_glob_top_mod_lock",
         "_graph",
         "_interpret_lock",
         "_interpreter_id",
         "_jump_marked",
         "_middleware",
         "_parent_interpreter",
+        "_pending_stop",
         "_pointer",
         "_ret_addr_stack",
         "_sub_interpreters",
-        "_terminated",
+        "_sub_interpreters_all",
+        "_top_interpreter",
         "_waiter_fut",
         "object_io",
     )
@@ -103,8 +113,8 @@ class WorkflowInterpreter(Generic[io_T]):
         extra_args: tuple = (),
         extra_kwargs: dict[str, Any] | None = None,
         addr_stack: Stack[PointerVector] | None = None,
-        middleware: Callable[["WorkflowInterpreter"], Awaitable[Any]] | None = None,
-        parent_interpreter: "WorkflowInterpreter | None" = None,
+        middleware: Callable[[WorkflowInterpreter], Awaitable[Any]] | None = None,
+        parent_interpreter: WorkflowInterpreter | None = None,
     ):
         """Initialize the workflow interpreter with a compiled workflow graph.
 
@@ -116,14 +126,18 @@ class WorkflowInterpreter(Generic[io_T]):
             extra_kwargs: Additional keyword arguments for dependency injection.
             addr_stack: Optional pre-initialized return address stack.
         """
+        # Kernel initialization
+        self._interpreter_id = uuid4().hex
         if isinstance(node_compose, SelfCompileInstruction):
             node_compose = node_compose.extract().render()
         self._graph = node_compose
         self._pointer = PointerVector()
+        # DI
         self._ava_args = (self, *extra_args)
         extra_kwargs = extra_kwargs or {}
         self._ava_kwargs = (extra_kwargs).copy()
         self._exc_ignored = (*exception_ignored, InterruptNotice, BreakLoop)
+        # Runtime attrs
         object_io = object_io or SuspendObjectStream()
         self.object_io = cast(io_T, object_io)
         self._ret_addr_stack = addr_stack or Stack()
@@ -133,11 +147,30 @@ class WorkflowInterpreter(Generic[io_T]):
         # Sub-Parent interpreter relationship management
         self._parent_interpreter = parent_interpreter
         self._sub_interpreters = {}
-        self._interpreter_id = id(self)
+        self._sub_interpreters_all = None
+
         self._waiter_fut = None
         if parent_interpreter is not None:
-            parent_interpreter.sub_interpreters[self._interpreter_id] = self
-        self._terminated = False
+            if (interp := parent_interpreter._top_interpreter) is not None:
+                self._top_interpreter = interp  # the top-level interpreter is other
+            else:
+                self._top_interpreter = (
+                    parent_interpreter  # The parent is top-level interpreter
+                )
+            self._glob_top_mod_lock = (
+                parent_interpreter.top_interpreter._glob_top_mod_lock
+            )
+            with self._glob_top_mod_lock:
+                parent_interpreter.top_interpreter.all_sub_interpreters[
+                    self._interpreter_id
+                ] = self
+            parent_interpreter._sub_interpreters[self._interpreter_id] = self
+
+        else:  # This is a top-level interpreter
+            self._glob_top_mod_lock = aiologic.Lock()
+            self._sub_interpreters_all = {}
+            self._top_interpreter = None
+        self._pending_stop = False
 
     def get_graph(self) -> NodeComposeRendered:
         """Return the compiled workflow graph being executed.
@@ -148,7 +181,16 @@ class WorkflowInterpreter(Generic[io_T]):
         return self._graph
 
     @property
-    def parent(self) -> "WorkflowInterpreter | None":
+    def id(self) -> str:
+        """Return the unique identifier of the workflow interpreter.
+
+        Returns:
+            The unique identifier of the workflow interpreter.
+        """
+        return self._interpreter_id
+
+    @property
+    def parent(self) -> WorkflowInterpreter | None:
         """Get the parent interpreter if this is a sub-interpreter.
 
         Returns:
@@ -157,7 +199,25 @@ class WorkflowInterpreter(Generic[io_T]):
         return self._parent_interpreter
 
     @property
-    def sub_interpreters(self) -> dict[int, "WorkflowInterpreter"]:
+    def top_interpreter(self) -> WorkflowInterpreter:
+        """Get the top-level interpreter.
+
+        Returns:
+            The top-level WorkflowInterpreter instance.
+        """
+        return self._top_interpreter or self
+
+    @property
+    def all_sub_interpreters(self) -> dict[str, WorkflowInterpreter]:
+        if self._top_interpreter is not None:
+            raise RuntimeError(
+                f"{self._interpreter_id} is not a top-level interpreter, the real top-level interpreter is {self._top_interpreter.id}"
+            )
+        assert self._sub_interpreters_all is not None
+        return self._sub_interpreters_all
+
+    @property
+    def sub_interpreters(self) -> dict[str, WorkflowInterpreter]:
         """Get a dict of sub-interpreters.
 
         Returns:
@@ -168,7 +228,7 @@ class WorkflowInterpreter(Generic[io_T]):
     def fork_interpreter(
         self,
         compose: NodeComposeRendered | None,
-        middleware: Callable[["WorkflowInterpreter"], Awaitable[Any]]
+        middleware: Callable[[WorkflowInterpreter], Awaitable[Any]]
         | None
         | object = UNSET,
         object_io: io_T | None = None,
@@ -184,14 +244,14 @@ class WorkflowInterpreter(Generic[io_T]):
 
         Args:
             compose (NodeComposeRendered | None): The workflow graph for the sub-interpreter. If None, it will use the same graph as the parent.
-            middleware (Callable[["WorkflowInterpreter"], Awaitable[Any]] | None | object): The middleware to be used for the sub-interpreter.
+            middleware (Callable[[WorkflowInterpreter], Awaitable[Any]] | None | object): The middleware to be used for the sub-interpreter.
                 If UNSET, it will use the same middleware as the parent. If None, it will not use any middleware.
             object_io (io_T | None): The object I/O stream for the sub-interpreter. If None, it will create a new SuspendObjectStream.
 
         Returns:
             A new WorkflowInterpreter instance representing the sub-interpreter.
         """
-        mdw: Callable[["WorkflowInterpreter"], Awaitable[Any]] | None
+        mdw: Callable[[WorkflowInterpreter], Awaitable[Any]] | None
         if self._middleware is UNSET:
             mdw = self._middleware
         elif middleware is None:
@@ -406,35 +466,65 @@ class WorkflowInterpreter(Generic[io_T]):
                 self._pointer = ptr
 
     @property
-    def terminated(self) -> bool:
-        return self._terminated
+    def pending_stop(self) -> bool:
+        return self._pending_stop
 
-    async def terminate(self):
-        """Mark interpreter as terminated, wait for it to finish."""
+    async def terminate(self, eol: bool = True):
+        """Mark interpreter as terminated, wait for it to finish.
 
-        if not self._terminated:
-            self._terminated = True
+        Args:
+            eol (bool, optional): Is this interpreter at the End-Of_Lifecycle. Defaults to True.
+                If True, will remove this interpreter from the tree.
+        """
+        if not self._pending_stop:
+            self._pending_stop = True
             if self._waiter_fut and not self._waiter_fut.done():
                 await self._waiter_fut
+        if eol:
+            if parent := self.parent:
+                parent.sub_interpreters.pop(self.id, None)
+            async with self._glob_top_mod_lock:
+                self.top_interpreter.all_sub_interpreters.pop(self.id, None)
+            self._parent_interpreter = (
+                None  # To avoid circular reference caused memory leak
+            )
 
-    def terminate_all(
-        self,
-    ) -> asyncio.Future[
-        list[
-            list  # TODO: When Python3.11 EOL, use `type` keyword to define nested type
-            | BaseException
-            | None
-        ]
-    ]:
+    def terminate_all_forks(
+        self, eol: bool = True, exclude_self: bool = False
+    ) -> asyncio.Future[list[BaseException | None]]:
+        """Mark all forked interpreters as should be killed.
+
+        Args:
+            eol (bool, optional): If all interpreters are at the End-Of-Lifecycle, mark this to True to remove them from the tree. Defaults to True.
+
+        Returns:
+            asyncio.Future[list[BaseException | None]]: A future that will be resolved when all forked interpreters are terminated.
+        """
+        return asyncio.gather(
+            *([self.terminate(eol)] if not exclude_self else []),
+            *[i.terminate(eol) for i in self.sub_interpreters.values()],
+            return_exceptions=True,
+        )
+
+    async def terminate_all(
+        self, eol: bool = True, exclude_self: bool = False
+    ) -> list[BaseException | None]:
         """Mark this interpreter and all sub interpreter to done, wait them.
+
+        Args:
+            exclude_self (bool, optional): Exclude self. Defaults to False.
+            eol (bool, optional): Is all interpreters end of lifecycle. Defaults to True.
 
         Returns:
             list: A list of all sub interpreter's exc value or None.
         """
-
-        return asyncio.gather(
-            self.terminate(),
-            *[i.terminate_all() for i in self.sub_interpreters.values()],
+        if self.top_interpreter is not self:
+            raise IllegalState("This interpreter is not top level.")
+        async with self._glob_top_mod_lock:
+            futs = [i.terminate(eol) for i in self.all_sub_interpreters.values()]
+        return await asyncio.gather(
+            *([self.terminate(eol)] if not exclude_self else []),
+            *futs,
             return_exceptions=True,
         )
 
@@ -461,6 +551,10 @@ class WorkflowInterpreter(Generic[io_T]):
             InterruptNotice: When an external interrupt is requested.
         """
         exc_val: BaseException | None = None
+        if self._waiter_fut is not None and not self._waiter_fut.done():
+            raise IllegalState(
+                "Cannot start a new workflow while one is already running"
+            )
         try:
             self._waiter_fut = asyncio.Future()
             session_args = list(self._ava_args)
@@ -487,9 +581,10 @@ class WorkflowInterpreter(Generic[io_T]):
             self._ava_args = tuple(session_args)
             graph = self.get_graph()
             while True:
-                if self._terminated:
-                    break
                 await self.object_io._wait_for_continue(PC_CHECKPOINT)
+                if self._pending_stop:
+                    self._pending_stop = False
+                    break
                 async with self._interpret_lock:
                     if not self._pointer:
                         if not graph:
@@ -546,8 +641,32 @@ class WorkflowInterpreter(Generic[io_T]):
             The wait future.
         """
         if (fut := self._waiter_fut) is None:
-            raise InvalidStateError("Interpreter is not running.")
+            raise IllegalState("Interpreter is not running.")
         return fut
+
+    @overload
+    async def wait_all_forks(self, *, exclude_self: bool = False) -> None: ...
+    @overload
+    async def wait_all_forks(
+        self, return_exc: Literal[True], exclude_self: bool = False
+    ) -> list[BaseException | None]: ...
+    @overload
+    async def wait_all_forks(
+        self, return_exc: Literal[False], exclude_self: bool = False
+    ) -> None: ...
+    async def wait_all_forks(
+        self, return_exc: bool = False, exclude_self: bool = False
+    ) -> None | list[BaseException | None]:
+
+        futs: Sequence[Awaitable] = ([(self.wait)] if not exclude_self else []) + [
+            (sub.wait) for sub in self.sub_interpreters.values()
+        ]
+        rst = await asyncio.gather(
+            *futs,
+            return_exceptions=return_exc,
+        )
+        if return_exc:
+            return rst
 
     @overload
     async def wait_all(self, *, exclude_self: bool = False) -> None: ...
@@ -563,17 +682,21 @@ class WorkflowInterpreter(Generic[io_T]):
     async def wait_all(
         self, return_exc: bool = False, exclude_self: bool = False
     ) -> None | list[BaseException | None]:
-        """Wait all interpreter (self and sub)
+        """Wait all interpreter (self and sub), only when this interpreter is the top-level interpreter.
 
         Args:
-            return_exc (bool, optional): _description_. Defaults to False.
+            return_exc (bool, optional): Return the exception if occured. Defaults to False.
+            exclude_self (bool, optional): Exclude self. Defaults to False.
         Returns:
             None: No return value.
         """
-        futs = ([self.wait] if not exclude_self else []) + [
-            sub.wait for sub in self._sub_interpreters.values()
-        ]
-        rst: list[BaseException | None] = await asyncio.gather(
+        if self.top_interpreter is not self:
+            raise IllegalState("Only top-level interpreter can wait all interpreters.")
+        async with self._glob_top_mod_lock:
+            futs: Sequence[Awaitable] = ([(self.wait)] if not exclude_self else []) + [
+                (sub.wait) for sub in self.all_sub_interpreters.values()
+            ]
+        rst = await asyncio.gather(
             *futs,
             return_exceptions=return_exc,
         )

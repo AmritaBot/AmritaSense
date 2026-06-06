@@ -64,3 +64,11 @@ class DependsInjectFailed(Exception):
     resolves dependencies but fails to inject them into the target function,
     usually due to parameter mismatch or runtime errors during injection.
     """
+
+
+class IllegalState(Exception):
+    """Exception raised when an illegal state is encountered.
+
+    This exception occurs when an operation is attempted in an invalid or
+    illegal state, usually due to a missing or invalid dependency or resource.
+    """

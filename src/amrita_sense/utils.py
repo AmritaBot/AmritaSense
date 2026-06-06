@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from typing import Generic, TypeVar
 
@@ -73,3 +74,15 @@ class Ref(Generic[T]):
 
     def __init__(self, value: T) -> None:
         self.value = value
+
+
+def search_exceptions(
+    seq: Sequence[BaseException | list | None],
+) -> list[BaseException]:
+    sequ: list[BaseException] = []
+    for exc in seq:
+        if isinstance(exc, BaseException):
+            sequ.append(exc)
+        elif isinstance(exc, list):
+            sequ.extend(search_exceptions(exc))
+    return sequ
