@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator, Awaitable, Callable
+from concurrent.futures import InvalidStateError
 from contextlib import nullcontext
 from functools import wraps
 from inspect import iscoroutinefunction
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, cast, overload
 
 import aiologic
 from typing_extensions import deprecated
@@ -28,6 +29,7 @@ PC_CHECKPOINT = "WorkflowInterpreter::each_node"
 NULL_CTX = nullcontext()
 io_T = TypeVar("io_T", bound=SuspendObjectStream, covariant=True)
 fun_T = TypeVar("fun_T", bound=Callable[..., Any], covariant=True)
+UNSET = object()
 
 
 class WorkflowInterpreter(Generic[io_T]):
@@ -53,24 +55,32 @@ class WorkflowInterpreter(Generic[io_T]):
 
     _graph: NodeComposeRendered
     _pointer: PointerVector
+    _jump_marked: bool
     _ava_args: tuple
     _ava_kwargs: dict[str, Any]
     _exc_ignored: tuple[type[BaseException], ...]
-    object_io: io_T
     _ret_addr_stack: Stack[PointerVector]
-    _jump_marked: bool
+    _parent_interpreter: "WorkflowInterpreter | None"
+    _sub_interpreters: dict[int, "WorkflowInterpreter"]
+    _interpreter_id: int  # Instance id
     _interpret_lock: aiologic.Lock
+    _waiter_fut: asyncio.Future[None] | None
     _middleware: Callable[["WorkflowInterpreter"], Awaitable[Any]] | None
+    object_io: io_T
     __slots__ = (
         "_ava_args",
         "_ava_kwargs",
         "_exc_ignored",
         "_graph",
         "_interpret_lock",
+        "_interpreter_id",
         "_jump_marked",
         "_middleware",
+        "_parent_interpreter",
         "_pointer",
         "_ret_addr_stack",
+        "_sub_interpreters",
+        "_waiter_fut",
         "object_io",
     )
 
@@ -84,6 +94,7 @@ class WorkflowInterpreter(Generic[io_T]):
         extra_kwargs: dict[str, Any] | None = None,
         addr_stack: Stack[PointerVector] | None = None,
         middleware: Callable[["WorkflowInterpreter"], Awaitable[Any]] | None = None,
+        parent_interpreter: "WorkflowInterpreter | None" = None,
     ):
         """Initialize the workflow interpreter with a compiled workflow graph.
 
@@ -109,6 +120,13 @@ class WorkflowInterpreter(Generic[io_T]):
         self._jump_marked = False
         self._interpret_lock = aiologic.Lock()
         self._middleware = middleware
+        # Sub-Parent interpreter relationship management
+        self._parent_interpreter = parent_interpreter
+        self._sub_interpreters = {}
+        self._interpreter_id = id(self)
+        self._waiter_fut = None
+        if parent_interpreter is not None:
+            parent_interpreter.sub_interpreters[self._interpreter_id] = self
 
     def get_graph(self) -> NodeComposeRendered:
         """Return the compiled workflow graph being executed.
@@ -118,32 +136,71 @@ class WorkflowInterpreter(Generic[io_T]):
         """
         return self._graph
 
-    def find_addr_alias(self, alias: str) -> list[int]:
-        """Find the address vector for a node by its alias.
-
-        Args:
-            alias: The alias name of the target node.
+    @property
+    def parent(self) -> "WorkflowInterpreter | None":
+        """Get the parent interpreter if this is a sub-interpreter.
 
         Returns:
-            The address vector (list of indices) pointing to the node.
-
-        Raises:
-            NullPointerException: If the alias does not exist in the graph.
+            The parent WorkflowInterpreter instance, or None if this is a top-level interpreter.
         """
-        if alias not in self.get_graph().alias2vector_map:
-            raise NullPointerException(f"{alias} is not a valid alias")
-        return self.get_graph().alias2vector_map[alias]
+        return self._parent_interpreter
 
-    def find_node_alias(self, alias: str) -> BaseNode | NodeComposeRendered:
-        """Find a node by its alias and return the node object.
-
-        Args:
-            alias: The alias name of the target node.
+    @property
+    def sub_interpreters(self) -> dict[int, "WorkflowInterpreter"]:
+        """Get a dict of sub-interpreters.
 
         Returns:
-            The node object corresponding to the alias.
+            A dict of WorkflowInterpreter instances representing sub-interpreters.
         """
-        return self.find_addr(self.find_addr_alias(alias))
+        return self._sub_interpreters
+
+    def fork_interpreter(
+        self,
+        compose: NodeComposeRendered | None,
+        middleware: Callable[["WorkflowInterpreter"], Awaitable[Any]]
+        | None
+        | object = UNSET,
+        object_io: io_T | None = None,
+    ) -> "WorkflowInterpreter[io_T]":
+        """Fork a new sub-interpreter.
+
+        This method creates a new WorkflowInterpreter instance that shares the same
+        state, but you can custom the workflow graph and middleware for the sub-interpreter.
+
+        !!!WARN!!!: Object io is not shared because of thread safety. Please use the
+        object_io parameter to pass the object io to the sub-interpreter.
+        Please make sure state access and modification is thread safe before being used.
+
+        Args:
+            compose (NodeComposeRendered | None): The workflow graph for the sub-interpreter. If None, it will use the same graph as the parent.
+            middleware (Callable[["WorkflowInterpreter"], Awaitable[Any]] | None | object): The middleware to be used for the sub-interpreter.
+                If UNSET, it will use the same middleware as the parent. If None, it will not use any middleware.
+            object_io (io_T | None): The object I/O stream for the sub-interpreter. If None, it will create a new SuspendObjectStream.
+
+        Returns:
+            A new WorkflowInterpreter instance representing the sub-interpreter.
+        """
+        mdw: Callable[["WorkflowInterpreter"], Awaitable[Any]] | None
+        if self._middleware is UNSET:
+            mdw = self._middleware
+        elif middleware is None:
+            mdw = None
+        else:
+            assert isinstance(middleware, Callable), (
+                "Middleware must be a callable that takes a WorkflowInterpreter and returns an Awaitable."
+            )
+            mdw = middleware
+        if compose is None:
+            compose = self._graph
+        return WorkflowInterpreter[io_T](
+            compose,
+            object_io=object_io or SuspendObjectStream(),
+            exception_ignored=self._exc_ignored,
+            middleware=mdw,
+            extra_args=self._ava_args[1:],  # Exclude self from args
+            extra_kwargs=self._ava_kwargs.copy(),
+            parent_interpreter=self,
+        )
 
     @staticmethod
     def markup(fun: fun_T) -> fun_T:  # Used to mark a pointer action
@@ -359,7 +416,9 @@ class WorkflowInterpreter(Generic[io_T]):
             RuntimeError: If runtime dependencies cannot be resolved.
             InterruptNotice: When an external interrupt is requested.
         """
+        exc_val: BaseException | None = None
         try:
+            self._waiter_fut = asyncio.Future()
             session_args = list(self._ava_args)
             session_kwargs: dict[str, Any] = self._ava_kwargs
             runtime_args: dict[int, DependsFactory] = {  # index -> DependsFactory
@@ -407,13 +466,69 @@ class WorkflowInterpreter(Generic[io_T]):
             self._ret_addr_stack.clear()
             self._pointer.clear()
             self._jump_marked = False
+
+        except BaseException as e:
+            exc_val = e
+            raise
+        finally:
+            if self._waiter_fut:
+                if exc_val is not None:
+                    self._waiter_fut.set_exception(exc_val)
+                else:
+                    self._waiter_fut.set_result(None)
+            self._waiter_fut = None
+
     @property
-    @deprecated(
-        "Method of `_advance_pointer` is now `advance_pointer`, this compile method will be removed in `v0.3.0`",
-        category=DeprecationWarning,
-    )
-    def _advance_pointer(self):
-        return self.advance_pointer
+    def is_running(self) -> bool:
+        """Check if the interpreter is running.
+
+        Returns:
+            True if the interpreter is running, False otherwise.
+        """
+        if fut := self._waiter_fut:
+            return not fut.done()
+        return False
+
+    @property
+    def wait(self) -> asyncio.Future[None]:
+        """Get the wait future.
+
+        !!!WARN!!!: Please do not manually set result for this future.
+        Although this interpreter may done, but sub-interpreters may still running.
+
+        Returns:
+            The wait future.
+        """
+        if (fut := self._waiter_fut) is None:
+            raise InvalidStateError("Interpreter is not running.")
+        return fut
+
+    @overload
+    async def wait_all(self, /) -> None: ...
+    @overload
+    async def wait_all(
+        self, return_exc: Literal[True]
+    ) -> list[BaseException | None]: ...
+    @overload
+    async def wait_all(self, return_exc: Literal[False]) -> None: ...
+
+    async def wait_all(
+        self, return_exc: bool = False
+    ) -> None | list[BaseException | None]:
+        """Wait all interpreter (self and sub)
+
+        Args:
+            return_exc (bool, optional): _description_. Defaults to False.
+        Returns:
+            None: No return value.
+        """
+        rst: list[BaseException | None] = await asyncio.gather(
+            self.wait,
+            *(sub.wait for sub in self._sub_interpreters.values()),
+            return_exceptions=return_exc,
+        )
+        if return_exc:
+            return rst
 
     def advance_pointer(self, ptr: PointerVector | None = None) -> bool:
         """Advance the execution pointer to the next node with ptr arg by the graph.
@@ -508,6 +623,41 @@ class WorkflowInterpreter(Generic[io_T]):
 
         logger.debug("Failed to advance pointer through any path")
         return False
+
+    @property
+    @deprecated(
+        "Method of `_advance_pointer` is now `advance_pointer`, this compile method will be removed in `v0.3.0`",
+        category=DeprecationWarning,
+    )
+    def _advance_pointer(self):
+        return self.advance_pointer
+
+    def find_addr_alias(self, alias: str) -> list[int]:
+        """Find the address vector for a node by its alias.
+
+        Args:
+            alias: The alias name of the target node.
+
+        Returns:
+            The address vector (list of indices) pointing to the node.
+
+        Raises:
+            NullPointerException: If the alias does not exist in the graph.
+        """
+        if alias not in self.get_graph().alias2vector_map:
+            raise NullPointerException(f"{alias} is not a valid alias")
+        return self.get_graph().alias2vector_map[alias]
+
+    def find_node_alias(self, alias: str) -> BaseNode | NodeComposeRendered:
+        """Find a node by its alias and return the node object.
+
+        Args:
+            alias: The alias name of the target node.
+
+        Returns:
+            The node object corresponding to the alias.
+        """
+        return self.find_addr(self.find_addr_alias(alias))
 
     def _find_addr_or_none(
         self, addr: list[int]
