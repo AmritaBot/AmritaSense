@@ -126,5 +126,5 @@ class WhileClause(SelfCompileInstruction):  # WHILE >> CONDI >> DO >> CHECKUP >>
         )
 
 
-def WHILE(condition: Node) -> WhileClause:
+def WHILE(condition: Node[bool]) -> WhileClause:
     return WhileClause(condition)

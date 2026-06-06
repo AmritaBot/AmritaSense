@@ -1,81 +1,27 @@
-from collections.abc import Callable
-from types import FrameType
-from typing import Any
-
-from amrita_sense.hook.fun_typing import DependencyMeta
-from amrita_sense.node.core import BaseNode
+from amrita_sense.node import NodeType
+from amrita_sense.node.wrapper import Node
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 from amrita_sense.types import PointerVector
 
 
-class RetFarNode(BaseNode):
-    tag: str
-    func: Callable[..., Any]
-    wrap_to_async: bool
-    address_able: bool
-    fun_frame: FrameType
-    fun_sign: DependencyMeta
-
-    __slots__ = (
-        "address_able",
-        "fun_frame",
-        "fun_sign",
-        "func",
-        "tag",
-        "wrap_to_async",
-    )
-
-    def __init__(self):
-        self._init(self.__call__, "RetFarNode::__call__", False, True)
-
-    def __call__(self, pc: WorkflowInterpreter) -> None:
-        ptr = pc._ret_addr_stack.pop()
-        pc.jump_far_ptr(ptr.base_addr)
-
-
-class PushStackNode(BaseNode):
-    tag: str
-    func: Callable[..., Any]
-    wrap_to_async: bool
-    address_able: bool
-    fun_frame: FrameType
-    fun_sign: DependencyMeta
-    alias_or_idata: str | list[int]
-
-    __slots__ = (
-        "address_able",
-        "alias_or_idata",
-        "fun_frame",
-        "fun_sign",
-        "func",
-        "tag",
-        "wrap_to_async",
-    )
-
-    def __init__(self, alias_or_idata: str | list[int]):
-        self._init(self.__call__, "PushStackNode::__call__", False, True)
-        self.alias_or_idata = alias_or_idata
-
-    def __call__(self, pc: WorkflowInterpreter) -> None:
-        pc._ret_addr_stack.push(
-            PointerVector(pc.find_addr_alias(self.alias_or_idata))
-            if isinstance(self.alias_or_idata, str)
-            else PointerVector(self.alias_or_idata)
-        )
-
-
-def RET_FAR() -> RetFarNode:
+def RET_FAR() -> NodeType[None]:
     """Return from the current address.
 
     This instruction jump out the current bubble. This instruction will use the last jump address in the return address stack, which is usually used for returning from subprograms (always is node compose).
 
     Returns:
-        RetFarNode: A node representing the RET_FAR instruction.
+        NodeType[None]: A node representing the RET_FAR instruction.
     """
-    return RetFarNode()
+
+    @Node("__RET_FAR__", wrap_to_async=False)
+    def call(pc: WorkflowInterpreter) -> None:
+        ptr = pc._ret_addr_stack.pop()
+        pc.jump_far_ptr(ptr.base_addr)
+
+    return call
 
 
-def PUSH_STACK(alias_or_idata: str | list[int]) -> PushStackNode:
+def PUSH_STACK(alias_or_idata: str | list[int]) -> NodeType[None]:
     """Push an address to the return address stack.
 
     This instruction push an address to the return address stack. The address can be an alias or an idata.
@@ -84,6 +30,40 @@ def PUSH_STACK(alias_or_idata: str | list[int]) -> PushStackNode:
         alias_or_idata (str | list[int]): The alias or idata to push.
 
     Returns:
-        PushStackNode: A node representing the PUSH_STACK instruction.
+        NodeType[None]: A node representing the PUSH_STACK instruction.
     """
-    return PushStackNode(alias_or_idata)
+
+    @Node("__PUSH_STACK__", wrap_to_async=False)
+    def call(pc: WorkflowInterpreter) -> None:
+        pc._ret_addr_stack.push(
+            PointerVector(pc.find_addr_alias(alias_or_idata))
+            if isinstance(alias_or_idata, str)
+            else PointerVector(alias_or_idata)
+        )
+
+    return call
+
+
+def PUSH_AND_GOTO(from_adr: str | list[int], to_adr: str | list[int]) -> NodeType[None]:
+    """Push an address to the return address stack and jump to another address.
+
+    This instruction push an address to the return address stack and jump to another address. The addresses can be aliases or idata.
+
+    Args:
+        from_adr (str | list[int]): The alias or idata to push.
+        to_adr (str | list[int]): The alias or idata to jump to.
+
+    Returns:
+        NodeType[None]: A node representing the PUSH_AND_GOTO instruction.
+    """
+
+    @Node("__PUSH_AND_GOTO__", wrap_to_async=False)
+    def call(pc: WorkflowInterpreter) -> None:
+        pc._ret_addr_stack.push(
+            PointerVector(pc.find_addr_alias(from_adr))
+            if isinstance(from_adr, str)
+            else PointerVector(from_adr)
+        )
+        pc.jump_to(pc.find_addr_alias(to_adr) if isinstance(to_adr, str) else to_adr)
+
+    return call

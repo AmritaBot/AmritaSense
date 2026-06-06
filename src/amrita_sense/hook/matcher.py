@@ -279,12 +279,13 @@ class MatcherFactory:
         d_kwargs: dict[str, DependsFactory] = signature["factory_map"]
         required_params: dict[str, ParamDescriptor] = {}
         for k, v in signature["params"].items():
+            if k in session_kwargs:
+                f_kwargs[k] = session_kwargs[k]
+                continue
             if v["type_hint"] is not EMPTY:
                 filtered_args_types[k] = v["type_hint"]
             else:
                 return FailedEnum.MISSED_ANNOTATION, {}, {}
-            if k in session_kwargs:
-                f_kwargs[k] = session_kwargs[k]
             if v["default"] == EMPTY:
                 required_params[k] = v
         for name, param in required_params.items():
