@@ -2,6 +2,9 @@
 
 Usage:
     python demos/13_ret_far.py
+
+Note: v0.3.0+ also provides PUSH_AND_GOTO(from_adr, to_adr) as a convenience
+instruction that combines PUSH_STACK + GOTO into a single node.
 """
 
 import asyncio

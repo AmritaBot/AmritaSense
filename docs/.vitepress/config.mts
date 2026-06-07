@@ -165,6 +165,7 @@ export default withMermaid({
                 text: "Custom Instructions",
                 link: "/guide/advanced/custom_instruction",
               },
+              { text: "Unsafe Features", link: "/guide/advanced/unsafe" },
             ],
           },
           {
@@ -177,6 +178,10 @@ export default withMermaid({
               {
                 text: "Manual Stack Management",
                 link: "/guide/practice/manual-stack-management",
+              },
+              {
+                text: "Subgraph Isolation",
+                link: "/guide/practice/subgraph-isolation",
               },
               { text: "Under Construction..." },
             ],
@@ -318,6 +323,7 @@ export default withMermaid({
                 text: "自定义指令集",
                 link: "/zh/guide/advanced/custom_instruction",
               },
+              { text: "Unsafe 特性", link: "/zh/guide/advanced/unsafe" },
             ],
           },
           {
@@ -330,6 +336,10 @@ export default withMermaid({
               {
                 text: "手动栈空间管理分配",
                 link: "/zh/guide/practice/manual-stack-management",
+              },
+              {
+                text: "子图隔离调用",
+                link: "/zh/guide/practice/subgraph-isolation",
               },
               { text: "正在施工中......" },
             ],

@@ -29,8 +29,8 @@ sequenceDiagram
 
 ## PUSH_STACK and RET_FAR
 
-- **`PUSH_STACK(alias_or_idata)`** — pushes the resolved address of a target alias (or a raw address list) onto `_ret_addr_stack`. It is a `PushStackNode`, placed directly in the `>>` chain.
-- **`RET_FAR()`** — pops the top entry from `_ret_addr_stack` and calls `jump_far_ptr` to jump to the saved address. Also a regular `BaseNode` placed in the composition chain.
+- **`PUSH_STACK(alias_or_idata)`** — pushes the resolved address of a target alias (or a raw address list) onto `_ret_addr_stack`. The instruction returns a `NodeType[None]` (an inline `@Node`-decorated callable), placed directly in the `>>` chain.
+- **`RET_FAR()`** — pops the top entry from `_ret_addr_stack` and calls `jump_far_ptr` to jump to the saved address. Likewise an inline `@Node`-decorated callable placed in the composition chain.
 
 Neither instruction should be `return`-ed from inside a `@Node()` function — place them directly in the `>>` chain.
 
@@ -73,12 +73,49 @@ await WorkflowInterpreter(comp.render()).run()
 2. `GOTO("work")` jumps to the `doing_work` node
 3. After `doing_work`, `RET_FAR` pops the saved address and jumps back to `after_return`
 
+## PUSH_AND_GOTO (v0.3.0+)
+
+**`PUSH_AND_GOTO(from_adr, to_adr)`** is a convenience instruction that combines `PUSH_STACK` + `GOTO` into a single node. Internally it:
+
+1. Pushes `from_adr` onto `_ret_addr_stack` (just like `PUSH_STACK`)
+2. Jumps to `to_adr` (just like `GOTO`)
+
+Both arguments accept either an alias string or a raw address list.
+
+```python
+from amrita_sense.instructions import PUSH_AND_GOTO, RET_FAR
+
+# These two patterns are equivalent:
+
+# Pattern A: explicit two-step
+comp_a = (
+    start
+    >> PUSH_STACK("after")
+    >> GOTO("work")
+    >> ALIAS(after_return, "after")
+    >> ALIAS(doing_work, "work")
+    >> RET_FAR()
+)
+
+# Pattern B: PUSH_AND_GOTO convenience
+comp_b = (
+    start
+    >> PUSH_AND_GOTO("after", "work")
+    >> ALIAS(after_return, "after")
+    >> ALIAS(doing_work, "work")
+    >> RET_FAR()
+)
+```
+
+`PUSH_AND_GOTO` is semantically identical to the two-step pattern — use whichever reads more naturally in your composition.
+
 ## When to Use Manual Stack Management
 
 | Scenario                      | Use                                               |
 | ----------------------------- | ------------------------------------------------- |
 | Simple subroutine call/return | `CALL` + natural `call_sub` return                |
 | Custom return destination     | `PUSH_STACK` + `GOTO` + `RET_FAR`                 |
+| Push-and-jump convenience     | `PUSH_AND_GOTO` + `RET_FAR`                       |
 | Multi-level stack unwinding   | Push multiple addresses, `RET_FAR` once per level |
 | Non-linear control flow       | Combine with `GOTO` for arbitrary jump patterns   |
 

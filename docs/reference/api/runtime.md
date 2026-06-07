@@ -34,6 +34,7 @@ Arguments:
 - `extra_args` / `extra_kwargs`: Additional runtime values available for dependency injection.
 - `addr_stack`: Optional return address stack.
 - `middleware`: Optional async callable that receives the `WorkflowInterpreter` instance. When set, `run_step_by()` and `call_sub()` delegate to the middleware instead of calling nodes directly. The middleware can decide whether and how to execute nodes, transform results, or inject custom logic around every step.
+- `parent_interpreter` (v0.3.0+): Optional parent `WorkflowInterpreter` for building an interpreter tree. Set automatically by `fork_interpreter()` — rarely needed directly.
 
 ### Key attributes
 
@@ -43,6 +44,26 @@ Arguments:
 - `_jump_marked`: Flag indicating whether a jump operation occurred.
 - `_interpret_lock`: Async lock used to guarantee one-node-at-a-time execution.
 - `object_io`: External I/O stream used for suspend/resume and streaming output.
+
+### Interpreter Tree (v0.3.0+)
+
+Interpreters form a tree: a top-level interpreter may have child interpreters created via `fork_interpreter()`, and those children may have their own children.
+
+**`id: str`** — Unique UUID string identifying this interpreter instance.
+
+**`parent: WorkflowInterpreter | None`** — The parent interpreter, or `None` if this is the top-level interpreter.
+
+**`top_interpreter: WorkflowInterpreter`** — The root of the interpreter tree.
+
+**`sub_interpreters: dict[str, WorkflowInterpreter]`** — Dict of direct child interpreters, keyed by their IDs.
+
+**`all_sub_interpreters: dict[str, WorkflowInterpreter]`** — (Top-level only) All descendant interpreters in the entire tree.
+
+**`is_running: bool`** — `True` if the interpreter's main loop is currently executing. After the workflow completes (or terminates), returns `False`.
+
+**`pending_stop: bool`** — `True` if `terminate()` has been called on this interpreter.
+
+**`wait: asyncio.Future[None]`** — A future that resolves when the interpreter finishes execution. Raises `IllegalState` if the interpreter is not running.
 
 ### Important methods
 
@@ -107,6 +128,34 @@ Call a subroutine by applying a relative offset to the current pointer.
 #### `async call_offset_far(offset: list[int], *ag, interrupt: bool = False, **kw)`
 
 Call a subroutine at a multi-dimensional offset from the current position. Applies `offset_far()` to compute the target address, then delegates to `call_sub()`. Useful for invoking nodes across nested scopes.
+
+#### `fork_interpreter(compose=None, middleware=UNSET, object_io=None) -> WorkflowInterpreter` (v0.3.0+)
+
+Create a child interpreter in the interpreter tree. By default inherits the parent's graph and middleware.
+
+- `compose`: Optional `NodeComposeRendered` for the child. If `None`, uses the parent's graph.
+- `middleware`: `UNSET` (inherit parent's), `None` (no middleware), or a custom callable.
+- `object_io`: Optional `SuspendObjectStream`. If `None`, creates a new one (not shared).
+
+#### `async terminate(eol: bool = True)` (v0.3.0+)
+
+Mark this interpreter for graceful stop. Sets `pending_stop = True` and awaits the `wait` future. If `eol=True`, removes the interpreter from the tree after termination.
+
+#### `terminate_all_forks(eol: bool = True, exclude_self: bool = False) -> asyncio.Future` (v0.3.0+)
+
+Mark all direct child interpreters for termination. Returns a future that resolves when all children have terminated.
+
+#### `async terminate_all(eol: bool = True, exclude_self: bool = False)` (v0.3.0+)
+
+Top-level only: mark this interpreter and all descendants for termination. Raises `IllegalState` if called on a non-top-level interpreter.
+
+#### `async wait_all_forks(return_exc=False, exclude_self=False)` (v0.3.0+)
+
+Wait for all direct child interpreters to finish. If `return_exc=True`, returns a list of `BaseException | None`.
+
+#### `async wait_all(return_exc=False, exclude_self=False)` (v0.3.0+)
+
+Top-level only: wait for the entire interpreter tree to finish. Raises `IllegalState` if called on a non-top-level interpreter.
 
 #### `find_addr_alias(alias: str) -> list[int]`
 

@@ -19,6 +19,8 @@ Raised when a node cannot be found at a specified address or when an alias does 
 
 Used internally by loop constructs to implement break semantics. Raising `BreakLoop` exits the current loop body and continues execution after the loop.
 
+`BreakLoop` is automatically added to `_exc_ignored` on interpreter init, so it penetrates through all `CATCH` blocks. **v0.3.0+**: This auto-inclusion can be disabled via `__flags__.DISABLE_EXC_IGNORED = True` from `amrita_sense._unsafe`.
+
 ## DependsException
 
 Base exception for all dependency injection failures.
@@ -27,6 +29,28 @@ Base exception for all dependency injection failures.
 
 Raised when dependency resolution fails for a node or callback. This can happen when a required dependency is missing or cannot be matched.
 
+## IllegalState (v0.3.0+)
+
+Raised when an operation is attempted in an invalid state. Common triggers:
+
+- Calling `terminate_all()` or `wait_all()` on a non-top-level interpreter
+- Starting `run()` on an interpreter that is already running
+- Accessing `wait` on an interpreter that is not running
+
+See [Subgraph Isolation](../../guide/practice/subgraph-isolation.md) for correct usage patterns.
+
 ## DependsInjectFailed
 
 Raised when dependencies are resolved successfully but cannot be injected into the target function due to mismatched parameters or runtime resolution failures.
+
+## `search_exceptions()` (v0.3.0+)
+
+```python
+from amrita_sense.utils import search_exceptions
+
+def search_exceptions(
+    seq: Sequence[BaseException | list | None],
+) -> list[BaseException]
+```
+
+Recursively searches a sequence (potentially containing nested lists of exceptions) and returns a flat list of all `BaseException` instances. Used internally by `FUN_BLOCK` to collect exceptions from sub-interpreter trees.

@@ -257,7 +257,7 @@ class WorkflowInterpreter(Generic[io_T]):
             A new WorkflowInterpreter instance representing the sub-interpreter.
         """
         mdw: Callable[[WorkflowInterpreter], Awaitable[Any]] | None
-        if self._middleware is UNSET and not __flags__.NO_SHARED_MIDDLEWARE:
+        if middleware is UNSET and not __flags__.NO_SHARED_MIDDLEWARE:
             mdw = self._middleware
         elif middleware is None:
             mdw = None

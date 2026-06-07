@@ -29,8 +29,8 @@ sequenceDiagram
 
 ## PUSH_STACK 与 RET_FAR
 
-- **`PUSH_STACK(alias_or_idata)`**——将目标别名（或裸地址列表）解析后的地址压入 `_ret_addr_stack`。它是一个 `PushStackNode`，直接放在 `>>` 链中。
-- **`RET_FAR()`**——从 `_ret_addr_stack` 弹出栈顶条目，通过 `jump_far_ptr` 跳转到保存的地址。同样是一个放在编排链中的 `BaseNode`。
+- **`PUSH_STACK(alias_or_idata)`**——将目标别名（或裸地址列表）解析后的地址压入 `_ret_addr_stack`。该指令返回的是一个 `NodeType[None]`（内联 `@Node` 装饰的可调用对象），直接放在 `>>` 链中。
+- **`RET_FAR()`**——从 `_ret_addr_stack` 弹出栈顶条目，通过 `jump_far_ptr` 跳转到保存的地址。同样是一个内联 `@Node` 装饰的可调用对象，放在编排链中。
 
 两个指令都**不能**从 `@Node()` 函数内部 `return`——直接放在 `>>` 链中。
 
@@ -73,12 +73,49 @@ await WorkflowInterpreter(comp.render()).run()
 2. `GOTO("work")` 跳转到 `doing_work` 节点
 3. `doing_work` 执行完毕后，`RET_FAR` 弹出保存的地址并跳回 `after_return`
 
+## PUSH_AND_GOTO（v0.3.0+）
+
+**`PUSH_AND_GOTO(from_adr, to_adr)`** 是一个便捷指令，将 `PUSH_STACK` + `GOTO` 合并为一个节点。内部执行：
+
+1. 将 `from_adr` 压入 `_ret_addr_stack`（与 `PUSH_STACK` 一致）
+2. 跳转到 `to_adr`（与 `GOTO` 一致）
+
+两个参数均接受别名字符串或裸地址列表。
+
+```python
+from amrita_sense.instructions import PUSH_AND_GOTO, RET_FAR
+
+# 以下两种模式等价：
+
+# 模式 A：显式两步
+comp_a = (
+    start
+    >> PUSH_STACK("after")
+    >> GOTO("work")
+    >> ALIAS(after_return, "after")
+    >> ALIAS(doing_work, "work")
+    >> RET_FAR()
+)
+
+# 模式 B：PUSH_AND_GOTO 便捷写法
+comp_b = (
+    start
+    >> PUSH_AND_GOTO("after", "work")
+    >> ALIAS(after_return, "after")
+    >> ALIAS(doing_work, "work")
+    >> RET_FAR()
+)
+```
+
+`PUSH_AND_GOTO` 在语义上与两步模式完全相同——选择在编排中读起来更自然的方式即可。
+
 ## 何时使用手动栈管理
 
 | 场景                | 方案                              |
 | ------------------- | --------------------------------- |
 | 简单子程序调用/返回 | `CALL` + 自然的 `call_sub` 返回   |
 | 自定义返回目标      | `PUSH_STACK` + `GOTO` + `RET_FAR` |
+| 压栈跳转便捷方式    | `PUSH_AND_GOTO` + `RET_FAR`       |
 | 多级栈展开          | 压入多个地址，每级一个 `RET_FAR`  |
 | 非线性控制流        | 结合 `GOTO` 实现任意跳转模式      |
 

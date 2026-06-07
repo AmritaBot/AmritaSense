@@ -45,6 +45,7 @@ def __init__(
 - `extra_args` / `extra_kwargs`：传递给每个节点的额外参数，供依赖注入使用
 - `addr_stack`：可选的外部调用栈。若不传，解释器内部创建一个新的 `Stack[PointerVector]`
 - `middleware`：可选异步可调用对象，接收 `WorkflowInterpreter` 实例。设置后，`run_step_by()` 和 `call_sub()` 不再直接调用节点，而是将执行委托给 middleware。middleware 可自行决定是否执行节点、如何执行、以及如何转换结果。
+- `parent_interpreter`（v0.3.0+）：可选的父 `WorkflowInterpreter`，用于构建解释器树。由 `fork_interpreter()` 自动设置——一般无需直接使用。
 
 ### 核心属性
 
@@ -54,10 +55,60 @@ def __init__(
 - `_jump_marked: bool`：跳转标记。当 `True` 时，主循环跳过本次的 `advance_pointer()` 步进，下一轮直接从跳转目标继续
 - `_interpret_lock: aiologic.Lock`：解释锁。每次迭代获取一次，保证单个节点的执行原子性。同时也是外部安全调用的互斥锁
 - `_ava_args / _ava_kwargs`：执行期可用参数池，供依赖注入系统从中匹配节点的参数签名
-- `_exc_ignored: tuple[type[BaseException], ...]`：运行时自动包含 `InterruptNotice` 和 `BreakLoop`。这些异常不会被任何 `CATCH` 块捕获，直接穿透到顶层
+- `_exc_ignored: tuple[type[BaseException], ...]`：运行时自动包含 `InterruptNotice` 和 `BreakLoop`。这些异常不会被任何 `CATCH` 块捕获，直接穿透到顶层。**v0.3.0+**：可通过 `__flags__.DISABLE_EXC_IGNORED = True` 禁用此自动加入行为
 - `object_io: io_T`：泛型的外部 I/O 接口。节点可通过 `pc.object_io` 进行流式产出、挂起控制
 
+### 解释器树（v0.3.0+）
+
+解释器形成树结构：顶层解释器可通过 `fork_interpreter()` 创建子解释器，子解释器也可以有自己的子节点。
+
+**`id: str`** — 标识该解释器实例的唯一 UUID 字符串。
+
+**`parent: WorkflowInterpreter | None`** — 父解释器，顶层解释器为 `None`。
+
+**`top_interpreter: WorkflowInterpreter`** — 解释器树的根节点。
+
+**`sub_interpreters: dict[str, WorkflowInterpreter]`** — 直接子解释器的字典，以 ID 为键。
+
+**`all_sub_interpreters: dict[str, WorkflowInterpreter]`** —（仅顶层）整棵树中所有后代解释器的字典。
+
+**`is_running: bool`** — 解释器主循环是否正在执行。工作流完成（或终止）后返回 `False`。
+
+**`pending_stop: bool`** — 是否已对该解释器调用 `terminate()`。
+
+**`wait: asyncio.Future[None]`** — 一个在解释器执行完成时 resolve 的 future。若解释器未运行则抛出 `IllegalState`。
+
 ### 主要方法
+
+#### 解释器树管理（v0.3.0+）
+
+**`fork_interpreter(compose=None, middleware=UNSET, object_io=None) -> WorkflowInterpreter`**
+
+在解释器树中创建子解释器。默认继承父解释器的图和中间件。
+
+- `compose`：可选的 `NodeComposeRendered`。若为 `None`，使用父解释器的图。
+- `middleware`：`UNSET`（继承父中间件）、`None`（无中间件）或自定义可调用对象。
+- `object_io`：可选的 `SuspendObjectStream`。若为 `None`，创建新实例（不共享）。
+
+**`async terminate(eol: bool = True)`**
+
+标记该解释器为优雅停止。设置 `pending_stop = True` 并等待 `wait` future。若 `eol=True`，终止后将解释器从树中移除。
+
+**`terminate_all_forks(eol: bool = True, exclude_self: bool = False) -> asyncio.Future`**
+
+标记所有直接子解释器为终止。返回一个在所有子解释器终止后 resolve 的 future。
+
+**`async terminate_all(eol: bool = True, exclude_self: bool = False)`**
+
+仅顶层可用：标记该解释器及所有后代为终止。在非顶层解释器上调用会抛出 `IllegalState`。
+
+**`async wait_all_forks(return_exc=False, exclude_self=False)`**
+
+等待所有直接子解释器完成。若 `return_exc=True`，返回 `BaseException | None` 列表。
+
+**`async wait_all(return_exc=False, exclude_self=False)`**
+
+仅顶层可用：等待整棵解释器树完成。在非顶层解释器上调用会抛出 `IllegalState`。
 
 #### 地址解析
 

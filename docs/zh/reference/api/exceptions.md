@@ -70,6 +70,8 @@ class BreakLoop(Exception):
 
 `BreakLoop` 在 `WorkflowInterpreter` 初始化时被自动加入 `_exc_ignored` 元组。这意味着：
 
+> **v0.3.0+**：此自动加入行为可通过 `amrita_sense._unsafe` 中的 `__flags__.DISABLE_EXC_IGNORED = True` 禁用。详见 [Unsafe 特性](../../guide/advanced/unsafe.md)。
+
 - 循环体内部的任何 `TRY/CATCH` 块**不能**捕获 `BreakLoop`
 - 它会穿透中间所有异常处理层，直达最内层的 `WhileNode` 或 `DONode`
 - 循环节点捕获到 `BreakLoop` 后执行 `jump_near(NOP)`，干净退出
@@ -89,6 +91,16 @@ def process_item():
 ```
 
 **注意**：开发者**不应**手动将 `BreakLoop` 加入 `exception_ignored`——它在解释器初始化时已自动加入。如果额外添加，不会产生新效果；如果试图移除，会导致循环内的 CATCH 块意外捕获 `BreakLoop`，破坏循环语义。
+
+## IllegalState（v0.3.0+）
+
+当操作在不合法状态下被尝试时抛出。常见触发场景：
+
+- 在非顶层解释器上调用 `terminate_all()` 或 `wait_all()`
+- 在已在运行的解释器上启动 `run()`
+- 在未运行的解释器上访问 `wait`
+
+正确的使用模式请参见 [子图隔离调用](../../guide/practice/subgraph-isolation.md)。
 
 ## DependsException 及其子类
 
@@ -135,6 +147,18 @@ class DependsInjectFailed(Exception):
 
 与事件系统的“返回 `None` 则跳过处理器”不同，在节点执行中，如果某个 `Depends` 声明的依赖工厂返回了 `None`，工作流会**直接抛出异常并终止**。节点是原子执行单元，依赖解析失败意味着节点无法运行——这不是可以“跳过”的场景。因此，为节点设计的依赖工厂函数应始终返回有效值（或在无法提供时抛出明确的异常，而非返回 `None`）。
 
+## `search_exceptions()`（v0.3.0+）
+
+```python
+from amrita_sense.utils import search_exceptions
+
+def search_exceptions(
+    seq: Sequence[BaseException | list | None],
+) -> list[BaseException]
+```
+
+递归搜索一个序列（可能包含嵌套的异常列表），返回所有 `BaseException` 实例的扁平列表。`FUN_BLOCK` 内部使用该函数从子解释器树中收集异常。
+
 ## 异常层次结构
 
 ```text
@@ -142,6 +166,7 @@ BaseException
 └── InterruptNotice          # 继承 BaseException，默认不可被 CATCH 捕获
 
 Exception
+├── IllegalState              # 不合法状态操作
 ├── NullPointerException      # 地址无效
 ├── BreakLoop                 # 循环跳出信号
 └── DependsException          # 依赖注入基类
@@ -153,4 +178,5 @@ Exception
 
 - `InterruptNotice` 继承 `BaseException`，实现天然的不可捕获性
 - `BreakLoop` 继承 `Exception`，但通过自动加入 `_exc_ignored` 获得等效的穿透能力
+- `IllegalState` 是 v0.3.0 新增，用于保护解释器树 API 的调用合法性
 - 依赖相关异常继承同一个基类 `DependsException`，允许用户按需捕获整个依赖类别的错误
