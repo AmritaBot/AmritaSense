@@ -17,9 +17,12 @@ def test_flag_set_twice_raises():
 
 
 def test_non_flag_attr_no_lock():
-    __flags__._pvt = 1
-    __flags__._pvt = 2
-    assert __flags__._pvt == 2
+    # _modified_flags is a real field; lowercase attrs pass the guard
+    assert isinstance(__flags__._modified_flags, set)
+    # Non-flag attrs can be assigned freely (they don't go through __setattr__ guard)
+    setattr(__flags__, "_pvt", 1)
+    setattr(__flags__, "_pvt", 2)
+    assert getattr(__flags__, "_pvt") == 2
 
 
 @pytest.mark.asyncio
