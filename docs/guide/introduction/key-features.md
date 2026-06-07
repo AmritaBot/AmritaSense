@@ -45,3 +45,11 @@ All control flow instructions are expanded into low-level node compositions at c
 - **Built-in logging system** – High-performance logger based on `loguru`, supports environment-variable log level control and automatic bridging of the standard `logging` module.
 - **Zero mandatory external dependencies** – The core engine is only a few thousand lines of code with no heavy abstractions; it depends solely on `aiologic` and `anyio`.
 - **Compile-time expansion of high-level structures** – Runtime overhead is virtually zero; embeddable into any Python project.
+
+## 1.2.7 Interpreter Tree & Subgraph Isolation
+
+- **`FUN_BLOCK` instruction** – Execute a compiled `NodeCompose` as an isolated sub-workflow inside a child interpreter, with independent middleware, I/O stream, and lifecycle.
+- **Interpreter tree model** – `fork_interpreter()` creates child interpreters forming a tree; `parent` / `top_interpreter` / `sub_interpreters` properties give full visibility.
+- **Parallel execution** – Run multiple child interpreters concurrently via `asyncio.gather` or `wait_all`.
+- **Lifecycle management** – `terminate()` / `terminate_all()` for graceful shutdown; `is_running` / `pending_stop` for status queries.
+- **Unsafe configuration flags** – `_unsafe.__flags__` provides switches (`FORCE_NOT_WRAP_TO_ASYNC`, `DISABLE_EXC_IGNORED`, etc.) for tuning internal engine behavior in rare edge cases.

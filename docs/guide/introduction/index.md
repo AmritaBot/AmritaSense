@@ -25,4 +25,5 @@ We believe that **workflows should be designed for the work, not limited by the 
 - **Focus on flow logic** – Say goodbye to complicated edge definitions and state dictionaries; concentrate on the business process you actually care about.
 - **Declarative dependency injection** – Nodes and event handlers declare required parameters through function signatures; the framework automatically performs keyword matching and type resolution.
 - **Async-first, suspendable & resumable** – Native `async/await` support, built-in full-duplex streaming primitive (`SuspendObjectStream`), allowing precise suspension and resumption between nodes.
+- **Interpreter tree & subgraph isolation** – Fork sub-interpreters for parallel execution; manage entire interpreter trees with `wait_all` / `terminate_all`; use `FUN_BLOCK` for isolated sub-workflow calls with independent middleware and error boundaries.
 - **Self-contained runtime** – Built-in logging system, event bus, and dependency injection; zero mandatory external dependencies; embeddable into any Python project.
