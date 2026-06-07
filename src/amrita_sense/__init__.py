@@ -1,3 +1,4 @@
+from . import _unsafe
 from .exceptions import (
     DependsException,
     DependsInjectFailed,
@@ -6,7 +7,8 @@ from .exceptions import (
     NullPointerException,
 )
 from .hook.event import BaseEvent
-from .hook.matcher import EventRegistry, Matcher, MatcherFactory, sign_func
+from .hook.fun_typing import sign_func
+from .hook.matcher import EventRegistry, Matcher, MatcherFactory
 from .hook.on import on_event
 from .instructions import (
     ALIAS,
@@ -53,6 +55,7 @@ __all__ = [
     "Stack",
     "Try",
     "WorkflowInterpreter",
+    "_unsafe",
     "on_event",
     "sign_func",
 ]

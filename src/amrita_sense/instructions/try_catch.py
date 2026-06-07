@@ -5,6 +5,7 @@ from typing import Any
 
 from typing_extensions import Self
 
+from amrita_sense._unsafe import __flags__
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
@@ -61,7 +62,9 @@ class TryNode(BaseNode):
             await pc.call_near(self._do_node_addr)
         except BaseException as exc_val:
             exc_type, _, exc_tb = sys.exc_info()
-            if isinstance(exc_val, pc._exc_ignored):
+            if not __flags__.DISABLE_EXC_IGNORED and isinstance(
+                exc_val, pc._exc_ignored
+            ):
                 raise
             idx: int | None = None
             for exc, idx in self._catch_addr_chain:

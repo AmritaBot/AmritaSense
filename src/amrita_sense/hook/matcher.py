@@ -13,7 +13,6 @@ from typing import (
     Any,
     ClassVar,
     Generic,
-    Literal,
     TypeVar,
     overload,
 )
@@ -23,6 +22,7 @@ import aiologic
 from exceptiongroup import ExceptionGroup
 from typing_extensions import Never, Self
 
+from amrita_sense._unsafe import __flags__
 from amrita_sense.logging import debug_log, logger
 from amrita_sense.weakcache import WeakValueLRUCache
 
@@ -32,7 +32,7 @@ from .exception import (
     MatcherException,
     PassException,
 )
-from .fun_typing import EMPTY, DependencyMeta, FunctionData, ParamDescriptor
+from .fun_typing import EMPTY, DependencyMeta, FunctionData, ParamDescriptor, sign_func
 
 
 class EventRegistry:
@@ -213,32 +213,6 @@ class FailedEnum(Enum):
     RESOLVE_FAILED = "Resolution failed"
 
 
-def sign_func(func: Callable[..., Any]):
-    signature = inspect.signature(func)
-    params = signature.parameters
-    types: dict[str, ParamDescriptor] = {}
-    factories: dict[str, DependsFactory] = {}
-    kind: Literal["required", "optional", "factory"]
-    for name, prm in params.items():
-        kind = "required"
-        default = prm.default if prm.default != inspect.Parameter.empty else EMPTY
-        anno = prm.annotation if prm.annotation != inspect.Parameter.empty else EMPTY
-        if default is not EMPTY:
-            if isinstance(default, DependsFactory):
-                kind = "factory"
-                factories[name] = default
-                default = None
-            else:
-                kind = "optional"
-        if isinstance(anno, str):
-            raise TypeError(
-                f"`__future__.annotations`(string type hint) is not supported in arg named `{name}`."
-                + " Please use a real type hint or ForwardRef instead."
-            )
-        types[name] = ParamDescriptor(type_hint=anno, kind=kind, default=default)
-    return DependencyMeta(params=types, factory_map=factories)
-
-
 class MatcherFactory:
     """
     Event handling factory class.
@@ -356,7 +330,9 @@ class MatcherFactory:
         kwargs_tmp: dict[str, Any] = {}
         for (idx, key, _), result in zip(resolve_tasks, resolved_results):
             if isinstance(result, BaseException):
-                if isinstance(result, exception_ignored):
+                if not __flags__.DISABLE_EXC_IGNORED and isinstance(
+                    result, exception_ignored
+                ):
                     raise result
                 excs.append(result)
             elif result is None:
@@ -402,7 +378,11 @@ class MatcherFactory:
                 if matcher.dead:
                     _dead_to_remove.append(func)
                     continue
-                signature = func.signature
+                signature = (
+                    func.signature
+                    if not __flags__.NO_DEPENDENCY_META_CACHE
+                    else sign_func(func.function)
+                )
                 frame: FrameType = func.frame
                 line_number: int = frame.f_lineno
                 file_name: str = frame.f_code.co_filename
@@ -535,6 +515,8 @@ class MatcherFactory:
             raise RuntimeError("No event found in args")
         session_kwargs = kwargs
         event_type: str = event.get_event_type()  # Get event type
+        if __flags__.DISABLE_EXC_IGNORED:
+            exception_ignored = ()
         async with cls._repo_lock(event_type):
             handlers: defaultdict[int, list[FunctionData]] = (
                 EventRegistry().get_handlers(event_type)

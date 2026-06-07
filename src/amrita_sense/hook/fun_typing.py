@@ -1,3 +1,4 @@
+import inspect
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from dataclasses import field as Field
@@ -37,4 +38,34 @@ class FunctionData:
     matcher: "Matcher" = Field()
 
 
-__all__ = ["DependencyMeta", "FunctionData", "ParamDescriptor"]
+def sign_func(func: Callable[..., Any]):
+    signature = inspect.signature(func)
+    params = signature.parameters
+    types: dict[str, ParamDescriptor] = {}
+    factories: dict[str, DependsFactory] = {}
+    kind: Literal["required", "optional", "factory"]
+    for name, prm in params.items():
+        kind = "required"
+        default = prm.default if prm.default != inspect.Parameter.empty else EMPTY
+        anno = prm.annotation if prm.annotation != inspect.Parameter.empty else EMPTY
+        if default is not EMPTY:
+            if isinstance(default, DependsFactory):
+                kind = "factory"
+                factories[name] = default
+                default = None
+            else:
+                kind = "optional"
+        if isinstance(anno, str):
+            anno = func.__globals__.get(anno, EMPTY)
+            if anno is None:
+                raise ValueError(
+                    f"Cannot resolve annotation {anno} for parameter {name},"
+                    + " please disable `__future__.annotations` and use a normal type hint instead."
+                    + "Make sure the import is not only in `TYPE_CHECKING` blocks."
+                )
+
+        types[name] = ParamDescriptor(type_hint=anno, kind=kind, default=default)
+    return DependencyMeta(params=types, factory_map=factories)
+
+
+__all__ = ["DependencyMeta", "FunctionData", "ParamDescriptor", "sign_func"]

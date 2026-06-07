@@ -9,8 +9,7 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar, overload
 from typing_extensions import Self
 
 from amrita_sense.exceptions import NullPointerException
-from amrita_sense.hook.fun_typing import DependencyMeta
-from amrita_sense.hook.matcher import sign_func
+from amrita_sense.hook.fun_typing import DependencyMeta, sign_func
 from amrita_sense.logging import logger
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.utils import TimeInsighter

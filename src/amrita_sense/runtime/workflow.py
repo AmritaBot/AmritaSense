@@ -19,6 +19,7 @@ from uuid import uuid4
 import aiologic
 from typing_extensions import deprecated
 
+from amrita_sense._unsafe import __flags__
 from amrita_sense.exceptions import (
     BreakLoop,
     DependsInjectFailed,
@@ -27,7 +28,7 @@ from amrita_sense.exceptions import (
     InterruptNotice,
     NullPointerException,
 )
-from amrita_sense.hook.matcher import DependsFactory, MatcherFactory
+from amrita_sense.hook.matcher import DependsFactory, MatcherFactory, sign_func
 from amrita_sense.logging import logger
 from amrita_sense.node.core import BaseNode, NodeComposeRendered
 from amrita_sense.node.self_compile import SelfCompileInstruction
@@ -136,7 +137,11 @@ class WorkflowInterpreter(Generic[io_T]):
         self._ava_args = (self, *extra_args)
         extra_kwargs = extra_kwargs or {}
         self._ava_kwargs = (extra_kwargs).copy()
-        self._exc_ignored = (*exception_ignored, InterruptNotice, BreakLoop)
+        self._exc_ignored = (
+            (*exception_ignored, InterruptNotice, BreakLoop)
+            if not __flags__.DISABLE_EXC_IGNORED
+            else ()
+        )
         # Runtime attrs
         object_io = object_io or SuspendObjectStream()
         self.object_io = cast(io_T, object_io)
@@ -252,7 +257,7 @@ class WorkflowInterpreter(Generic[io_T]):
             A new WorkflowInterpreter instance representing the sub-interpreter.
         """
         mdw: Callable[[WorkflowInterpreter], Awaitable[Any]] | None
-        if self._middleware is UNSET:
+        if self._middleware is UNSET and not __flags__.NO_SHARED_MIDDLEWARE:
             mdw = self._middleware
         elif middleware is None:
             mdw = None
@@ -905,6 +910,8 @@ class WorkflowInterpreter(Generic[io_T]):
         addr_getter = addr_getter or self.find_addr
         node: BaseNode | NodeComposeRendered = addr_getter(self._pointer.base_addr)
         if isinstance(node, NodeComposeRendered):
+            if __flags__.ALLOW_CALL_NODECOMPOSE:
+                return
             raise RuntimeError(
                 f"Cannot call a NodeCompose in addr {self._pointer.base_addr}."
             )
@@ -923,7 +930,11 @@ class WorkflowInterpreter(Generic[io_T]):
         fun = node.func
 
         fail, kw_rsved, kw2rsev = MatcherFactory._resolve_dependencies(
-            node.fun_sign, ava_args, ava_kwargs
+            node.fun_sign
+            if not __flags__.NO_DEPENDENCY_META_CACHE
+            else sign_func(node.func),
+            ava_args,
+            ava_kwargs,
         )
         if fail is not None:
             raise DependsResolveFailed(
@@ -949,7 +960,7 @@ class WorkflowInterpreter(Generic[io_T]):
         )
         if iscoroutinefunction(fun):
             return await fun(**kw_rsved)
-        elif node.wrap_to_async:
+        elif node.wrap_to_async and not __flags__.FORCE_NOT_WRAP_TO_ASYNC:
             return await asyncio.to_thread(fun, **kw_rsved)
         else:
             return fun(**kw_rsved)
