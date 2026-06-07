@@ -664,7 +664,7 @@ class WorkflowInterpreter(Generic[io_T]):
     ) -> None | list[BaseException | None]:
 
         futs: Sequence[Awaitable] = ([(self.wait)] if not exclude_self else []) + [
-            (sub.wait) for sub in self.sub_interpreters.values()
+            (sub.wait_all_forks()) for sub in self.sub_interpreters.values()
         ]
         rst = await asyncio.gather(
             *futs,

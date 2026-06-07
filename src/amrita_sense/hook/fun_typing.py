@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 if TYPE_CHECKING:
     from .matcher import DependsFactory, Matcher
+else:
+    DependsFactory = None
 
 
 class _Empty:

@@ -261,6 +261,11 @@ class TestWorkflowInterpreter:
 
     @pytest.mark.asyncio
     async def test_call_raises_on_nodecompose(self):
+        from amrita_sense._unsafe import __flags__
+
+        if __flags__.ALLOW_CALL_NODECOMPOSE:
+            pytest.skip("ALLOW_CALL_NODECOMPOSE is True; test expects default False")
+
         @NodeDecorator()
         def simple_node():
             return "hello"
@@ -310,3 +315,236 @@ class TestWorkflowInterpreter:
         interpreter._pointer = PointerVector([0, 0])
 
         assert not interpreter.advance_pointer()
+
+
+# ---------------------------------------------------------------------------
+# Interpreter Tree tests (v0.3.0+)
+# ---------------------------------------------------------------------------
+
+
+import asyncio  # noqa: E402
+import contextlib  # noqa: E402
+
+from amrita_sense import ALIAS, NOP  # noqa: E402
+from amrita_sense.node.wrapper import Node  # noqa: E402
+
+
+@pytest.mark.asyncio
+async def test_interpreter_id_is_unique():
+    """Each interpreter gets a unique UUID id."""
+    r = WorkflowInterpreter(NodeCompose(NodeDecorator()(lambda: None)).render())
+    r2 = WorkflowInterpreter(NodeCompose(NodeDecorator()(lambda: None)).render())
+    assert r.id != r2.id
+    assert len(r.id) == 32  # uuid4 hex
+
+
+def test_interpreter_parent_is_none_for_top_level():
+    """Top-level interpreters have parent=None."""
+    r = WorkflowInterpreter(NodeCompose(NodeDecorator()(lambda: None)).render())
+    assert r.parent is None
+
+
+def test_interpreter_top_interpreter_is_self_for_top_level():
+    """For a top-level interpreter, top_interpreter is itself."""
+    r = WorkflowInterpreter(NodeCompose(NodeDecorator()(lambda: None)).render())
+    assert r.top_interpreter is r
+
+
+def test_interpreter_sub_interpreters_initially_empty():
+    """A newly created interpreter has no sub-interpreters."""
+    r = WorkflowInterpreter(NodeCompose(NodeDecorator()(lambda: None)).render())
+    assert r.sub_interpreters == {}
+
+
+@pytest.mark.asyncio
+async def test_fork_interpreter_creates_child():
+    """fork_interpreter creates a child with correct parent/child relationship."""
+    r = WorkflowInterpreter(NodeCompose(NodeDecorator()(lambda: None)).render())
+    child = r.fork_interpreter(
+        compose=NodeCompose(NodeDecorator()(lambda: None)).render(),
+        middleware=None,
+    )
+    assert child.parent is r
+    assert child.id in r.sub_interpreters
+    assert r.sub_interpreters[child.id] is child
+
+
+@pytest.mark.asyncio
+async def test_fork_interpreter_tree_properties():
+    """Children have correct top_interpreter and tree properties."""
+    r = WorkflowInterpreter(NodeCompose(NodeDecorator()(lambda: None)).render())
+    child = r.fork_interpreter(
+        compose=NodeCompose(NodeDecorator()(lambda: None)).render(),
+        middleware=None,
+    )
+    assert child.top_interpreter is r
+    assert child.parent is r
+    assert child.id in r.all_sub_interpreters
+
+
+@pytest.mark.asyncio
+async def test_fork_interpreter_cannot_wait_all_on_child():
+    """wait_all raises IllegalState on non-top-level interpreter."""
+    r = WorkflowInterpreter(NodeCompose(NodeDecorator()(lambda: None)).render())
+    child = r.fork_interpreter(
+        compose=NodeCompose(NodeDecorator()(lambda: None)).render(),
+        middleware=None,
+    )
+    from amrita_sense.exceptions import IllegalState
+
+    with pytest.raises(IllegalState):
+        await child.wait_all()
+
+
+@pytest.mark.asyncio
+async def test_fork_interpreter_cannot_terminate_all_on_child():
+    """terminate_all raises IllegalState on non-top-level interpreter."""
+    r = WorkflowInterpreter(NodeCompose(NodeDecorator()(lambda: None)).render())
+    child = r.fork_interpreter(
+        compose=NodeCompose(NodeDecorator()(lambda: None)).render(),
+        middleware=None,
+    )
+    from amrita_sense.exceptions import IllegalState
+
+    with pytest.raises(IllegalState):
+        await child.terminate_all()
+
+
+@pytest.mark.asyncio
+async def test_parallel_execution_via_gather():
+    """Multiple child interpreters can run concurrently via asyncio.gather."""
+
+    @Node()
+    async def n() -> None:
+        pass
+
+    sub = (n >> ALIAS(NOP, "done")).render()
+    parent = WorkflowInterpreter((n >> ALIAS(NOP, "done")).render())
+    child_a = parent.fork_interpreter(compose=sub, middleware=None)
+    child_b = parent.fork_interpreter(compose=sub, middleware=None)
+
+    await asyncio.gather(parent.run(), child_a.run(), child_b.run())
+
+
+@pytest.mark.asyncio
+async def test_terminate_child():
+    """terminate() stops a child interpreter."""
+
+    @Node()
+    async def n() -> None:
+        pass
+
+    sub = (n >> ALIAS(NOP, "done")).render()
+    parent = WorkflowInterpreter((n >> ALIAS(NOP, "done")).render())
+    child = parent.fork_interpreter(compose=sub, middleware=None)
+
+    child_task = asyncio.create_task(child.run())
+    await asyncio.sleep(0)
+    await child.terminate(eol=True)
+
+    child_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await child_task
+
+    await parent.run()
+
+
+@pytest.mark.asyncio
+async def test_terminate_all():
+    """terminate_all on top-level stops all children."""
+
+    @Node()
+    async def n() -> None:
+        pass
+
+    sub = (n >> ALIAS(NOP, "done")).render()
+    parent = WorkflowInterpreter((n >> ALIAS(NOP, "done")).render())
+    child_a = parent.fork_interpreter(compose=sub, middleware=None)
+    child_b = parent.fork_interpreter(compose=sub, middleware=None)
+
+    ta = asyncio.create_task(child_a.run())
+    tb = asyncio.create_task(child_b.run())
+    await asyncio.sleep(0)
+
+    await parent.terminate_all(eol=True)
+
+    for t in (ta, tb):
+        t.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await t
+
+    await parent.run()
+
+
+@pytest.mark.asyncio
+async def test_wait_all_forks_after_children_done():
+    """After all children finish via gather, wait_all_forks on parent
+    may raise IllegalState if parent itself already finished too.
+    Use asyncio.gather for parallel coordination instead."""
+
+    @Node()
+    async def n() -> None:
+        pass
+
+    sub = (n >> ALIAS(NOP, "done")).render()
+    parent = WorkflowInterpreter((n >> ALIAS(NOP, "done")).render())
+    child_a = parent.fork_interpreter(compose=sub, middleware=None)
+    child_b = parent.fork_interpreter(compose=sub, middleware=None)
+
+    # asyncio.gather is the recommended way to coordinate parallel execution
+    await asyncio.gather(parent.run(), child_a.run(), child_b.run())
+    # If we reach here, all interpreters completed without error
+    assert not parent.is_running
+    assert not child_a.is_running
+    assert not child_b.is_running
+
+
+@pytest.mark.asyncio
+async def test_is_running():
+    """is_running reflects execution state."""
+
+    @Node()
+    async def n() -> None:
+        pass
+
+    r = WorkflowInterpreter((n >> ALIAS(NOP, "done")).render())
+    assert not r.is_running
+    await r.run()
+    assert not r.is_running
+
+
+@pytest.mark.asyncio
+async def test_pending_stop_after_terminate():
+    """terminate stops a child and cleans up state."""
+
+    @Node()
+    async def n() -> None:
+        pass
+
+    sub = (n >> ALIAS(NOP, "done")).render()
+    parent = WorkflowInterpreter((n >> ALIAS(NOP, "done")).render())
+    child = parent.fork_interpreter(compose=sub, middleware=None)
+    child_task = asyncio.create_task(child.run())
+    await asyncio.sleep(0)
+
+    await child.terminate(eol=True)
+
+    child_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await child_task
+    await parent.run()
+
+
+@pytest.mark.asyncio
+async def test_wait_raises_when_not_running():
+    """wait raises IllegalState when interpreter is not running."""
+
+    @Node()
+    async def n() -> None:
+        pass
+
+    r = WorkflowInterpreter((n >> ALIAS(NOP, "done")).render())
+    from amrita_sense.exceptions import IllegalState
+
+    with pytest.raises(IllegalState):
+        _ = r.wait

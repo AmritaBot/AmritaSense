@@ -261,6 +261,8 @@ class NodeCompose:
         Args:
             *nodes: Variable number of nodes, compositions, or self-compile instructions.
         """
+        if any(isinstance(i, NodeComposeRendered) for i in nodes):
+            raise TypeError("NodeComposeRendered cannot be used in NodeCompose")
         self._graph = list(nodes)
 
     def __rshift__(

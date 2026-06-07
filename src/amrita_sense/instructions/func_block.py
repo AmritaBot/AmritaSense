@@ -1,10 +1,9 @@
 import asyncio
 import contextlib
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable
 from types import FrameType
 from typing import Any
 
-from exceptiongroup import BaseExceptionGroup
 from typing_extensions import override
 
 from amrita_sense.exceptions import IllegalState
@@ -13,7 +12,6 @@ from amrita_sense.logging import logger
 from amrita_sense.node.core import BaseNode, NodeComposeRendered
 from amrita_sense.runtime.workflow import UNSET, WorkflowInterpreter
 from amrita_sense.streaming import SuspendObjectStream
-from amrita_sense.utils import search_exceptions
 
 
 class FuncBlock(BaseNode):
@@ -71,14 +69,14 @@ class FuncBlock(BaseNode):
         logger.debug("Calling sub-workflow...")
         task = asyncio.create_task(self._interpreter.run())
         try:
-            ret = await self._interpreter.wait_all(return_exc=True)
-            exc: Sequence[BaseException] = search_exceptions(ret)
-            if exc:
-                raise BaseExceptionGroup("Some exceptions had occurred.", exc)
+            await task
         finally:
-            task.cancel()
+            if not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
             with contextlib.suppress(IllegalState):
-                await self._interpreter.terminate_all(eol=self._onetime)
+                await self._interpreter.terminate_all_forks(eol=self._onetime)
             if self._onetime:
                 self._interpreter = None
             else:
@@ -86,7 +84,6 @@ class FuncBlock(BaseNode):
                 self._interpreter._jump_marked = False
                 self._interpreter._pointer.far_to([0])
                 self._interpreter._pending_stop = False
-            await task
 
 
 def FUN_BLOCK(

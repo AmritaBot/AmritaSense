@@ -23,6 +23,7 @@ from exceptiongroup import ExceptionGroup
 from typing_extensions import Never, Self
 
 from amrita_sense._unsafe import __flags__
+from amrita_sense.hook import fun_typing
 from amrita_sense.logging import debug_log, logger
 from amrita_sense.weakcache import WeakValueLRUCache
 
@@ -560,3 +561,6 @@ class MatcherFactory:
                 logger.warning(
                     f"No registered Matcher for {event_type} event, skipping processing."
                 )
+
+
+fun_typing.DependsFactory = DependsFactory
