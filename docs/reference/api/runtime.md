@@ -181,7 +181,7 @@ Return the last panic exception, or `None` if the interpreter finished normally 
 
 #### `reset()` (v0.3.1+)
 
-Reset the interpreter's execution state to its initial values: clears the pointer, return address stack, jump marker, pending stop flag, waiter future, and panic exception. This is **independent of the recovery flow** — to recover from a panic, simply call `run()` again without resetting.
+Reset the interpreter's execution state to its initial values: clear the pointer, return address stack, jump marker, pending stop flag, waiter future, and panic exception. This is **independent of the recovery flow** — to recover from a panic, simply call `run()` again without resetting.
 
 `reset()` is intended for scenarios where you want to restart execution from scratch on the same workflow graph without creating a new interpreter.
 
