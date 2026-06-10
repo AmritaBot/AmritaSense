@@ -575,7 +575,7 @@ class WorkflowInterpreter(Generic[io_T]):
         """
         exc_val: BaseException | None = None
         if self._panic_exc is not None:
-            logger.info("Recoverd from panic.")
+            logger.info("Recovered from panic.")
             self._panic_exc = None
         if self._waiter_fut is not None and not self._waiter_fut.done():
             raise IllegalState(
