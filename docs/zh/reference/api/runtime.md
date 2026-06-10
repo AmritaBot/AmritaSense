@@ -47,6 +47,22 @@ def __init__(
 - `middleware`：可选异步可调用对象，接收 `WorkflowInterpreter` 实例。设置后，`run_step_by()` 和 `call_sub()` 不再直接调用节点，而是将执行委托给 middleware。middleware 可自行决定是否执行节点、如何执行、以及如何转换结果。
 - `parent_interpreter`（v0.3.0+）：可选的父 `WorkflowInterpreter`，用于构建解释器树。由 `fork_interpreter()` 自动设置——一般无需直接使用。
 
+### Panic / Recover（v0.3.1+）
+
+当未处理异常从主执行循环逃逸时，解释器进入 **panic** 状态：保留异常（`_panic_exc`）、当前指针位置和所有调用栈，以便检查崩溃现场，并可恢复执行。
+
+这与 `TRY/CATCH` 机制有明确分工：
+
+| 方面         | Try-Catch                  | Panic / Recover                               |
+| ------------ | -------------------------- | --------------------------------------------- |
+| **范围**     | 局部、可控的正常业务异常   | 全局、不可预料的意外崩溃                      |
+| **开销**     | 低（指令级拦截）           | 高（保留完整解释器状态）                      |
+| **崩溃后**   | CATCH 块处理，继续执行     | 解释器 Dump，保留崩溃现场                     |
+| **恢复**     | CATCH 内自动完成           | 再次调用 `run()` / `run_step_by()` 从断点继续 |
+| **适用场景** | 节点级重试、降级、事务回滚 | 调试、审计、崩溃后续跑                        |
+
+恢复只需在同一个解释器上再次调用 `run()`（或 `run_step_by()`）——指针仍停留在崩溃位置，执行会从断点继续。解释器会在下一次执行时记录 "Recovered from panic" 并清除 `_panic_exc`。
+
 ### 核心属性
 
 - `_graph: NodeComposeRendered`：编译后的只读工作流图，解释器从中读取节点
@@ -77,6 +93,8 @@ def __init__(
 **`pending_stop: bool`** — 是否已对该解释器调用 `terminate()`。
 
 **`wait: asyncio.Future[None]`** — 一个在解释器执行完成时 resolve 的 future。若解释器未运行则抛出 `IllegalState`。
+
+**`get_exception() -> Exception | None`**（v0.3.1+）— 获取上次 panic 异常。若解释器正常完成或从未崩溃，返回 `None`。崩溃后即时可用，用于诊断。
 
 ### 主要方法
 
@@ -109,6 +127,16 @@ def __init__(
 **`async wait_all(return_exc=False, exclude_self=False)`**
 
 仅顶层可用：等待整棵解释器树完成。在非顶层解释器上调用会抛出 `IllegalState`。
+
+**`get_exception() -> Exception | None`**（v0.3.1+）
+
+返回上次 panic 异常，或 `None`（若解释器正常完成或从未崩溃）。用于检查前一次 `run()` 是否崩溃及为何崩溃。
+
+**`reset()`**（v0.3.1+）
+
+将解释器执行状态重置为初始值：清除指针、返回地址栈、跳转标记、pending stop 标志、waiter future 和 panic 异常。此方法**与恢复流程无关**——从 panic 恢复只需直接调用 `run()`，无需先 reset。
+
+`reset()` 适用于在不创建新解释器的前提下、从同一工作流图重新开始执行的场景。
 
 #### 地址解析
 

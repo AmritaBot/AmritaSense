@@ -36,6 +36,22 @@ Arguments:
 - `middleware`: Optional async callable that receives the `WorkflowInterpreter` instance. When set, `run_step_by()` and `call_sub()` delegate to the middleware instead of calling nodes directly. The middleware can decide whether and how to execute nodes, transform results, or inject custom logic around every step.
 - `parent_interpreter` (v0.3.0+): Optional parent `WorkflowInterpreter` for building an interpreter tree. Set automatically by `fork_interpreter()` — rarely needed directly.
 
+### Panic / Recover (v0.3.1+)
+
+When an unhandled exception escapes the main execution loop, the interpreter enters a **panic** state: it preserves the exception (`_panic_exc`), the current pointer position, and all stack state so that the crash site can be inspected and execution can be resumed.
+
+This is distinct from the `TRY/CATCH` mechanism:
+
+| Aspect          | Try-Catch                                | Panic / Recover                                                 |
+| --------------- | ---------------------------------------- | --------------------------------------------------------------- |
+| **Scope**       | Local, predictable business errors       | Global, unexpected crashes                                      |
+| **Overhead**    | Low (instruction-level interception)     | High (preserves full interpreter state)                         |
+| **After crash** | CATCH block handles, execution continues | Interpreter dumps, retains crash site                           |
+| **Recovery**    | Automatic inside CATCH                   | Call `run()` / `run_step_by()` again to resume from crash point |
+| **Use case**    | Node-level retry, fallback, rollback     | Debugging, audit, post-crash continuation                       |
+
+To recover from a panic, simply call `run()` (or `run_step_by()`) again on the same interpreter — the pointer is still at the crash location, and execution will resume from there. The interpreter logs "Recovered from panic" and clears `_panic_exc` on the next run.
+
 ### Key attributes
 
 - `_graph`: The compiled workflow graph being executed.
@@ -64,6 +80,8 @@ Interpreters form a tree: a top-level interpreter may have child interpreters cr
 **`pending_stop: bool`** — `True` if `terminate()` has been called on this interpreter.
 
 **`wait: asyncio.Future[None]`** — A future that resolves when the interpreter finishes execution. Raises `IllegalState` if the interpreter is not running.
+
+**`get_exception() -> Exception | None`** (v0.3.1+) — Return the last panic exception, or `None` if the interpreter finished normally or has never crashed. Available immediately after a panic for diagnostic purposes.
 
 ### Important methods
 
@@ -156,6 +174,16 @@ Wait for all direct child interpreters to finish. If `return_exc=True`, returns 
 #### `async wait_all(return_exc=False, exclude_self=False)` (v0.3.0+)
 
 Top-level only: wait for the entire interpreter tree to finish. Raises `IllegalState` if called on a non-top-level interpreter.
+
+#### `get_exception() -> Exception | None` (v0.3.1+)
+
+Return the last panic exception, or `None` if the interpreter finished normally or has never crashed. Useful for checking whether a previous `run()` crashed and what went wrong.
+
+#### `reset()` (v0.3.1+)
+
+Reset the interpreter's execution state to its initial values: clears the pointer, return address stack, jump marker, pending stop flag, waiter future, and panic exception. This is **independent of the recovery flow** — to recover from a panic, simply call `run()` again without resetting.
+
+`reset()` is intended for scenarios where you want to restart execution from scratch on the same workflow graph without creating a new interpreter.
 
 #### `find_addr_alias(alias: str) -> list[int]`
 
