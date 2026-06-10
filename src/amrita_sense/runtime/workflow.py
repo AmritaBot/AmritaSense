@@ -73,6 +73,7 @@ class WorkflowInterpreter(Generic[io_T]):
 
     _interpreter_id: str  # Instance id
     _interpret_lock: aiologic.Lock
+    _panic_exc: Exception | None
 
     _parent_interpreter: WorkflowInterpreter | None
     _glob_top_mod_lock: aiologic.Lock
@@ -94,6 +95,7 @@ class WorkflowInterpreter(Generic[io_T]):
         "_interpreter_id",
         "_jump_marked",
         "_middleware",
+        "_panic_exc",
         "_parent_interpreter",
         "_pending_stop",
         "_pointer",
@@ -133,6 +135,7 @@ class WorkflowInterpreter(Generic[io_T]):
             node_compose = node_compose.extract().render()
         self._graph = node_compose
         self._pointer = PointerVector()
+        self._panic_exc = None
         # DI
         self._ava_args = (self, *extra_args)
         extra_kwargs = extra_kwargs or {}
@@ -229,6 +232,21 @@ class WorkflowInterpreter(Generic[io_T]):
             A dict of WorkflowInterpreter instances representing sub-interpreters.
         """
         return self._sub_interpreters
+
+    def get_exception(self) -> Exception | None:
+        """Get the last panic exception."""
+        return self._panic_exc
+
+    def reset(self) -> None:
+        """Reset the workflow interpreter to its initial state."""
+        if self._waiter_fut is not None:
+            self._waiter_fut.cancel("Reseted by manual.")
+        self._waiter_fut = None
+        self._pointer.clear()
+        self._pending_stop = False
+        self._ret_addr_stack.clear()
+        self._jump_marked = False
+        self._panic_exc = None
 
     def fork_interpreter(
         self,
@@ -556,6 +574,9 @@ class WorkflowInterpreter(Generic[io_T]):
             InterruptNotice: When an external interrupt is requested.
         """
         exc_val: BaseException | None = None
+        if self._panic_exc is not None:
+            logger.info("Recovered from panic.")
+            self._panic_exc = None
         if self._waiter_fut is not None and not self._waiter_fut.done():
             raise IllegalState(
                 "Cannot start a new workflow while one is already running"
@@ -614,10 +635,22 @@ class WorkflowInterpreter(Generic[io_T]):
             self._jump_marked = False
 
         except BaseException as e:
+            if isinstance(e, Exception):
+                logger.warning(
+                    "*** workflow exception detected ***: "
+                    f"`{e}@{e.__class__.__name__}` at ptr {self._pointer}"
+                )
+                logger.warning(f"Interpreter: {self.id} at {hex(id(self))}")
             exc_val = e
             raise
         finally:
-            if self._waiter_fut:
+            if exc_val is not None and isinstance(exc_val, Exception):
+                self._panic_exc = exc_val
+                logger.warning("Aborted (Interpreter Dumped)")
+            if self._waiter_fut and (
+                getattr(self._waiter_fut, "_asyncio_future_blocking", False)
+                or getattr(self._waiter_fut, "_blocking", False)
+            ):  # To ensure the waiter future is really waiting
                 if exc_val is not None:
                     self._waiter_fut.set_exception(exc_val)
                 else:
