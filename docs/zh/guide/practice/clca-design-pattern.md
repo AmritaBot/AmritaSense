@@ -130,7 +130,7 @@ class Signal:
 - **一次唤醒全部**：`signal()` 完成共享 `Future`，触发所有已注册的回调，全部等待者同时被唤醒。
 - **跨循环安全**：`aiologic.Lock` 保护所有共享状态的读写，每个协程最终 `await` 的是自己所在事件循环内的 `Future`，天然避免了跨循环等待问题。
 
-## 实践二：CheckpointSignal —— 外设式检查点挂起
+## 实践二：CheckpointSignal —— 外部式检查点挂起
 
 时序图：
 
