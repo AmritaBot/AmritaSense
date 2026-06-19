@@ -136,20 +136,20 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
                 self.__resume_signal = asyncio.Future()
                 shared_fut = self.__resume_signal
                 is_first = True
-
-            await asyncio.sleep(0)
-
             if is_first:
                 fut = shared_fut
             else:
                 fut: asyncio.Future[None] = asyncio.Future()
                 shared_fut.add_done_callback(lambda _: fut.set_result(None))
+            await asyncio.sleep(0)
         try:
             await fut
         finally:
             if is_first:
                 async with self._state_lock:
-                    if self.__resume_signal is fut:
+                    if (rmt := self.__resume_signal) is fut:
+                        if not rmt.done():
+                            rmt.cancel()
                         self.__resume_signal = None
         return True
 
