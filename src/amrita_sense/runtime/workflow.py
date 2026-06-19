@@ -260,15 +260,21 @@ class WorkflowInterpreter(Generic[io_T]):
         This method creates a new WorkflowInterpreter instance that shares the same
         state, but you can custom the workflow graph and middleware for the sub-interpreter.
 
-        `SuspendObjectStream` could be shared after v0.3.2,
-            we make it be thread safe by CLCA (Cross Loop Callback-Allocate) signal designing method.
-        Please make sure state access and modification is thread safe before being used.
+        Since v0.3.2, ``SuspendObjectStream`` is concurrency-safe via the
+        **CLCA (Cross Loop Callback-Allocate)** signal design pattern, so the
+        parent's ``object_io`` can be safely shared with child interpreters.
 
         Args:
-            compose (NodeComposeRendered | None): The workflow graph for the sub-interpreter. If None, it will use the same graph as the parent.
-            middleware (Callable[[WorkflowInterpreter], Awaitable[Any]] | None | object): The middleware to be used for the sub-interpreter.
-                If UNSET, it will use the same middleware as the parent. If None, it will not use any middleware.
-            object_io (io_T | None): The object I/O stream for the sub-interpreter. If None, it will be set to a shared object stream.
+            compose (NodeComposeRendered | None): The workflow graph for the sub-interpreter.
+                If None, it will use the same graph as the parent.
+            middleware (Callable[[WorkflowInterpreter], Awaitable[Any]] | None | object):
+                The middleware to be used for the sub-interpreter.
+                If UNSET, it will use the same middleware as the parent.
+                If None, it will not use any middleware.
+            object_io (io_T | None): The object I/O stream for the sub-interpreter.
+                If None, reuses the parent interpreter's ``object_io`` instance.
+                Safe sharing is guaranteed for ``SuspendObjectStream`` (CLCA-safe since v0.3.2);
+                other ``io_T`` subtypes must ensure their own thread safety if passed explicitly.
 
         Returns:
             A new WorkflowInterpreter instance representing the sub-interpreter.
