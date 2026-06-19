@@ -450,11 +450,10 @@ class MatcherFactory:
                         f"An error occurred while running '{handler.__name__}'({file_name}:{line_number}) "
                     )
                     continue
-                finally:
-                    logger.info(f"Handler {handler.__name__} finished")
+                logger.info(f"Handler {handler.__name__} finished")
 
-                    if matcher.block:
-                        return False
+                if matcher.block:
+                    return False
         finally:
             if _dead_to_remove:
                 for func in _dead_to_remove:

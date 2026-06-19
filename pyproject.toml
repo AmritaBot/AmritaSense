@@ -1,9 +1,9 @@
 [project]
 name = "amrita-sense"
-version = "0.3.1.post1"
+version = "0.3.2"
 description = "Next-Gen event stream and workflow engine."
 readme = "README.md"
-requires-python = ">=3.10, <3.15"
+requires-python = ">=3.10, <3.16"
 dependencies = [
     "aiologic>=0.16.0",
     "anyio>=4.13.0",
