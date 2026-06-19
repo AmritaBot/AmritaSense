@@ -56,7 +56,7 @@ FUN_BLOCK(
   - `UNSET`（默认）：继承父中间件，除非 `__flags__.NO_SHARED_MIDDLEWARE` 为 `True`。
   - `None`：子解释器不使用中间件。
   - 一个可调用对象：仅该子解释器使用此自定义中间件。
-- **`object_io`**（`SuspendObjectStream | None`）：子解释器的 I/O 流。默认 `None` 会创建一个新的 `SuspendObjectStream`。注意：object_io **不会**在解释器间共享——每个解释器获取自己的流以保证线程安全。
+- **`object_io`**（`SuspendObjectStream | None`）：子解释器的 I/O 流。默认 `None` 会共享父解释器的 `SuspendObjectStream`。自 v0.3.2 起，`SuspendObjectStream` 通过 **CLCA（Cross Loop Callback-Allocate）信号设计模式** 实现了并发安全，因此在解释器甚至线程间共享都是安全的。
 - **`one_time_interp`**（`bool`）：若为 `True`，每次调用都创建新的 `WorkflowInterpreter`，完成后销毁。若为 `False`（默认），解释器在多次调用间复用（状态被重置但不会重建）。
 
 ### 返回值

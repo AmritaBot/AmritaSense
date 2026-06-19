@@ -106,7 +106,7 @@ def __init__(
 
 - `compose`：可选的 `NodeComposeRendered`。若为 `None`，使用父解释器的图。
 - `middleware`：`UNSET`（继承父中间件）、`None`（无中间件）或自定义可调用对象。
-- `object_io`：可选的 `SuspendObjectStream`。若为 `None`，创建新实例（不共享）。
+- `object_io`：可选的 `SuspendObjectStream`。若为 `None`，共享父解释器的 `object_io`。自 v0.3.2 起，`SuspendObjectStream` 通过 CLCA 信号设计模式实现了并发安全。
 
 **`async terminate(eol: bool = True)`**
 

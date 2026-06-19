@@ -56,7 +56,7 @@ FUN_BLOCK(
   - `UNSET` (default): Inherits the parent's middleware, unless `__flags__.NO_SHARED_MIDDLEWARE` is `True`.
   - `None`: No middleware for the child interpreter.
   - A callable: Custom middleware for this child only.
-- **`object_io`** (`SuspendObjectStream | None`): I/O stream for the child. Default `None` creates a new `SuspendObjectStream`. Note: object_io is **not** shared between interpreters — each gets its own stream for thread safety.
+- **`object_io`** (`SuspendObjectStream | None`): I/O stream for the child. Default `None` shares the parent's `SuspendObjectStream`. Since v0.3.2, `SuspendObjectStream` is concurrency-safe via the **CLCA (Cross Loop Callback-Allocate) signal design pattern**, so sharing across interpreters and even threads is safe.
 - **`one_time_interp`** (`bool`): If `True`, a new `WorkflowInterpreter` is created on every invocation and torn down after completion. If `False` (default), the interpreter is reused across invocations (its state is reset but not reconstructed).
 
 ### Return Value

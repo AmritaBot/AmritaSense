@@ -17,7 +17,6 @@ from typing import (
 from uuid import uuid4
 
 import aiologic
-from typing_extensions import deprecated
 
 from amrita_sense._unsafe import __flags__
 from amrita_sense.exceptions import (
@@ -261,15 +260,21 @@ class WorkflowInterpreter(Generic[io_T]):
         This method creates a new WorkflowInterpreter instance that shares the same
         state, but you can custom the workflow graph and middleware for the sub-interpreter.
 
-        !!!WARN!!!: Object io is not shared because of thread safety. Please use the
-        object_io parameter to pass the object io to the sub-interpreter.
-        Please make sure state access and modification is thread safe before being used.
+        Since v0.3.2, ``SuspendObjectStream`` is concurrency-safe via the
+        **CLCA (Cross Loop Callback-Allocate)** signal design pattern, so the
+        parent's ``object_io`` can be safely shared with child interpreters.
 
         Args:
-            compose (NodeComposeRendered | None): The workflow graph for the sub-interpreter. If None, it will use the same graph as the parent.
-            middleware (Callable[[WorkflowInterpreter], Awaitable[Any]] | None | object): The middleware to be used for the sub-interpreter.
-                If UNSET, it will use the same middleware as the parent. If None, it will not use any middleware.
-            object_io (io_T | None): The object I/O stream for the sub-interpreter. If None, it will create a new SuspendObjectStream.
+            compose (NodeComposeRendered | None): The workflow graph for the sub-interpreter.
+                If None, it will use the same graph as the parent.
+            middleware (Callable[[WorkflowInterpreter], Awaitable[Any]] | None | object):
+                The middleware to be used for the sub-interpreter.
+                If UNSET, it will use the same middleware as the parent.
+                If None, it will not use any middleware.
+            object_io (io_T | None): The object I/O stream for the sub-interpreter.
+                If None, reuses the parent interpreter's ``object_io`` instance.
+                Safe sharing is guaranteed for ``SuspendObjectStream`` (CLCA-safe since v0.3.2);
+                other ``io_T`` subtypes must ensure their own thread safety if passed explicitly.
 
         Returns:
             A new WorkflowInterpreter instance representing the sub-interpreter.
@@ -288,7 +293,7 @@ class WorkflowInterpreter(Generic[io_T]):
             compose = self._graph
         return WorkflowInterpreter[io_T](
             compose,
-            object_io=object_io or SuspendObjectStream(),
+            object_io=object_io or self.object_io,
             exception_ignored=self._exc_ignored,
             middleware=mdw,
             extra_args=self._ava_args[1:],  # Exclude self from args
@@ -834,14 +839,6 @@ class WorkflowInterpreter(Generic[io_T]):
 
         logger.debug("Failed to advance pointer through any path")
         return False
-
-    @property
-    @deprecated(
-        "Method of `_advance_pointer` is now `advance_pointer`, this compile method will be removed in `v0.3.0`",
-        category=DeprecationWarning,
-    )
-    def _advance_pointer(self):
-        return self.advance_pointer
 
     def find_addr_alias(self, alias: str) -> list[int]:
         """Find the address vector for a node by its alias.

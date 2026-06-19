@@ -15,6 +15,10 @@
 - 通过 `yield_response()` 或 `push_object()` 发送响应对象
 - 使用 `get_response_generator()` 消费响应对象
 
+### 并发安全（v0.3.2+）
+
+`SuspendObjectStream` 具备完整的并发安全性。多个协程和线程可以安全地共享同一个实例——并发的 `wait_to_suspend()`、`resume()`、`yield_response()`、`push_object()` 调用均受 **CLCA（Cross Loop Callback-Allocate）信号设计模式** 保护。详见 [CLCA 设计模式](/zh/guide/practice/clca-design-pattern)。
+
 ## 公共方法
 
 ### `static suspend(func: Callable[..., Any], tag: str | None = None) -> Callable[..., Any]`
