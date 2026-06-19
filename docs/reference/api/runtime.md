@@ -153,7 +153,7 @@ Create a child interpreter in the interpreter tree. By default inherits the pare
 
 - `compose`: Optional `NodeComposeRendered` for the child. If `None`, uses the parent's graph.
 - `middleware`: `UNSET` (inherit parent's), `None` (no middleware), or a custom callable.
-- `object_io`: Optional `SuspendObjectStream`. If `None`, creates a new one (not shared).
+- `object_io`: Optional `SuspendObjectStream`. If `None`, shares the parent's `object_io`. Since v0.3.2, `SuspendObjectStream` is concurrency-safe via the CLCA signal design pattern.
 
 #### `async terminate(eol: bool = True)` (v0.3.0+)
 

@@ -15,6 +15,10 @@ Key behaviors:
 - send response objects through `yield_response()` or `push_object()`
 - consume response objects with `get_response_generator()`
 
+### Concurrency Safety (v0.3.2+)
+
+`SuspendObjectStream` is fully concurrency-safe. Multiple coroutines and threads can safely share a single instance — calling `wait_to_suspend()`, `resume()`, `yield_response()`, and `push_object()` concurrently is protected by the **CLCA (Cross Loop Callback-Allocate) signal design pattern**. See [CLCA Design Pattern](/guide/practice/clca-design-pattern) for details.
+
 ## Public methods
 
 ### `static suspend(func: Callable[..., Any], tag: str | None = None) -> Callable[..., Any]`

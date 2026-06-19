@@ -183,6 +183,10 @@ export default withMermaid({
                 text: "Subgraph Isolation",
                 link: "/guide/practice/subgraph-isolation",
               },
+              {
+                text: "CLCA Design Pattern",
+                link: "/guide/practice/clca-design-pattern",
+              },
               { text: "Under Construction..." },
             ],
           },
@@ -340,6 +344,10 @@ export default withMermaid({
               {
                 text: "子图隔离调用",
                 link: "/zh/guide/practice/subgraph-isolation",
+              },
+              {
+                text: "CLCA 设计模式",
+                link: "/zh/guide/practice/clca-design-pattern",
               },
               { text: "正在施工中......" },
             ],
