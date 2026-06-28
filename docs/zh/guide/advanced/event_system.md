@@ -102,7 +102,7 @@ class ConstructableEvent(BaseEvent):
 `TRIGGER_EVENT` 是一个**自编译指令**，用于在工作流编排中触发可构造事件。它接收一个 `ConstructableEvent` 子类，在渲染期展开为三个节点的序列：
 
 ```text
-[EventTrigger → event.constructor() → NOP]
+[EventTrigger -> event.constructor() -> NOP]
 ```
 
 #### 运行时流程

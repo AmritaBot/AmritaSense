@@ -80,4 +80,4 @@ For frequently asked questions about this code of conduct, please see: https://w
 
 ## Contact Us
 
-If you have any questions or need to report inappropriate behavior, please contact us at admin@suggar.top.
+If you have any questions or need to report inappropriate behavior, please contact us at [admin@amritabot.com](mailto:admin@amritabot.com).

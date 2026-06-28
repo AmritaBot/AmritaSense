@@ -7,6 +7,11 @@ export default withMermaid({
   sitemap: {
     hostname: "https://sense.amritabot.com",
   },
+  themeConfig: {
+    search: {
+      provider: "local",
+    },
+  },
   head: [
     ["link", { rel: "icon", href: "/Amrita.png" }],
     [

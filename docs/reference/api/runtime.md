@@ -213,13 +213,13 @@ Advance the execution pointer to the next node in the workflow graph. This metho
 **Algorithm**
 
 1. Starting from `ptr` (or `self._pointer`), traverse `base_addr` layer-by-layer to locate the container of the current node.
-2. If the current node is a **non-empty `NodeComposeRendered`** → enter the nested container (`append(0)`), return `True`.
+2. If the current node is a **non-empty `NodeComposeRendered`** -> enter the nested container (`append(0)`), return `True`.
 3. If the current node has a **next sibling**:
-   - Sibling is a non-empty `NodeComposeRendered` → enter that nested container, return `True`.
-   - Otherwise → move to the sibling node, return `True`.
-4. If no next sibling → **backtrack up** the pointer stack layer-by-layer, looking for a parent container's next sibling.
-5. If a next sibling is found during backtracking → apply the same logic, return `True`.
-6. If backtracking reaches the top level with no more siblings → return `False` (end of workflow).
+   - Sibling is a non-empty `NodeComposeRendered` -> enter that nested container, return `True`.
+   - Otherwise -> move to the sibling node, return `True`.
+4. If no next sibling -> **backtrack up** the pointer stack layer-by-layer, looking for a parent container's next sibling.
+5. If a next sibling is found during backtracking -> apply the same logic, return `True`.
+6. If backtracking reaches the top level with no more siblings -> return `False` (end of workflow).
 
 **Deprecation**
 

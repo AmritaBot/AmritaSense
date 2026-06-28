@@ -40,7 +40,7 @@ That means:
 
 ## CALL
 
-`CALL` is a factory wrapper for `CallNode`. At runtime, it calls the interpreter’s `call_sub` method and performs a **push → jump → execute → pop** subroutine call.
+`CALL` is a factory wrapper for `CallNode`. At runtime, it calls the interpreter’s `call_sub` method and performs a **push -> jump -> execute -> pop** subroutine call.
 
 ### Execution flow
 

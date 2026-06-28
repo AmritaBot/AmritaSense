@@ -83,9 +83,9 @@ def quick_check():
 
 ### 性能考量
 
-- **CPU 密集任务** → `wrap_to_async=True`，避免阻塞事件循环
-- **I/O 密集任务** → 优先使用原生 `async def`
-- **极简同步操作**（如 `NOP`、简单布尔判断）→ `wrap_to_async=False`
+- **CPU 密集任务** -> `wrap_to_async=True`，避免阻塞事件循环
+- **I/O 密集任务** -> 优先使用原生 `async def`
+- **极简同步操作**（如 `NOP`、简单布尔判断）-> `wrap_to_async=False`
 
 节点的内存占用也经过了优化——`Node` 类使用了 `__slots__`，避免了默认的 `__dict__` 开销，让每个节点尽可能轻量。
 

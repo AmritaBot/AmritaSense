@@ -400,7 +400,7 @@ def test_get_generator_blocked_by_callback():
 
 @pytest.mark.asyncio
 async def test_full_flow_push_yield_done_close():
-    """End-to-end: push → yield → set_queue_done → generator yields → close."""
+    """End-to-end: push -> yield -> set_queue_done -> generator yields -> close."""
     obj = SuspendObjectStream(queue_size=5, queue_timeout=2)
 
     consumer = asyncio.create_task(_consume_all(obj))

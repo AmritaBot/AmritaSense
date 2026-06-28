@@ -144,7 +144,7 @@ async def after_return() -> None:
     print("回到这里（通过 RET_FAR）")
 
 # 自包含子程序：正常流跳过，GOTO 进入。
-# 内部执行: step1 >> step2 >> RET_FAR() → 弹栈 → 返回。
+# 内部执行: step1 >> step2 >> RET_FAR() -> 弹栈 -> 返回。
 subroutine = ARCHIVED_NODES(
     ALIAS(NOP, "sub_entry"),  # 入口标记
     step1,

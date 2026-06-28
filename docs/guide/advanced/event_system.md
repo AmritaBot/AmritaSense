@@ -102,7 +102,7 @@ Subclasses must implement `constructor()`, which can be sync or async. The runti
 `TRIGGER_EVENT` is a **self-compile instruction** that triggers a constructable event as part of a workflow composition. It accepts a `ConstructableEvent` subclass and expands at render time into a three-node sequence:
 
 ```text
-[EventTrigger → event.constructor() → NOP]
+[EventTrigger -> event.constructor() -> NOP]
 ```
 
 #### Runtime flow

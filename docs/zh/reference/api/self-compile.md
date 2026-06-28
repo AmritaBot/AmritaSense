@@ -31,14 +31,14 @@ AmritaSense 的内置指令集全部是 `SelfCompileInstruction` 的子类。以
 
 ### 条件分支指令
 
-- **`IFClause`**：`IF(cond, do)` → `[ConditionJumpNode, condition, do, NOP]`
+- **`IFClause`**：`IF(cond, do)` -> `[ConditionJumpNode, condition, do, NOP]`
 - **`ELIFClause`**：在 `IFClause` 基础上扩展 ELIF 链，每个 ELIF 追加一组 `[ConditionJumpNode, condition, do]`，最终 NOP 作为统一出口
 - **`ELSEClause`**：在 IF 或 IF-ELIF 链后追加 `[ELSENode, else_do, NOP]`
 
 ### 循环指令
 
-- **`WhileClause`**：`WHILE(condition).ACTION(action)` → `[WhileNode, condition, action, CheckUpNode, NOP]`
-- **`DoWhileClause`**：`DO(do).WHILE(condition)` → `[DONode, do, DowhileNode, condition, NOP]`
+- **`WhileClause`**：`WHILE(condition).ACTION(action)` -> `[WhileNode, condition, action, CheckUpNode, NOP]`
+- **`DoWhileClause`**：`DO(do).WHILE(condition)` -> `[DONode, do, DowhileNode, condition, NOP]`
 
 ### 异常处理指令
 

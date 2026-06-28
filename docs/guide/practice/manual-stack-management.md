@@ -144,7 +144,7 @@ async def after_return() -> None:
     print("Back here (via RET_FAR)")
 
 # Self-contained subroutine: normal flow skips it, GOTO enters it.
-# Execution inside: step1 >> step2 >> RET_FAR() → pop stack → return.
+# Execution inside: step1 >> step2 >> RET_FAR() -> pop stack -> return.
 subroutine = ARCHIVED_NODES(
     ALIAS(NOP, "sub_entry"),  # entry point marker
     step1,
