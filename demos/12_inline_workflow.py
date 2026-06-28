@@ -16,7 +16,7 @@ class SimpleWorkflow:
         self.value = value
         self.result: str | None = None
 
-        # Compose → render → create interpreter
+        # Compose -> render -> create interpreter
         rendered = (self.double >> self.format).render()
         self.interpreter = WorkflowInterpreter(rendered)
 

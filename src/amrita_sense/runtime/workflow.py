@@ -419,7 +419,8 @@ class WorkflowInterpreter(Generic[io_T]):
         """
         ptr: PointerVector = self._pointer.copy().offset(offset)
         logger.info(f"Calling with offset {offset} at pointer {ptr}")
-        return await self.call_sub(ptr, *ag, interrupt, **kw)
+
+        return await self.call_sub(ptr, *ag, interrupt=interrupt, **kw)
 
     async def call_offset_far(
         self, offset: list[int], *ag, interrupt: bool = False, **kw
@@ -437,7 +438,7 @@ class WorkflowInterpreter(Generic[io_T]):
         """
         ptr: PointerVector = self._pointer.copy().offset_far(offset)
         logger.info(f"Calling with far offset {offset} at pointer {ptr}")
-        return await self.call_sub(ptr, *ag, interrupt, **kw)
+        return await self.call_sub(ptr, *ag, interrupt=interrupt, **kw)
 
     async def call_near(self, addr: int, *ag, interrupt: bool = False, **kw) -> Any:
         """Call a subroutine at a relative address within the current scope.
@@ -453,7 +454,7 @@ class WorkflowInterpreter(Generic[io_T]):
         """
         ptr: PointerVector = self._pointer.copy().near_to(addr)
         logger.info(f"Calling near address {addr} at pointer {ptr}")
-        return await self.call_sub(ptr, *ag, interrupt, **kw)
+        return await self.call_sub(ptr, *ag, interrupt=interrupt, **kw)
 
     async def call_sub(
         self,
@@ -482,6 +483,11 @@ class WorkflowInterpreter(Generic[io_T]):
         self._pointer = addr if isinstance(addr, PointerVector) else PointerVector(addr)
         logger.info(f"Calling subroutine at {addr}")
         try:
+            if not interrupt and not self._interpret_lock.async_owned():
+                raise RuntimeError(
+                    "Subroutine call detected, but lock is not acquired by current coroutine and caller is not in interrupt mode."
+                    " Set `interrupt` to True to use outer interrupt mode."
+                )
             async with self._interpret_lock if interrupt else NULL_CTX:
                 return await (
                     self._middleware(self)
@@ -635,9 +641,7 @@ class WorkflowInterpreter(Generic[io_T]):
         except InterruptNotice as e:
             logger.info(f"Interrupt notice at {self._pointer} :{e.message}")
             logger.debug("Cleaning up pointer stack...")
-            self._ret_addr_stack.clear()
-            self._pointer.clear()
-            self._jump_marked = False
+            self.reset()
 
         except BaseException as e:
             if isinstance(e, Exception):

@@ -30,7 +30,7 @@ async def main() -> None:
     interpreter = WorkflowInterpreter(comp)
 
     async for result in interpreter.run_step_by():
-        print(f"  → Node output: {result}")
+        print(f"  -> Node output: {result}")
         # You can pause, inspect the pointer, or decide whether to continue here
 
 

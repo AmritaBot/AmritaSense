@@ -78,3 +78,7 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) and our [Code 
 ## License
 
 Apache V2. See [LICENSE](LICENSE).
+
+## AIGC Content Licensing Policy
+
+AACLP V1. See [POLICY_OF_AIGC](./POLICY_OF_AIGC) ([Official Link](https://github.com/AmritaBot/AACLP)) for details.

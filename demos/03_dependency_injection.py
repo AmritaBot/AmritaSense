@@ -11,8 +11,8 @@ from amrita_sense import Node, WorkflowInterpreter
 
 @Node()
 async def greet(greeting: str, name: str) -> str:
-    # greeting → injected by name via extra_kwargs
-    # name → injected by type (str) via extra_args
+    # greeting -> injected by name via extra_kwargs
+    # name -> injected by type (str) via extra_args
     return f"{greeting}, {name}!"
 
 
@@ -26,8 +26,8 @@ async def main() -> None:
     rendered = composition.render()
     interpreter = WorkflowInterpreter(
         rendered,
-        extra_args=("World",),  # str type → injected into `name`
-        extra_kwargs={"greeting": "Hello"},  # name match → injected into `greeting`
+        extra_args=("World",),  # str type -> injected into `name`
+        extra_kwargs={"greeting": "Hello"},  # name match -> injected into `greeting`
     )
     await interpreter.run()
 

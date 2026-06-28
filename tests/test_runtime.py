@@ -225,14 +225,27 @@ class TestWorkflowInterpreter:
         interpreter = WorkflowInterpreter(rendered)
 
         interpreter._pointer = PointerVector([0])
-        result = await interpreter.call_offset(1)
+        result = await interpreter.call_offset(1, interrupt=True)
         assert result == "target"
         assert interpreter._pointer == PointerVector([0])
 
         interpreter._pointer = PointerVector([0])
-        result = await interpreter.call_near(1)
+        result = await interpreter.call_near(1, interrupt=True)
         assert result == "target"
         assert interpreter._pointer == PointerVector([0])
+
+    @pytest.mark.asyncio
+    async def test_call_defend(self):
+        @NodeDecorator()
+        def target_node():
+            return "target"
+
+        workflow = NodeCompose(target_node, target_node)
+        rendered = workflow.render()
+        interpreter = WorkflowInterpreter(rendered)
+
+        with pytest.raises(RuntimeError):
+            await interpreter.call_offset(1, interrupt=False)
 
     def test_jump_methods_modify_pointer_and_raise(self):
         @NodeDecorator()

@@ -36,7 +36,7 @@ The core task in implementing a custom instruction is mapping an “intention”
 
 ### Step 1: determine the node list
 
-Decompose the instruction’s semantics into a concrete node sequence. For example, a retry instruction can be broken down into: execute target node → check result → if failure and retry count remains, jump back → otherwise continue.
+Decompose the instruction’s semantics into a concrete node sequence. For example, a retry instruction can be broken down into: execute target node -> check result -> if failure and retry count remains, jump back -> otherwise continue.
 
 ### Step 2: calculate jump addresses
 

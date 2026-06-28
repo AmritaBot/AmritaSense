@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ci.sh — Full CI pipeline (init → lint → test → build).
+# ci.sh — Full CI pipeline (init -> lint -> test -> build).
 # Run this locally to simulate what CI does.
 set -euo pipefail
 

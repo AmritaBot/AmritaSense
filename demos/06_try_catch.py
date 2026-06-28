@@ -35,7 +35,7 @@ async def cleanup() -> None:
 
 async def example_1() -> None:
     """Exception caught by CATCH"""
-    print("=== Example 1: ValueError → caught by CATCH ===")
+    print("=== Example 1: ValueError -> caught by CATCH ===")
     comp = Try(may_fail).CATCH(ValueError, handle_error) >> NOP
     rendered = comp.render()
     await WorkflowInterpreter(rendered).run()

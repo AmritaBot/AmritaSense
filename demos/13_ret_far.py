@@ -32,7 +32,7 @@ async def after_return() -> None:
 
 async def main() -> None:
     print("=== PUSH_STACK + GOTO + RET_FAR example ===")
-    # Pattern: PUSH_STACK → GOTO → RET_FAR pop-and-return
+    # Pattern: PUSH_STACK -> GOTO -> RET_FAR pop-and-return
     #   1) PUSH_STACK("after") pushes "after" address onto _ret_addr_stack
     #   2) GOTO("work") jumps to the work section
     #   3) RET_FAR() pops the saved address and jumps back

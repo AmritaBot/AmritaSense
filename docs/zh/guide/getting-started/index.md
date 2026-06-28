@@ -6,28 +6,33 @@
 
 要使用 AmritaSense，您需要：
 
-- Python 3.10 或更高版本（最高到 3.14）
+- Python 3.10 或更高版本（最高到 3.15）
 - Python 包管理器
-- 足够的性能，例如 1.8Ghz CPU 与 1GB RAM 或更高
+- 能够运行Python的设备
 
 ### 2.1.2 Python 版本支持
 
-AmritaSense 官方支持从 3.10 到 3.13 的 Python 版本。虽然它可能在其他版本上也能工作，但这些是经过测试和推荐的版本。
+AmritaSense 官方支持从 3.10 到 3.15 的 Python 版本，我们为这些版本添加了测试矩阵。
 
 ### 2.1.3 依赖安装
 
-我们建议使用虚拟环境进行开发，可使用 `uv`、`pdm` 等。这里给出`uv`的示例。
+我们推荐您使用我们的项目脚手架`amctl`安装 AmritaSense：
 
 ```bash
-uv init
-uv venv
-uv add amrita-sense
+# 如果没有 amctl，请先安装
+# pip install amctl
+# 或者使用uv tool
+# uv tool install amctl
+amctl create
+# 选择AmritaSense模板
 ```
 
-使用 pip 安装 AmritaSense：
+使用uv创建项目：
 
 ```bash
-pip install amrita-sense
+mkdir my_awesome_project
+cd my_awesome_project
+uv init && uv add amrita-sense
 ```
 
 或者如果您直接使用源代码：

@@ -6,28 +6,33 @@
 
 To use AmritaSense, you need:
 
-- Python 3.10 or later (up to 3.14)
+- Python 3.10 or later (up to 3.15)
 - A Python package manager
-- Reasonable system resources, such as a 1.8GHz CPU and 1GB RAM or higher
+- Device that can run Python
 
 ### 2.1.2 Supported Python versions
 
-AmritaSense officially supports Python 3.10 through 3.13. It may work on other versions, but these are the tested and recommended releases.
+AmritaSense officially supports Python 3.10 through 3.15, and we maintain a test matrix for these versions.
 
 ### 2.1.3 Dependency installation
 
-We recommend using a virtual environment for development. You can use tools like `uv` or `pdm`. The example below uses `uv`.
+We recommend using our project scaffolding tool `amctl` to install AmritaSense:
 
 ```bash
-uv init
-uv venv
-uv add amrita-sense
+# If you don't have amctl, install it first
+# pip install amctl
+# Or use uv tool
+# uv tool install amctl
+amctl create
+# Select the AmritaSense template
 ```
 
-Install AmritaSense with pip:
+Create a project with uv:
 
 ```bash
-pip install amrita-sense
+mkdir my_awesome_project
+cd my_awesome_project
+uv init && uv add amrita-sense
 ```
 
 Or if you are using the source code directly:

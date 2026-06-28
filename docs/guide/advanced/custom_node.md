@@ -74,9 +74,9 @@ This is appropriate for extremely lightweight sync operations, such as simple co
 
 ### Performance considerations
 
-- **CPU-bound tasks** → `wrap_to_async=True` to avoid blocking the event loop.
-- **I/O-bound tasks** → prefer native `async def`.
-- **Minimal sync operations** (like `NOP` or simple boolean checks) → `wrap_to_async=False`.
+- **CPU-bound tasks** -> `wrap_to_async=True` to avoid blocking the event loop.
+- **I/O-bound tasks** -> prefer native `async def`.
+- **Minimal sync operations** (like `NOP` or simple boolean checks) -> `wrap_to_async=False`.
 
 The `Node` class is also memory-optimized using `__slots__`, avoiding a default `__dict__` and keeping each node as lightweight as possible.
 
