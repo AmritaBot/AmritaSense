@@ -1,6 +1,6 @@
 # Dependency Injection
 
-The AmritaSense workflow engine integrates dependency injection (DI) system, providing powerful dependency resolution and injection capabilities for workflow nodes. This integration allows node functions to declare their dependencies, and the engine will automatically resolve and inject those dependencies at execution time.
+The AmritaSense workflow engine integrates the dependency injection (DI) system, providing powerful dependency resolution and injection capabilities for workflow nodes. This integration allows node functions to declare their dependencies, and the engine will automatically resolve and inject those dependencies at execution time.
 
 ## 4.1.1 Overview: node and event DI mechanism
 
