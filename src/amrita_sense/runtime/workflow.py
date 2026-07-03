@@ -28,7 +28,7 @@ from amrita_sense.exceptions import (
     NullPointerException,
 )
 from amrita_sense.hook.matcher import DependsFactory, MatcherFactory, sign_func
-from amrita_sense.logging import logger
+from amrita_sense.logging import debug_log, logger
 from amrita_sense.node.core import BaseNode, NodeComposeRendered
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.streaming import SuspendObjectStream
@@ -328,6 +328,21 @@ class WorkflowInterpreter(Generic[io_T]):
             return wrapper  # Make the behavior of the function visible to type checkers
         return fun
 
+    def unmarkup(self) -> None:
+        self._jump_marked = False
+
+    @property
+    def jump_marked(self) -> bool:
+        return self._jump_marked
+
+    def rebase_ptr(self, ptr: list[int] | PointerVector) -> None:
+        """Rebase the pointer to a new address.
+
+        Args:
+            ptr: The new base address vector for the pointer.
+        """
+        self._pointer.base_addr = ptr if isinstance(ptr, list) else ptr.base_addr
+
     @markup
     def jump_to(self, addr: list[int]) -> None:
         """Jump to an absolute address in the workflow graph.
@@ -340,7 +355,7 @@ class WorkflowInterpreter(Generic[io_T]):
         """
         if (self._find_addr_or_none(addr)) is None:
             raise NullPointerException(f"{addr} is not a valid address")
-        logger.info(f"Jumping to address {addr}")
+        debug_log(f"Jumping to address {addr}")
         self._pointer.far_to(addr)
 
     @markup
@@ -350,7 +365,7 @@ class WorkflowInterpreter(Generic[io_T]):
         Args:
             addr: Relative address offset within the current container.
         """
-        logger.info(f"Jumping near to address {addr}")
+        debug_log(f"Jumping near to address {addr}")
         self._pointer.near_to(addr)
 
     @markup
@@ -360,7 +375,7 @@ class WorkflowInterpreter(Generic[io_T]):
         Args:
             offset: Integer offset to apply to the current pointer position.
         """
-        logger.info(f"Jumping with offset {offset}")
+        debug_log(f"Jumping with offset {offset}")
         self._pointer.offset(offset)
 
     @markup
@@ -370,7 +385,7 @@ class WorkflowInterpreter(Generic[io_T]):
         Args:
             offset: Multi-dimensional offset vector to apply to the current pointer.
         """
-        logger.info(f"Jumping far to pointer {offset}")
+        debug_log(f"Jumping far to pointer {offset}")
         self._pointer.far_to(offset)
 
     @markup
@@ -380,7 +395,7 @@ class WorkflowInterpreter(Generic[io_T]):
         Args:
             offset: Multi-dimensional offset vector to apply to the current pointer.
         """
-        logger.info(f"Jumping far with offset {offset}")
+        debug_log(f"Jumping far with offset {offset}")
         self._pointer.offset_far(offset)
 
     @markup
@@ -390,7 +405,7 @@ class WorkflowInterpreter(Generic[io_T]):
         Args:
             addr: Address index at the top level to jump to.
         """
-        logger.info(f"Jumping far to top at {addr}")
+        debug_log(f"Jumping far to top at {addr}")
         self._pointer.far_to([addr])
 
     @markup
@@ -400,7 +415,7 @@ class WorkflowInterpreter(Generic[io_T]):
         Args:
             offset: Offset to apply when jumping to the top level.
         """
-        logger.info(f"Jumping to top with offset {offset}")
+        debug_log(f"Jumping to top with offset {offset}")
         self._pointer.offset_far(
             [offset, -((self._pointer[1] if len(self._pointer) > 1 else 0) + 1)]
         )
@@ -418,7 +433,7 @@ class WorkflowInterpreter(Generic[io_T]):
             The result of executing the subroutine.
         """
         ptr: PointerVector = self._pointer.copy().offset(offset)
-        logger.info(f"Calling with offset {offset} at pointer {ptr}")
+        debug_log(f"Calling with offset {offset} at pointer {ptr}")
 
         return await self.call_sub(ptr, *ag, interrupt=interrupt, **kw)
 
@@ -437,7 +452,7 @@ class WorkflowInterpreter(Generic[io_T]):
             The result of the subroutine call.
         """
         ptr: PointerVector = self._pointer.copy().offset_far(offset)
-        logger.info(f"Calling with far offset {offset} at pointer {ptr}")
+        debug_log(f"Calling with far offset {offset} at pointer {ptr}")
         return await self.call_sub(ptr, *ag, interrupt=interrupt, **kw)
 
     async def call_near(self, addr: int, *ag, interrupt: bool = False, **kw) -> Any:
@@ -453,7 +468,7 @@ class WorkflowInterpreter(Generic[io_T]):
             The result of executing the subroutine.
         """
         ptr: PointerVector = self._pointer.copy().near_to(addr)
-        logger.info(f"Calling near address {addr} at pointer {ptr}")
+        debug_log(f"Calling near address {addr} at pointer {ptr}")
         return await self.call_sub(ptr, *ag, interrupt=interrupt, **kw)
 
     async def call_sub(
@@ -481,7 +496,7 @@ class WorkflowInterpreter(Generic[io_T]):
         pev: PointerVector = self._pointer
         self._ret_addr_stack.push(pev)
         self._pointer = addr if isinstance(addr, PointerVector) else PointerVector(addr)
-        logger.info(f"Calling subroutine at {addr}")
+        debug_log(f"Calling subroutine at {addr}")
         try:
             if not interrupt and not self._interpret_lock.async_owned():
                 raise RuntimeError(
@@ -586,7 +601,7 @@ class WorkflowInterpreter(Generic[io_T]):
         """
         exc_val: BaseException | None = None
         if self._panic_exc is not None:
-            logger.info("Recovered from panic.")
+            logger.debug("Recovered from panic.")
             self._panic_exc = None
         if self._waiter_fut is not None and not self._waiter_fut.done():
             raise IllegalState(
@@ -640,7 +655,7 @@ class WorkflowInterpreter(Generic[io_T]):
                         break
         except InterruptNotice as e:
             logger.info(f"Interrupt notice at {self._pointer} :{e.message}")
-            logger.debug("Cleaning up pointer stack...")
+            logger.info("Cleaning up pointer stack...")
             self.reset()
 
         except BaseException as e:
@@ -649,7 +664,7 @@ class WorkflowInterpreter(Generic[io_T]):
                     "*** workflow exception detected ***: "
                     f"`{e}@{e.__class__.__name__}` at ptr {self._pointer}"
                 )
-                logger.warning(f"Interpreter: {self.id} at {hex(id(self))}")
+                debug_log(f"Interpreter: {self.id} at {hex(id(self))}")
             exc_val = e
             raise
         finally:
@@ -768,7 +783,7 @@ class WorkflowInterpreter(Generic[io_T]):
             logger.debug("Pointer is empty, cannot advance")
             return False
 
-        logger.debug(f"Advancing pointer from {pointer}")
+        debug_log(f"Advancing pointer from {pointer}")
         graph: NodeComposeRendered = self.get_graph()
         current_container: BaseNode | NodeComposeRendered = graph
         for idx in pointer.base_addr[:-1]:
@@ -780,13 +795,13 @@ class WorkflowInterpreter(Generic[io_T]):
 
         end_idx = pointer[-1]
         if not isinstance(current_container, NodeComposeRendered):
-            logger.debug("Current container is not a NodeComposeRendered")
+            debug_log("Current container is not a NodeComposeRendered")
             return False
 
         current_node: BaseNode | NodeComposeRendered = current_container[end_idx]
         if isinstance(current_node, NodeComposeRendered) and current_node:
             pointer.append(0)
-            logger.debug(f"Entered nested container, new pointer: {pointer}")
+            debug_log(f"Entered nested container, new pointer: {pointer}")
             return True
 
         next_idx = end_idx + 1
@@ -796,12 +811,12 @@ class WorkflowInterpreter(Generic[io_T]):
             if isinstance(next_node, NodeComposeRendered) and next_node:
                 pointer[-1] = next_idx
                 pointer.append(0)
-                logger.debug(
+                debug_log(
                     f"Advanced to and entered nested container, new pointer: {pointer}"
                 )
             else:
                 pointer[-1] = next_idx
-                logger.debug(f"Advanced to next sibling node, new pointer: {pointer}")
+                debug_log(f"Advanced to next sibling node, new pointer: {pointer}")
             return True
 
         while pointer:
@@ -816,9 +831,7 @@ class WorkflowInterpreter(Generic[io_T]):
                 if isinstance(parent_container, NodeComposeRendered):
                     parent_container = parent_container[idx]
                 else:
-                    logger.debug(
-                        f"Failed to traverse to parent container at index {idx}"
-                    )
+                    debug_log(f"Failed to traverse to parent container at index {idx}")
                     return False
 
             if isinstance(parent_container, NodeComposeRendered):
@@ -831,12 +844,12 @@ class WorkflowInterpreter(Generic[io_T]):
                     ):
                         pointer[-1] = current_parent_idx + 1
                         pointer.append(0)
-                        logger.debug(
+                        debug_log(
                             f"Backtracked and advanced to nested container, new pointer: {pointer}"
                         )
                     else:
                         pointer[-1] = current_parent_idx + 1
-                        logger.debug(
+                        debug_log(
                             f"Backtracked and advanced to next sibling, new pointer: {pointer}"
                         )
                     return True
@@ -989,7 +1002,7 @@ class WorkflowInterpreter(Generic[io_T]):
                 )
             )
         logger.debug(f"Running node {node.tag}:{node.func.__name__}")
-        logger.debug(
+        debug_log(
             f"Address is {self._pointer}, Type of node is {node.__class__.__name__}"
         )
         if iscoroutinefunction(fun):

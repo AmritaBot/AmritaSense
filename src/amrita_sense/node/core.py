@@ -10,7 +10,7 @@ from typing_extensions import Self
 
 from amrita_sense.exceptions import NullPointerException
 from amrita_sense.hook.fun_typing import DependencyMeta, sign_func
-from amrita_sense.logging import logger
+from amrita_sense.logging import debug_log, logger
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.utils import TimeInsighter
 
@@ -288,7 +288,7 @@ class NodeCompose:
         Returns:
             A NodeComposeRendered instance representing the compiled workflow.
         """
-        logger.debug(f"Size of the main graph is : {len(self._graph)}")
+        debug_log(f"Size of the main graph is : {len(self._graph)}")
         with TimeInsighter() as tm:
             r = NodeComposeRendered(self)
             r._build()
