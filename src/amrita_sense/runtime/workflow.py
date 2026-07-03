@@ -341,7 +341,7 @@ class WorkflowInterpreter(Generic[io_T]):
         Args:
             ptr: The new base address vector for the pointer.
         """
-        self._pointer.base_addr = ptr if isinstance(ptr, list) else ptr.base_addr
+        self._pointer.base_addr = list(ptr) if isinstance(ptr, list) else ptr.base_addr.copy()
 
     @markup
     def jump_to(self, addr: list[int]) -> None:
