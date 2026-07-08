@@ -135,7 +135,7 @@ Python's `except Exception` does not catch `BaseException` subclasses. Therefore
    workflow = Sequence(StepA(), Branch(If(condition=is_error, then=INTERRUPT), ...))
    ```
 
-**InterruptKeepContext (v0.3.x+)**
+**InterruptKeepContext (v0.4.x+)**
 
 `InterruptKeepContext` is a subclass of `InterruptNotice` that provides a **context-preserving** variant. When the interpreter catches it, instead of calling `reset()`, the pointer, call stacks, and dependency injection parameters are left intact. Execution can be resumed by calling `run()` again on the same interpreter.
 

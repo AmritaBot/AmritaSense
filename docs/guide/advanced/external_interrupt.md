@@ -134,9 +134,9 @@ Or, while the workflow is running, call `call_sub(interrupt=True)` from another 
 
 Through this mechanism, AmritaSense transforms external intervention from "disruptive interrupts" into "safe function calls," providing a solid foundation for building full-featured debuggers, monitoring systems, and dynamic flow control.
 
-## 4.4.5 Interrupt Routines & Context Snapshots (v0.3.x+)
+## 4.4.5 Interrupt Routines & Context Snapshots (v0.4.x+)
 
-AmritaSense v0.3.x+ provides built-in instructions for interrupt-style control transfer **within** a workflow: `INTERRUPT_INTO` / `INTERRUPT_RET`. Unlike `call_sub(interrupt=True)` which injects code from **outside** the interpreter, these instructions are placed directly in the `>>` chain and perform:
+AmritaSense v0.4.x+ provides built-in instructions for interrupt-style control transfer **within** a workflow: `INTERRUPT_INTO` / `INTERRUPT_RET`. Unlike `call_sub(interrupt=True)` which injects code from **outside** the interpreter, these instructions are placed directly in the `>>` chain and perform:
 
 1. Save complete interpreter state → `InterpreterContext`
 2. Jump to a handler routine (e.g., stored in `ARCHIVED_NODES`)

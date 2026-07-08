@@ -87,7 +87,7 @@ NO_SHARED_MIDDLEWARE: bool = False
 
 **适用场景**：希望父子解释器之间严格隔离中间件，倾向于显式按需开启的模式。
 
-### `JIT_OPTIMIZE`（v0.3.x+）
+### `JIT_OPTIMIZE`（v0.4.x+）
 
 ```python
 JIT_OPTIMIZE: bool = False

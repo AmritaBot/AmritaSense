@@ -11,7 +11,7 @@ Use cases:
 - external stop requests
 - emergency termination points in the workflow
 
-## InterruptKeepContext (v0.3.x+)
+## InterruptKeepContext (v0.4.x+)
 
 `InterruptKeepContext` is a subclass of `InterruptNotice` that terminates workflow execution while **preserving interpreter state**. Unlike `InterruptNotice`, which triggers a full `reset()`, this exception leaves the pointer, call stack, and dependency injection parameters intact.
 
@@ -35,7 +35,7 @@ Used internally by loop constructs to implement break semantics. Raising `BreakL
 
 Base exception for all dependency injection failures.
 
-## AliasNotFoundError (v0.3.x+)
+## AliasNotFoundError (v0.4.x+)
 
 Raised when a GOTO or CALL instruction references an alias that does not exist in the workflow graph's alias registry. This replaces the generic `RuntimeError` / `ValueError` that were previously used for alias resolution failures.
 
@@ -62,7 +62,7 @@ Raised when dependencies are resolved successfully but cannot be injected into t
 
 Inherits from: `DependsException`
 
-## GraphBuildError (v0.3.x+)
+## GraphBuildError (v0.4.x+)
 
 Raised when workflow graph building or rendering fails. Common triggers:
 
@@ -70,7 +70,7 @@ Raised when workflow graph building or rendering fails. Common triggers:
 - Attempting to build an already-built `NodeComposeRendered`
 - Missing original graph during rendering
 
-## StreamStateError (v0.3.x+)
+## StreamStateError (v0.4.x+)
 
 Raised when a `SuspendObjectStream` operation is attempted in an invalid state. Common triggers:
 

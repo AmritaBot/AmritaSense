@@ -87,7 +87,7 @@ By default, `fork_interpreter()` inherits the parent's middleware when `middlewa
 
 **When to use**: When you want strict middleware isolation between parent and child interpreters, and prefer an explicit opt-in model.
 
-### `JIT_OPTIMIZE` (v0.3.x+)
+### `JIT_OPTIMIZE` (v0.4.x+)
 
 ```python
 JIT_OPTIMIZE: bool = False

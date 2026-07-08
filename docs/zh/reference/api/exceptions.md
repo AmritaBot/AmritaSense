@@ -34,7 +34,7 @@ Python 的 `except Exception` 不会捕获 `BaseException` 的子类。因此，
 4. 重置 `_jump_marked` 标记
 5. 工作流干净退出，不留下残留状态
 
-## InterruptKeepContext（v0.3.x+）
+## InterruptKeepContext（v0.4.x+）
 
 `InterruptKeepContext` 是 `InterruptNotice` 的子类，终止工作流执行但**保留解释器状态**。与 `InterruptNotice` 触发完整 `reset()` 不同，此异常会保留指针、调用栈和依赖注入参数。
 
@@ -122,7 +122,7 @@ class DependsException(Exception):
     """Base class for all dependency injection related exceptions."""
 ```
 
-### AliasNotFoundError（v0.3.x+）
+### AliasNotFoundError（v0.4.x+）
 
 GOTO 或 CALL 指令引用的别名在工作流图的别名注册表中不存在时抛出。替代了之前用于别名解析失败的通用 `RuntimeError` / `ValueError`。
 
@@ -174,7 +174,7 @@ def search_exceptions(
 
 递归搜索一个序列（可能包含嵌套的异常列表），返回所有 `BaseException` 实例的扁平列表。`FUN_BLOCK` 内部使用该函数从子解释器树中收集异常。
 
-## GraphBuildError（v0.3.x+）
+## GraphBuildError（v0.4.x+）
 
 工作流图构建或渲染失败时抛出。常见触发场景：
 
@@ -182,7 +182,7 @@ def search_exceptions(
 - 尝试构建已构建过的 `NodeComposeRendered`
 - 渲染过程中缺少原始图
 
-## StreamStateError（v0.3.x+）
+## StreamStateError（v0.4.x+）
 
 `SuspendObjectStream` 操作在不合法状态下被尝试时抛出。常见触发场景：
 
@@ -216,5 +216,5 @@ Exception
 - `InterruptKeepContext` 继承 `InterruptNotice`，保留上下文供后续恢复
 - `BreakLoop` 继承 `Exception`，但通过自动加入 `_exc_ignored` 获得等效的穿透能力
 - `IllegalState` 是 v0.3.0 新增，用于保护解释器树 API 的调用合法性和指令语法约束
-- `AliasNotFoundError`/`GraphBuildError`/`StreamStateError` 为 v0.3.x+ 新增的细分异常类型
+- `AliasNotFoundError`/`GraphBuildError`/`StreamStateError` 为 v0.4.x+ 新增的细分异常类型
 - 依赖相关异常统一继承 `DependsException`，允许用户按需捕获整个依赖类别的错误

@@ -31,7 +31,7 @@ Key operations:
 
 The stack is protected by a lock and raises `OverflowError` if capacity is exceeded.
 
-## InterpreterContext (v0.3.x+)
+## InterpreterContext (v0.4.x+)
 
 `InterpreterContext` is a dataclass that stores a complete snapshot of the interpreter's execution state. It is used by `PUSH_CONTEXT`/`POP_CONTEXT` and `INTERRUPT_INTO`/`INTERRUPT_RET` for save/restore workflows.
 

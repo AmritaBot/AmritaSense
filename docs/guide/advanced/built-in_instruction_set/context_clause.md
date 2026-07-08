@@ -1,6 +1,6 @@
 # Context Snapshot &amp; Interrupt Transfer Instructions (PUSH_CONTEXT/POP_CONTEXT/INTERRUPT_INTO/INTERRUPT_RET)
 
-`PUSH_CONTEXT`, `POP_CONTEXT`, `INTERRUPT_INTO` and `INTERRUPT_RET` are four instructions introduced in v0.3.x+ that work together to provide **full interpreter state save/restore** — analogous to a CPU's context-switch mechanism.
+`PUSH_CONTEXT`, `POP_CONTEXT`, `INTERRUPT_INTO` and `INTERRUPT_RET` are four instructions introduced in v0.4.x+ that work together to provide **full interpreter state save/restore** — analogous to a CPU's context-switch mechanism.
 
 > **Key distinction**
 > `PUSH_STACK` / `RET_FAR` save and restore **only the return address** (`_ret_addr_stack`). `PUSH_CONTEXT` / `POP_CONTEXT` save and restore the **entire interpreter state**: pointer, exception-ignore list, dependency injection parameters, return-address stack, and panic exception. `INTERRUPT_INTO` / `INTERRUPT_RET` wrap the former pair into a convenient "interrupt ➔ handler ➔ return" pattern.

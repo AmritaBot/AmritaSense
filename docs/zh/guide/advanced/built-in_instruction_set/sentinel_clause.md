@@ -75,7 +75,7 @@ INTERRUPT: _Node[NoReturn] = _interrput_operation
 - **紧急安全停止**：在检测到不可恢复的错误或危险状态时，编排中主动插入的 `INTERRUPT` 节点触发立即退出
 - **超时处理**：`@Node()` 节点在开始执行前检查超时条件，若超时则返回 `INTERRUPT`，强制终止后续流程
 
-## INTERRUPT_KEEP_CTX 上下文保留终止指令（v0.3.x+）
+## INTERRUPT_KEEP_CTX 上下文保留终止指令（v0.4.x+）
 
 `INTERRUPT_KEEP_CTX` 是 `INTERRUPT` 的变体终止节点，抛出 `InterruptKeepContext` 而非 `InterruptNotice`。与 `INTERRUPT` 不同，解释器捕获此异常后**不**调用 `reset()`——指针、调用栈、依赖注入参数和所有执行状态均被**保留**，供后续恢复使用。
 

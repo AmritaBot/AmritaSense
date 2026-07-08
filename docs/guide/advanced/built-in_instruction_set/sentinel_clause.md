@@ -72,7 +72,7 @@ The only exception is when `InterruptNotice` is explicitly included in the `exce
 - **Emergency safety stop**: insert `INTERRUPT` in the workflow when an unrecoverable error or dangerous condition occurs.
 - **Timeout handling**: a node can check timeout conditions before execution and raise `INTERRUPT` to force termination.
 
-## INTERRUPT_KEEP_CTX context-preserving termination (v0.3.x+)
+## INTERRUPT_KEEP_CTX context-preserving termination (v0.4.x+)
 
 `INTERRUPT_KEEP_CTX` is a variant termination node that raises `InterruptKeepContext` instead of `InterruptNotice`. Unlike `INTERRUPT`, the interpreter does **not** call `reset()` after catching this exception — the pointer, call stack, dependency injection parameters, and all execution state are **preserved** for later recovery.
 

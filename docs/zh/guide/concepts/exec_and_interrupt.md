@@ -145,7 +145,7 @@ class InterruptNotice(BaseException):
    ```
    `INTERRUPT` 是一个 `address_able=False` 的特殊节点，执行时直接抛出 `InterruptNotice("Interrupt Node")`。
 
-**InterruptKeepContext（v0.3.x+）**
+**InterruptKeepContext（v0.4.x+）**
 
 `InterruptKeepContext` 是 `InterruptNotice` 的子类，提供**保留上下文**的变体。解释器捕获后不调用 `reset()`，而是保留指针、调用栈和依赖注入参数。可在同一解释器上再次调用 `run()` 恢复执行。
 

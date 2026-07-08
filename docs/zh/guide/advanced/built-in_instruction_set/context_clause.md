@@ -1,6 +1,6 @@
 # 上下文快照与中断转移指令 (PUSH_CONTEXT/POP_CONTEXT/INTERRUPT_INTO/INTERRUPT_RET)
 
-`PUSH_CONTEXT`、`POP_CONTEXT`、`INTERRUPT_INTO` 和 `INTERRUPT_RET` 是 v0.3.x+ 引入的四条指令，它们协同工作以提供**完整的解释器状态保存/恢复**——类似于 CPU 的上下文切换机制。
+`PUSH_CONTEXT`、`POP_CONTEXT`、`INTERRUPT_INTO` 和 `INTERRUPT_RET` 是 v0.4.x+ 引入的四条指令，它们协同工作以提供**完整的解释器状态保存/恢复**——类似于 CPU 的上下文切换机制。
 
 > **核心区分**
 > `PUSH_STACK` / `RET_FAR` 仅保存和恢复**返回地址**（`_ret_addr_stack`）。`PUSH_CONTEXT` / `POP_CONTEXT` 保存和恢复**整个解释器状态**：指针、异常忽略列表、依赖注入参数、返回地址栈和 panic 异常。`INTERRUPT_INTO` / `INTERRUPT_RET` 将前者封装为便捷的"中断 ➔ 处理 ➔ 返回"模式。
