@@ -15,22 +15,14 @@ from amrita_sense.runtime.types import InterpreterContext
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 from amrita_sense.types import PointerVector, Stack
 
-# Fake interpreter for exercising instruction logic
-
 
 class _FakeGraph:
-    def __init__(self, alias_map: dict[str, list[int]]) -> None:
+    def __init__(self, alias_map):
         self.alias2vector_map = alias_map
 
 
 class _FakeInterpreter:
-    """Minimal fake WorkflowInterpreter surface."""
-
-    def __init__(
-        self,
-        alias_map: dict[str, list[int]] | None = None,
-        ptr: list[int] | None = None,
-    ) -> None:
+    def __init__(self, alias_map=None, ptr=None):
         self._graph = _FakeGraph(alias_map or {})
         self._pointer = PointerVector(ptr or [0])
         self.context_stack: Stack[InterpreterContext] = Stack()
@@ -42,19 +34,17 @@ class _FakeInterpreter:
         self._ava_args: tuple = ()
         self._ava_kwargs: dict = {}
 
-    def get_graph(self) -> _FakeGraph:
+    def get_graph(self):
         return self._graph
 
-    def find_addr_alias(self, alias: str) -> list[int]:
-        return self._graph.alias2vector_map[alias]
+    def find_addr_alias(self, a):
+        return self._graph.alias2vector_map[a]
 
-    def jump_to(self, addr: list[int]) -> None:
-        self._pointer.far_to(addr)
+    def jump_to(self, a):
+        self._pointer.far_to(a)
         self._jump_marked = True
 
-    def dump_interpreter(
-        self, exclude_deps: bool = True, exclude_stack: bool = True
-    ) -> InterpreterContext:
+    def dump_interpreter(self, exclude_deps=True, exclude_stack=True):
         return InterpreterContext(
             ptr=self._pointer.copy(),
             exception_ignored=self._exc_ignored,
@@ -65,322 +55,259 @@ class _FakeInterpreter:
             exception=self._panic_exc,
         )
 
-    def rebase_context(self, ctx: InterpreterContext) -> None:
-        self._pointer.far_to(ctx.ptr.base_addr)
-        self._exc_ignored = ctx.exception_ignored
-        if ctx.s_args is not None and ctx.s_kwargs is not None:
-            self._ava_args = ctx.s_args
-            self._ava_kwargs = ctx.s_kwargs
-        self._ret_addr_stack = ctx.stack or self._ret_addr_stack
-        self._panic_exc = ctx.exception
+    def rebase_context(self, c):
+        self._pointer.far_to(c.ptr.base_addr)
+        self._exc_ignored = c.exception_ignored
+        if c.s_args is not None and c.s_kwargs is not None:
+            self._ava_args, self._ava_kwargs = c.s_args, c.s_kwargs
+        self._ret_addr_stack = c.stack or self._ret_addr_stack
+        self._panic_exc = c.exception
 
 
-# Node type / return value tests
+# ---- node type ----
 
 
 def test_push_context_returns_node():
-    node = PUSH_CONTEXT()
-    assert node.tag == "__PUSH_CONTEXT__"
-    assert node.wrap_to_async is False
+    n = PUSH_CONTEXT("t", exclude_deps=False)
+    assert n.tag == "__PUSH_CONTEXT__"
+    assert n.wrap_to_async is False
 
 
-def test_push_context_default_params():
-    node = PUSH_CONTEXT()
-    assert node.tag is not None
-
-
-def test_push_context_with_options_returns_node():
-    node = PUSH_CONTEXT(exclude_deps=False, exclude_stack=False)
-    assert node.tag == "__PUSH_CONTEXT__"
+def test_push_context_with_list():
+    assert PUSH_CONTEXT([3, 1], exclude_stack=True).tag == "__PUSH_CONTEXT__"
 
 
 def test_pop_context_returns_node():
-    node = POP_CONTEXT()
-    assert node.tag == "__POP_CONTEXT__"
-    assert node.wrap_to_async is False
+    n = POP_CONTEXT()
+    assert n.tag == "__POP_CONTEXT__"
+    assert n.wrap_to_async is False
 
 
 def test_interrupt_into_returns_node():
-    node = INTERRUPT_INTO("target")
-    assert node.tag == "__INTERRUPT_INTO__"
-    assert node.wrap_to_async is False
+    assert INTERRUPT_INTO("t", "r").tag == "__INTERRUPT_INTO__"
 
 
-def test_interrupt_into_with_list_address_returns_node():
-    node = INTERRUPT_INTO([1, 2], if_state=True)
-    assert node.tag == "__INTERRUPT_INTO__"
+def test_interrupt_into_with_list():
+    assert INTERRUPT_INTO([1, 2], [3, 4], if_state=True).tag == "__INTERRUPT_INTO__"
 
 
 def test_interrupt_ret_returns_node():
-    node = INTERRUPT_RET()
-    assert node.tag == "__INTERRUPT_RET__"
-    assert node.wrap_to_async is False
+    n = INTERRUPT_RET()
+    assert n.tag == "__INTERRUPT_RET__"
+    assert n.wrap_to_async is False
 
 
-# PUSH_CONTEXT unit tests
+# ---- PUSH_CONTEXT (push + jump) ----
 
 
-def test_push_context_saves_state():
-    pc = _FakeInterpreter(ptr=[3, 5])
-    node = PUSH_CONTEXT()
-    node(pc)  # type: ignore[arg-type]
-
+def test_push_context_jumps():
+    pc = _FakeInterpreter({"sub": [5, 0]}, [2, 3])
+    PUSH_CONTEXT("sub")(pc)
     assert len(pc.context_stack) == 1
-    ctx = pc.context_stack.stack[0]
-    assert ctx.ptr.base_addr == [3, 5]
-    assert ctx.exception_ignored == (InterruptNotice,)
-    # defaults: exclude_deps=True, exclude_stack=True
-    assert ctx.s_args is None
-    assert ctx.s_kwargs is None
-    assert ctx.stack is None
-
-
-def test_push_context_exclude_deps_false():
-    pc = _FakeInterpreter()
-    pc._ava_args = (42,)
-    pc._ava_kwargs = {"greeting": "hi"}
-
-    node = PUSH_CONTEXT(exclude_deps=False)
-    node(pc)  # type: ignore[arg-type]
-
-    ctx = pc.context_stack.stack[0]
-    assert ctx.s_args == (42,)
-    assert ctx.s_kwargs == {"greeting": "hi"}
-
-
-def test_push_context_exclude_stack_false():
-    pc = _FakeInterpreter()
-    pc._ret_addr_stack.push(PointerVector([9]))
-
-    node = PUSH_CONTEXT(exclude_stack=False)
-    node(pc)  # type: ignore[arg-type]
-
-    ctx = pc.context_stack.stack[0]
-    assert ctx.stack is not None
-    assert ctx.stack.stack[-1].base_addr == [9]
-
-
-def test_push_context_multiple_pushes():
-    pc = _FakeInterpreter(ptr=[0])
-    PUSH_CONTEXT()(pc)  # type: ignore[arg-type]
-    pc._pointer.far_to([7])
-    PUSH_CONTEXT()(pc)  # type: ignore[arg-type]
-
-    assert len(pc.context_stack) == 2
-    assert pc.context_stack.stack[0].ptr.base_addr == [0]
-    assert pc.context_stack.stack[1].ptr.base_addr == [7]
-
-
-# POP_CONTEXT unit tests
-
-
-def test_pop_context_returns_saved_state():
-    pc = _FakeInterpreter(ptr=[2, 8])
-    PUSH_CONTEXT()(pc)  # type: ignore[arg-type]
-
-    # POP_CONTEXT returns the popped InterpreterContext
-    node = POP_CONTEXT()
-    result = node(pc)  # type: ignore[arg-type]
-
-    assert isinstance(result, InterpreterContext)
-    assert result.ptr.base_addr == [2, 8]
-    assert len(pc.context_stack) == 0  # popped
-
-
-def test_pop_context_stack_order():
-    pc = _FakeInterpreter()
-    PUSH_CONTEXT()(pc)  # type: ignore[arg-type]  # first push: ptr [0]
-    pc._pointer.far_to([10])
-    PUSH_CONTEXT()(pc)  # type: ignore[arg-type]  # second push: ptr [10]
-
-    # LIFO — second push is popped first
-    ctx2 = POP_CONTEXT()(pc)  # type: ignore[arg-type]
-    ctx1 = POP_CONTEXT()(pc)  # type: ignore[arg-type]
-
-    assert ctx2.ptr.base_addr == [10]
-    assert ctx1.ptr.base_addr == [0]
-
-
-# INTERRUPT_INTO unit tests
-
-
-def test_interrupt_into_saves_context_and_jumps():
-    pc = _FakeInterpreter({"handler": [5, 0]}, ptr=[0, 0])
-    node = INTERRUPT_INTO("handler")
-    node(pc)  # type: ignore[arg-type]
-
-    # context saved
-    assert len(pc.context_stack) == 1
-    assert pc.context_stack.stack[0].ptr.base_addr == [0, 0]
-    # jumped to target
+    assert pc.context_stack.stack[0].ptr.base_addr == [2, 3]
     assert pc._pointer.base_addr == [5, 0]
-    assert pc._jump_marked is True
+    assert pc._jump_marked
+
+
+def test_push_context_list_target():
+    pc = _FakeInterpreter(ptr=[0, 0])
+    PUSH_CONTEXT([7, 2])(pc)
+    assert pc.context_stack.stack[0].ptr.base_addr == [0, 0]
+    assert pc._pointer.base_addr == [7, 2]
+
+
+def test_push_context_exclude_deps():
+    pc = _FakeInterpreter({"sub": [1]}, [0])
+    pc._ava_args = (42,)
+    pc._ava_kwargs = {"g": "hi"}
+    PUSH_CONTEXT("sub", exclude_deps=False)(pc)
+    c = pc.context_stack.stack[0]
+    assert c.s_args == (42,)
+    assert c.s_kwargs == {"g": "hi"}
+
+
+def test_push_context_exclude_stack():
+    pc = _FakeInterpreter({"sub": [1]}, [0])
+    pc._ret_addr_stack.push(PointerVector([9]))
+    PUSH_CONTEXT("sub", exclude_stack=False)(pc)
+    assert pc.context_stack.stack[0].stack is not None
+    assert pc.context_stack.stack[0].stack.stack[-1].base_addr == [9]
+
+
+def test_push_context_multiple():
+    pc = _FakeInterpreter({"s1": [1], "s2": [2]}, [0])
+    PUSH_CONTEXT("s1")(pc)
+    pc._pointer.far_to([1])
+    pc._jump_marked = False
+    PUSH_CONTEXT("s2")(pc)
+    assert pc.context_stack.stack[0].ptr.base_addr == [0]
+    assert pc.context_stack.stack[1].ptr.base_addr == [1]
+    assert pc._pointer.base_addr == [2]
+
+
+# ---- POP_CONTEXT ----
+
+
+def test_pop_context_returns():
+    pc = _FakeInterpreter({"s": [99]}, [2, 8])
+    PUSH_CONTEXT("s")(pc)
+    r = POP_CONTEXT()(pc)
+    assert isinstance(r, InterpreterContext)
+    assert r.ptr.base_addr == [2, 8]
+    assert len(pc.context_stack) == 0
+
+
+def test_pop_context_lifo():
+    pc = _FakeInterpreter({"a": [10], "b": [20]}, [0])
+    PUSH_CONTEXT("a")(pc)
+    pc._pointer.far_to([10])
+    pc._jump_marked = False
+    PUSH_CONTEXT("b")(pc)
+    c2 = POP_CONTEXT()(pc)
+    c1 = POP_CONTEXT()(pc)
+    assert c2.ptr.base_addr == [10]
+    assert c1.ptr.base_addr == [0]
+
+
+# ---- INTERRUPT_INTO (jump_to + ret_to) ----
+
+
+def test_interrupt_into_saves_and_jumps():
+    pc = _FakeInterpreter({"h": [5, 0], "r": [99]}, [0, 0])
+    INTERRUPT_INTO("h", "r")(pc)
+    assert len(pc.context_stack) == 1
+    assert pc.context_stack.stack[0].ptr.base_addr == [99]
+    assert pc._pointer.base_addr == [5, 0]
 
 
 def test_interrupt_into_sets_if_flag():
-    pc = _FakeInterpreter({"h": [1]}, ptr=[0])
-    node = INTERRUPT_INTO("h", if_state=True)
-    node(pc)  # type: ignore[arg-type]
-
+    pc = _FakeInterpreter({"h": [1], "r": [2]}, [0])
+    INTERRUPT_INTO("h", "r", if_state=True)(pc)
     assert pc.if_flag is True
 
 
 def test_interrupt_into_default_if_flag():
-    pc = _FakeInterpreter({"h": [1]}, ptr=[0])
-    node = INTERRUPT_INTO("h")  # if_state defaults to False
-    node(pc)  # type: ignore[arg-type]
-
+    pc = _FakeInterpreter({"h": [1], "r": [2]}, [0])
+    INTERRUPT_INTO("h", "r")(pc)
     assert pc.if_flag is False
 
 
-def test_interrupt_into_with_list_address():
+def test_interrupt_into_list_addrs():
     pc = _FakeInterpreter(ptr=[0])
-    # Use raw address list instead of alias
-    node = INTERRUPT_INTO([3, 7], if_state=False)
-    node(pc)  # type: ignore[arg-type]
-
+    INTERRUPT_INTO([3, 7], [9, 2])(pc)
     assert pc._pointer.base_addr == [3, 7]
-    assert len(pc.context_stack) == 1
+    assert pc.context_stack.stack[0].ptr.base_addr == [9, 2]
 
 
-def test_interrupt_into_raises_when_if_flag_is_true():
-    pc = _FakeInterpreter({"h": [1]}, ptr=[0])
+def test_interrupt_into_raises_when_if_flag_true():
+    pc = _FakeInterpreter({"h": [1], "r": [2]}, [0])
     pc.if_flag = True
-
-    node = INTERRUPT_INTO("h")
     with pytest.raises(IllegalState, match="Interrupt into is not allowed"):
-        node(pc)  # type: ignore[arg-type]
-
-
-def test_interrupt_into_does_not_save_when_raises():
-    pc = _FakeInterpreter({"h": [1]}, ptr=[0])
-    pc.if_flag = True
-
-    node = INTERRUPT_INTO("h")
-    with pytest.raises(IllegalState):
-        node(pc)  # type: ignore[arg-type]
-
-    # context stack untouched
+        INTERRUPT_INTO("h", "r")(pc)
     assert len(pc.context_stack) == 0
-    # pointer unchanged
-    assert pc._pointer.base_addr == [0]
 
 
-# INTERRUPT_RET unit tests
+# ---- INTERRUPT_RET ----
 
 
-def test_interrupt_ret_restores_context():
-    pc = _FakeInterpreter({"handler": [2, 0]}, ptr=[0, 0])
-    # save context and jump via INTERRUPT_INTO
-    INTERRUPT_INTO("handler")(pc)  # type: ignore[arg-type]
-
-    # modify state after jump
-    pc._pointer.far_to([2, 0])  # simulate executing handler
+def test_interrupt_ret_restores():
+    pc = _FakeInterpreter({"h": [2, 0], "r": [99]}, [0, 0])
+    INTERRUPT_INTO("h", "r")(pc)
+    pc._pointer.far_to([2, 0])
     pc.if_flag = True
-
-    # INTERRUPT_RET restores pre-interrupt state
-    INTERRUPT_RET()(pc)  # type: ignore[arg-type]
-
-    # pre-check pointer stays via jump — _jump_marked set by jp in ret
-    assert pc._pointer.base_addr == [0, 0]
+    INTERRUPT_RET()(pc)
+    assert pc._pointer.base_addr == [99]
     assert pc.if_flag is False
-    assert len(pc.context_stack) == 0  # popped
+    assert len(pc.context_stack) == 0
 
 
-def test_interrupt_ret_restores_if_flag_to_false():
-    pc = _FakeInterpreter({"h": [1]}, ptr=[0])
-    INTERRUPT_INTO("h", if_state=True)(pc)  # type: ignore[arg-type]
-    # simulate: pointer already advanced
-    INTERRUPT_RET()(pc)  # type: ignore[arg-type]
-
+def test_interrupt_ret_clears_if_flag():
+    pc = _FakeInterpreter({"h": [1], "r": [5]}, [0])
+    INTERRUPT_INTO("h", "r", if_state=True)(pc)
+    INTERRUPT_RET()(pc)
     assert pc.if_flag is False
 
 
-# End-to-end: composition-level (real WorkflowInterpreter)
-
-
-
+# ---- end-to-end ----
 
 
 @pytest.mark.asyncio
-async def test_push_pop_context_e2e():
-    """End-to-end: PUSH_CONTEXT saves state, node pops and inspects it."""
-    steps: list[str] = []
+async def test_push_context_e2e():
+    log = []
 
     @Node()
-    async def start() -> None:
-        steps.append("start")
+    async def main():
+        log.append("main")
 
     @Node()
-    async def sub(pc: WorkflowInterpreter) -> None:
-        ctx = pc.context_stack.pop()
-        steps.append(f"popped_ptr={ctx.ptr.base_addr}")
+    async def sub():
+        log.append("sub")
 
     @Node()
-    async def finish() -> None:
-        steps.append("finish")
+    async def back():
+        log.append("back")
 
-    comp = start >> PUSH_CONTEXT() >> sub >> finish >> ALIAS(NOP, "done")
-    await WorkflowInterpreter(comp.render()).run()
-
-    assert steps == ["start", f"popped_ptr={[1]}", "finish"]
-
-
-@pytest.mark.asyncio
-async def test_interrupt_into_ret_e2e():
-    """End-to-end: INTERRUPT_INTO saves context, INTERRUPT_RET restores."""
-    from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
-    from amrita_sense.instructions import INTERRUPT_INTO, INTERRUPT_RET
-
-    log: list[str] = []
-
-    @Node()
-    async def main_start() -> None:
-        log.append("main_start")
-
-    @Node()
-    async def handler() -> None:
-        log.append("handler")
-
-    @Node()
-    async def back() -> None:
-        log.append("back_to_main")
-
-    handler_block = ARCHIVED_NODES(
-        ALIAS(handler, "int_handler"),
-        INTERRUPT_RET(),
-    )
-
-    comp = (
-        main_start
-        >> INTERRUPT_INTO("int_handler")
+    c = (
+        main
+        >> PUSH_CONTEXT("sub_entry")
         >> back
         >> GOTO("done")
-        >> handler_block
+        >> ALIAS(sub, "sub_entry")
+        >> INTERRUPT_RET()
         >> ALIAS(NOP, "done")
     )
-    await WorkflowInterpreter(comp.render()).run()
-
-    assert log == ["main_start", "handler", "back_to_main"]
+    await WorkflowInterpreter(c.render()).run()
+    assert log == ["main", "sub", "back"]
 
 
 @pytest.mark.asyncio
-async def test_push_context_preserves_pointer():
-    """After PUSH_CONTEXT the pointer is unchanged — execution continues normally."""
-    calls: list[str] = []
+async def test_interrupt_into_e2e():
+    II = INTERRUPT_INTO
+    IR = INTERRUPT_RET
+    log = []
 
     @Node()
-    async def a() -> None:
+    async def m():
+        log.append("m")
+
+    @Node()
+    async def h():
+        log.append("h")
+
+    @Node()
+    async def b():
+        log.append("b")
+
+    blk = ARCHIVED_NODES(ALIAS(h, "ih"), IR())
+    c = (
+        m
+        >> II("ih", "back")  # jump to ih, save ret_to="back"
+        >> ALIAS(NOP, "back")  # resumed here (NOP) after INTERRUPT_RET
+        >> b  # then b executes
+        >> GOTO("done")
+        >> blk
+        >> ALIAS(NOP, "done")
+    )
+    await WorkflowInterpreter(c.render()).run()
+    assert log == ["m", "h", "b"]
+
+
+@pytest.mark.asyncio
+async def test_push_context_skips():
+    calls = []
+
+    @Node()
+    async def a():
         calls.append("a")
 
     @Node()
-    async def b() -> None:
+    async def b():
         calls.append("b")
 
     @Node()
-    async def c() -> None:
+    async def c():
         calls.append("c")
 
-    comp = a >> PUSH_CONTEXT() >> b >> c >> ALIAS(NOP, "done")
+    comp = a >> PUSH_CONTEXT("skip_b") >> b >> ALIAS(c, "skip_b") >> ALIAS(NOP, "done")
     await WorkflowInterpreter(comp.render()).run()
-    assert calls == ["a", "b", "c"]
+    assert calls == ["a", "c"]

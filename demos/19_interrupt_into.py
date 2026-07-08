@@ -2,6 +2,10 @@
 
 Usage:
     python demos/19_interrupt_into.py
+
+INTERRUPT_INTO(jump_to, ret_to) takes TWO addresses:
+  - jump_to: where to go NOW (the interrupt handler)
+  - ret_to:  where INTERRUPT_RET will resume (explicit return address)
 """
 
 import asyncio
@@ -31,7 +35,7 @@ async def back_to_main() -> None:
 
 
 async def main() -> None:
-    print("=== INTERRUPT_INTO / INTERRUPT_RET demo ===\n")
+    print("=== INTERRUPT_INTO(jump_to, ret_to) + INTERRUPT_RET demo ===\n")
 
     # Archived handler: skipped by normal flow, entered via INTERRUPT_INTO
     interrupt_handler = ARCHIVED_NODES(
@@ -42,8 +46,10 @@ async def main() -> None:
 
     comp = (
         main_start
-        >> INTERRUPT_INTO("int_handler")
-        >> back_to_main
+        >> INTERRUPT_INTO("int_handler", "restore_here")
+        #     ^jump to handler    ^return address for INTERRUPT_RET
+        >> ALIAS(NOP, "restore_here")  # NOP return point
+        >> back_to_main  # executes after restore
         >> GOTO("done")
         >> interrupt_handler
         >> ALIAS(NOP, "done")

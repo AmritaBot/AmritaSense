@@ -24,36 +24,42 @@ from amrita_sense.instructions import (
 
 ```python
 def PUSH_CONTEXT(
+    alias_or_idata: str | list[int],
+    *,
     exclude_deps: bool = True,
     exclude_stack: bool = True,
 ) -> NodeType[None]
 ```
 
-Saves a complete snapshot of the current interpreter state onto the **context stack** (`pc.context_stack`). The snapshot is stored as an `InterpreterContext` dataclass.
+Saves a complete snapshot of the current interpreter state onto the **context stack** (`pc.context_stack`) **and then jumps** to `alias_or_idata`. The snapshot is stored as an `InterpreterContext` dataclass.
+
+This is the low-level primitive — unlike `INTERRUPT_INTO`, it does **not** set `if_flag`. Pair with `INTERRUPT_RET` to restore; or pop manually and call `pc.rebase_context()`.
 
 ### Parameters
 
-| Parameter       | Type   | Default | Description                                                       |
-| --------------- | ------ | ------- | ----------------------------------------------------------------- |
-| `exclude_deps`  | `bool` | `True`  | If `True`, dependency args/kwargs are excluded from the snapshot  |
-| `exclude_stack` | `bool` | `True`  | If `True`, the return-address stack is excluded from the snapshot |
+| Parameter        | Type               | Default | Description                                                       |
+| ---------------- | ------------------ | ------- | ----------------------------------------------------------------- |
+| `alias_or_idata` | `str \| list[int]` | —       | Alias string (resolved at runtime) or absolute address to jump to |
+| `exclude_deps`   | `bool`             | `True`  | If `True`, dependency args/kwargs are excluded from the snapshot  |
+| `exclude_stack`  | `bool`             | `True`  | If `True`, the return-address stack is excluded from the snapshot |
 
 ### What is saved
 
-| Field                 | Condition                          |
-| --------------------- | ---------------------------------- |
-| `ptr` (PointerVector) | Always                             |
-| `exception_ignored`   | Always                             |
-| `s_args` / `s_kwargs` | Only when `exclude_deps=False`     |
-| `stack` (ret-addr)    | Only when `exclude_stack=False`    |
-| `extra`               | Always (empty dict)                |
-| `exception`           | Always (panic exception or `None`) |
+| Field                 | Condition                              |
+| --------------------- | -------------------------------------- |
+| `ptr` (PointerVector) | Always (snapshot of pre-jump position) |
+| `exception_ignored`   | Always                                 |
+| `s_args` / `s_kwargs` | Only when `exclude_deps=False`         |
+| `stack` (ret-addr)    | Only when `exclude_stack=False`        |
+| `extra`               | Always (empty dict)                    |
+| `exception`           | Always (panic exception or `None`)     |
 
 ### Execution flow
 
-1. Calls `pc.dump_interpreter(exclude_deps, exclude_stack)` to build an `InterpreterContext`.
-2. Pushes the context onto `pc.context_stack`.
-3. Returns `None` — execution continues to the next node in the `>>` chain.
+1. Resolves `alias_or_idata` to an absolute address.
+2. Calls `pc.dump_interpreter(exclude_deps, exclude_stack)` to build an `InterpreterContext`.
+3. Pushes the context onto `pc.context_stack`.
+4. Calls `pc.jump_to(addr)` — execution resumes at the target.
 
 ---
 
@@ -63,25 +69,14 @@ Saves a complete snapshot of the current interpreter state onto the **context st
 def POP_CONTEXT() -> NodeType[InterpreterContext]
 ```
 
-Pops the top `InterpreterContext` from the context stack and **returns it as the node's result**. The caller is responsible for deciding what to do with the context — it may inspect it, serialize it, or pass it to `pc.rebase_context(ctx)` to actually restore the saved state.
+Pops the top `InterpreterContext` from the context stack and **returns it as the node's result**. The return value goes to the interpreter's step-by-step generator — it does **not** automatically flow into the next `>>` node's arguments.
+
+To actually restore state, either use `INTERRUPT_RET()` which pops and auto-restores, or pop manually via `pc.context_stack.pop()` inside a `@Node` function.
 
 ### Execution flow
 
 1. Pops top of `pc.context_stack`.
 2. Returns the `InterpreterContext` as the node output.
-3. The **next node in the chain** receives this `InterpreterContext` as its input argument.
-
-### Important
-
-`POP_CONTEXT` does **not** automatically restore state. If you want to restore, the receiving node must call `pc.rebase_context(ctx)`:
-
-```python
-@Node()
-async def restore(ctx: InterpreterContext, pc: WorkflowInterpreter) -> None:
-    pc.rebase_context(ctx)
-```
-
-Or use `INTERRUPT_RET()` which performs the restore automatically.
 
 ---
 
@@ -89,31 +84,37 @@ Or use `INTERRUPT_RET()` which performs the restore automatically.
 
 ```python
 def INTERRUPT_INTO(
-    alias_or_idata: str | list[int],
+    jump_to: str | list[int],
+    ret_to: str | list[int],
     if_state: bool = False,
 ) -> NodeType[None]
 ```
 
-A convenience instruction that combines `PUSH_CONTEXT` + `jump_to` in a single node. It saves the current interpreter state and then jumps to the target address — exactly like a CPU interrupt that saves context before vectoring to the ISR.
+A convenience instruction for interrupt-style control transfer. It saves the current interpreter state and jumps to `jump_to`, but **overwrites the saved pointer with `ret_to`** so that `INTERRUPT_RET` resumes at `ret_to` — not at the original position.
+
+This mirrors real CPU interrupt semantics: the return address is explicitly the instruction **after** the interrupted one.
 
 ### Parameters
 
-| Parameter        | Type               | Default | Description                                                          |
-| ---------------- | ------------------ | ------- | -------------------------------------------------------------------- |
-| `alias_or_idata` | `str \| list[int]` | —       | Target alias string (resolved at runtime) or absolute address vector |
-| `if_state`       | `bool`             | `False` | Value to set for the interpreter's `if_flag` after the jump          |
+| Parameter  | Type               | Default | Description                                                      |
+| ---------- | ------------------ | ------- | ---------------------------------------------------------------- |
+| `jump_to`  | `str \| list[int]` | —       | Target alias or address to jump to **now** (the handler)         |
+| `ret_to`   | `str \| list[int]` | —       | Alias or address saved as the return destination in the snapshot |
+| `if_state` | `bool`             | `False` | Value to set for the interpreter's `if_flag` after the jump      |
 
 ### Execution flow
 
-1. **Guard check**: if `pc.if_flag` is already `True`, raises `IllegalState("Interrupt into is not allowed in IF statement")`. You cannot nest interrupt-into calls inside an IF branch.
+1. **Guard check**: if `pc.if_flag` is already `True`, raises `IllegalState("Interrupt into is not allowed in IF statement")`.
 2. Sets `pc.if_flag = if_state`.
-3. Resolves the alias (if a string) to an absolute address via `pc.find_addr_alias()`.
-4. Saves interpreter state via `pc.dump_interpreter()` and pushes onto `pc.context_stack`.
-5. Jumps to the target address via `pc.jump_to(addr)`.
+3. Resolves both `jump_to` and `ret_to` addresses (cached after first resolution).
+4. Saves interpreter state via `pc.dump_interpreter()`.
+5. **Overwrites** `ctx.ptr` with `PointerVector(ret_to)`.
+6. Pushes the context onto `pc.context_stack`.
+7. Jumps to `jump_to` via `pc.jump_to()`.
 
 ### Restrictions
 
-- **Cannot be used inside IF branches** (`pc.if_flag == True`). This prevents interrupt-style jumps from breaking conditional flow integrity.
+- **Cannot be used inside IF branches** (`pc.if_flag == True`).
 
 ---
 
@@ -131,21 +132,19 @@ The counterpart to `INTERRUPT_INTO`. Pops the top `InterpreterContext` from the 
 2. Calls `pc.rebase_context(ctx)` — restores pointer, exception-ignore list, dependency args, return-address stack.
 3. Sets `pc.if_flag = False`.
 
-This is the recommended way to return from a handler entered via `INTERRUPT_INTO`.
-
 ---
 
 ## Comparison: Three Save/Restore Mechanisms
 
-| Feature                  | PUSH_STACK + RET_FAR       | PUSH_CONTEXT + POP_CONTEXT                 | INTERRUPT_INTO + INTERRUPT_RET     |
-| ------------------------ | -------------------------- | ------------------------------------------ | ---------------------------------- |
-| **Saves**                | Return address only        | Full interpreter state                     | Full interpreter state             |
-| **Dependency args**      | Not saved                  | Optional (`exclude_deps=False`)            | Always saved                       |
-| **Return-address stack** | Manually managed by caller | Optional (`exclude_stack=False`)           | Always saved                       |
-| **if_flag management**   | Not involved               | Not involved                               | Auto set on entry, cleared on exit |
-| **Restore method**       | `RET_FAR` pops & jumps     | Caller calls `rebase_context(ctx)`         | `INTERRUPT_RET` auto-restores      |
-| **Use case**             | Custom call/return schemes | Fine-grained state inspection/manipulation | Interrupt-style handler entry/exit |
-| **Complexity**           | Low                        | Medium (manual rebase)                     | Low (one-click save/restore)       |
+| Feature                | PUSH_STACK + RET_FAR       | PUSH_CONTEXT + INTERRUPT_RET   | INTERRUPT_INTO + INTERRUPT_RET     |
+| ---------------------- | -------------------------- | ------------------------------ | ---------------------------------- |
+| **Saves**              | Return address only        | Full interpreter state         | Full interpreter state             |
+| **Jumps on save**      | No (separate GOTO needed)  | Yes (to target)                | Yes (jump_to)                      |
+| **Return address**     | PUSH_STACK target          | Restored from saved pointer    | Explicit ret_to param              |
+| **Dependency args**    | Not saved                  | Optional (exclude_deps=False)  | Always saved                       |
+| **if_flag management** | Not involved               | Not involved                   | Auto set on entry, cleared on exit |
+| **Use case**           | Custom call/return schemes | Context save + jump primitives | Interrupt-style handler entry/exit |
+| **Complexity**         | Low                        | Low                            | Low                                |
 
 ---
 
@@ -155,7 +154,7 @@ This is the recommended way to return from a handler entered via `INTERRUPT_INTO
 
 ```python
 from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
-from amrita_sense.instructions import GOTO, POP_CONTEXT, PUSH_CONTEXT
+from amrita_sense.instructions import GOTO, INTERRUPT_RET, PUSH_CONTEXT
 
 @Node()
 async def start() -> None:
@@ -166,28 +165,22 @@ async def sub_work() -> None:
     print("  [sub] Doing work in isolated context")
 
 @Node()
-async def inspect_context(ctx) -> None:
-    # ctx is the InterpreterContext popped by POP_CONTEXT
-    print(f"  Context snapshot — ptr was: {ctx.ptr}")
-
-@Node()
-async def finish() -> None:
-    print("Finish")
+async def after_restore() -> None:
+    print("Back — restored by INTERRUPT_RET")
 
 comp = (
     start
-    >> PUSH_CONTEXT()
-    >> GOTO("sub")
-    >> ALIAS(sub_work, "sub")
-    >> POP_CONTEXT()
-    >> inspect_context
-    >> finish
+    >> PUSH_CONTEXT("sub_entry")
+    >> after_restore
+    >> GOTO("done")
+    >> ALIAS(sub_work, "sub_entry")
+    >> INTERRUPT_RET()
     >> ALIAS(NOP, "done")
 )
 await WorkflowInterpreter(comp.render()).run()
 ```
 
-### Interrupt-style handler with ARCHIVED_NODES
+### Interrupt-style handler with explicit return address
 
 ```python
 from amrita_sense import ALIAS, ARCHIVED_NODES, NOP, Node, WorkflowInterpreter
@@ -205,7 +198,6 @@ async def handler() -> None:
 async def back() -> None:
     print("[main] Back from interrupt")
 
-# Archived handler — skipped during normal execution
 handler_block = ARCHIVED_NODES(
     ALIAS(handler, "int_handler"),
     INTERRUPT_RET(),
@@ -213,7 +205,8 @@ handler_block = ARCHIVED_NODES(
 
 comp = (
     main_start
-    >> INTERRUPT_INTO("int_handler")
+    >> INTERRUPT_INTO("int_handler", "restore_here")
+    >> ALIAS(NOP, "restore_here")
     >> back
     >> GOTO("done")
     >> handler_block
@@ -222,18 +215,4 @@ comp = (
 await WorkflowInterpreter(comp.render()).run()
 ```
 
-### Including dependency args in the snapshot
-
-```python
-# Save everything including dependency injection state
-comp = (
-    start
-    >> PUSH_CONTEXT(exclude_deps=False, exclude_stack=False)
-    >> GOTO("sub")
-    >> ALIAS(sub_work, "sub")
-    >> POP_CONTEXT()
-    >> restore_and_continue  # receives full InterpreterContext
-)
-```
-
-> **See also**: [Interrupt Routine &amp; Return](/guide/practice/interrupt-routine) for advanced patterns including nested interrupts, manual rebase, and integration with external interrupt calls.
+> **See also**: [Interrupt Routine &amp; Return](/guide/practice/interrupt-routine) for advanced patterns.

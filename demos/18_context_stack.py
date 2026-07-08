@@ -1,18 +1,21 @@
-"""18_context_stack.py — PUSH_CONTEXT / POP_CONTEXT + rebase_context
+"""18_context_stack.py — PUSH_CONTEXT / INTERRUPT_RET save & restore
 
 Usage:
     python demos/18_context_stack.py
+
+PUSH_CONTEXT(target) saves full interpreter state then JUMPS to target.
+Pair with INTERRUPT_RET() to pop and restore.
 """
 
 import asyncio
 
 from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
-from amrita_sense.instructions import GOTO, PUSH_CONTEXT
+from amrita_sense.instructions import GOTO, INTERRUPT_RET, PUSH_CONTEXT
 
 
 @Node()
 async def start() -> None:
-    print("Start — saving context before sub-flow")
+    print("Start — about to PUSH_CONTEXT and jump to sub-flow")
 
 
 @Node()
@@ -21,29 +24,26 @@ async def sub_work() -> None:
 
 
 @Node()
-async def inspect_and_restore(pc: WorkflowInterpreter) -> None:
-    # Manually pop the context that PUSH_CONTEXT saved
-    ctx = pc.context_stack.pop()
-    print(f"  Context snapshot — ptr was at: {ctx.ptr}")
-    print(f"  Ignored exceptions: {ctx.exception_ignored}")
-    print("  Context inspected — continuing without rebase in this demo")
+async def after_restore() -> None:
+    print("Back — INTERRUPT_RET restored the original pointer")
 
 
 @Node()
 async def finish() -> None:
-    print("Finish — back in original flow")
+    print("Finish — workflow complete")
 
 
 async def main() -> None:
-    print("=== PUSH_CONTEXT / POP_CONTEXT demo ===\n")
+    print("=== PUSH_CONTEXT + INTERRUPT_RET demo ===\n")
 
     comp = (
         start
-        >> PUSH_CONTEXT()
-        >> GOTO("sub")
-        >> ALIAS(sub_work, "sub")
-        >> inspect_and_restore
+        >> PUSH_CONTEXT("sub_entry")  # save state, jump to sub_entry
+        >> after_restore  # resumed here after INTERRUPT_RET
         >> finish
+        >> GOTO("done")
+        >> ALIAS(sub_work, "sub_entry")  # jumped to here
+        >> INTERRUPT_RET()  # pop & restore, resume at after_restore
         >> ALIAS(NOP, "done")
     )
     await WorkflowInterpreter(comp.render()).run()
