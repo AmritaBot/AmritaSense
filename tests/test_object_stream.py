@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 
+from amrita_sense.exceptions import StreamStateError
 from amrita_sense.streaming import SUSPEND_ON_YIELD, SuspendObjectStream
 
 # ============================================================================
@@ -180,7 +181,7 @@ async def test_wait_to_suspend_already_waiting():
     t = asyncio.create_task(obj.wait_to_suspend(timeout=None))
     await asyncio.sleep(0)
 
-    with pytest.raises(RuntimeError, match="Already waiting for suspend"):
+    with pytest.raises(StreamStateError, match="Already waiting for suspend"):
         await obj.wait_to_suspend(timeout=0.5)
 
     t.cancel()
@@ -269,7 +270,7 @@ async def test_push_object_closed():
     """push_object on a closed queue raises RuntimeError."""
     obj = SuspendObjectStream()
     await obj.set_queue_done()
-    with pytest.raises(RuntimeError, match="Queue is closed"):
+    with pytest.raises(StreamStateError, match="Queue is closed"):
         await obj.push_object("should fail")
 
 
@@ -294,7 +295,7 @@ async def test_yield_response_closed():
     """yield_response on a closed queue raises RuntimeError."""
     obj = SuspendObjectStream()
     await obj.set_queue_done()
-    with pytest.raises(RuntimeError, match="Queue is closed"):
+    with pytest.raises(StreamStateError, match="Queue is closed"):
         await obj.yield_response("should fail")
 
 
@@ -342,7 +343,7 @@ def test_set_callback_func_twice():
         pass
 
     obj.set_callback_func(cb1)
-    with pytest.raises(RuntimeError, match="already been set"):
+    with pytest.raises(StreamStateError, match="already been set"):
         obj.set_callback_func(cb2)
 
 
@@ -369,7 +370,7 @@ def test_set_callback_fun_sending_twice():
         pass
 
     obj.set_callback_fun_sending(cb1)
-    with pytest.raises(RuntimeError, match="already been set"):
+    with pytest.raises(StreamStateError, match="already been set"):
         obj.set_callback_fun_sending(cb2)
 
 
@@ -382,19 +383,19 @@ def test_get_generator_already_consumed():
     """Calling get_response_generator twice raises RuntimeError."""
     obj = SuspendObjectStream()
     obj.get_response_generator()
-    with pytest.raises(RuntimeError, match="already being consumed"):
+    with pytest.raises(StreamStateError, match="already being consumed"):
         obj.get_response_generator()
 
 
 def test_get_generator_blocked_by_callback():
-    """get_response_generator with callback set raises RuntimeError."""
+    """get_response_generator with callback set raises StreamStateError."""
     obj = SuspendObjectStream()
 
     async def cb(x):
         pass
 
     obj.set_callback_func(cb)
-    with pytest.raises(RuntimeError, match="already being consumed"):
+    with pytest.raises(StreamStateError, match="already being consumed"):
         obj.get_response_generator()
 
 

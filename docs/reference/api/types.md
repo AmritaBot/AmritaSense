@@ -31,6 +31,31 @@ Key operations:
 
 The stack is protected by a lock and raises `OverflowError` if capacity is exceeded.
 
+## InterpreterContext (v0.4.x+)
+
+`InterpreterContext` is a dataclass that stores a complete snapshot of the interpreter's execution state. It is used by `PUSH_CONTEXT`/`POP_CONTEXT` and `INTERRUPT_INTO`/`INTERRUPT_RET` for save/restore workflows.
+
+```python
+@dataclass
+class InterpreterContext:
+    ptr: PointerVector
+    exception_ignored: tuple[type[BaseException], ...]
+    s_args: tuple | None = None
+    s_kwargs: dict[str, Any] | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
+    stack: Stack[PointerVector] | None = None
+    exception: Exception | None = None
+```
+
+Fields:
+
+- `ptr`: Snapshot of the execution pointer (`PointerVector`).
+- `exception_ignored`: Snapshot of exception types that bypass TRY/CATCH.
+- `s_args` / `s_kwargs`: Snapshot of dependency injection parameters. `None` if excluded during `dump_interpreter()`.
+- `extra`: Extension data dictionary for custom use.
+- `stack`: Snapshot of the return-address stack. `None` if excluded.
+- `exception`: Snapshot of the panic exception, or `None` if no panic occurred.
+
 ## Event Types
 
 ### BaseEvent

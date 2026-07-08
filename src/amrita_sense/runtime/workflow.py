@@ -24,13 +24,16 @@ from amrita_sense.exceptions import (
     DependsInjectFailed,
     DependsResolveFailed,
     IllegalState,
+    InterruptKeepContext,
     InterruptNotice,
     NullPointerException,
 )
 from amrita_sense.hook.matcher import DependsFactory, MatcherFactory, sign_func
 from amrita_sense.logging import debug_log, logger
 from amrita_sense.node.core import BaseNode, NodeComposeRendered
+from amrita_sense.node.core import Node as _Node
 from amrita_sense.node.self_compile import SelfCompileInstruction
+from amrita_sense.runtime.types import InterpreterContext
 from amrita_sense.streaming import SuspendObjectStream
 from amrita_sense.types import PointerVector, Stack
 
@@ -39,6 +42,10 @@ NULL_CTX = nullcontext()
 io_T = TypeVar("io_T", bound=SuspendObjectStream, covariant=True)
 fun_T = TypeVar("fun_T", bound=Callable[..., Any], covariant=True)
 UNSET = object()
+if not TYPE_CHECKING:
+    nop: _Node[None] | None = None
+else:
+    from amrita_sense.instructions import NOP as nop
 
 
 class WorkflowInterpreter(Generic[io_T]):
@@ -48,18 +55,6 @@ class WorkflowInterpreter(Generic[io_T]):
     the execution pointer, handling control flow operations (jumps, calls, loops),
     and providing dependency injection services. It implements an interpreter/VM
     pattern for dynamic workflow execution.
-
-    Attributes:
-        _graph: The compiled workflow graph to execute.
-        _pointer: Current execution pointer in the workflow graph.
-        _ava_args: Available arguments for dependency injection.
-        _ava_kwargs: Available keyword arguments for dependency injection.
-        _exc_ignored: Exception types that should not be caught by TRY/CATCH blocks.
-        object_io: I/O stream for external communication and interruption.
-        _ret_addr_stack: Stack for managing return addresses during subroutine calls.
-        _jump_marked: Flag indicating if a jump operation has been performed.
-        _interpret_lock: Lock for ensuring thread-safe execution.
-        _middleware: Optional middleware function for custom execution logic.
     """
 
     _graph: NodeComposeRendered
@@ -74,6 +69,9 @@ class WorkflowInterpreter(Generic[io_T]):
     _interpret_lock: aiologic.Lock
     _panic_exc: Exception | None
 
+    _if_flag: bool  # Whether in the interrupt mode
+    _context_stack: Stack[InterpreterContext]
+
     _parent_interpreter: WorkflowInterpreter | None
     _glob_top_mod_lock: aiologic.Lock
     _top_interpreter: WorkflowInterpreter | None
@@ -81,15 +79,18 @@ class WorkflowInterpreter(Generic[io_T]):
     _sub_interpreters_all: dict[str, WorkflowInterpreter] | None
     _sub_interpreters: dict[str, WorkflowInterpreter]
     _waiter_fut: asyncio.Future[None] | None
+
     _middleware: Callable[[WorkflowInterpreter], Awaitable[Any]] | None
     _pending_stop: bool
     object_io: io_T
     __slots__ = (
         "_ava_args",
         "_ava_kwargs",
+        "_context_stack",
         "_exc_ignored",
         "_glob_top_mod_lock",
         "_graph",
+        "_if_flag",
         "_interpret_lock",
         "_interpreter_id",
         "_jump_marked",
@@ -115,6 +116,7 @@ class WorkflowInterpreter(Generic[io_T]):
         extra_args: tuple = (),
         extra_kwargs: dict[str, Any] | None = None,
         addr_stack: Stack[PointerVector] | None = None,
+        context_stack: Stack[InterpreterContext] | None = None,
         middleware: Callable[[WorkflowInterpreter], Awaitable[Any]] | None = None,
         parent_interpreter: WorkflowInterpreter | None = None,
     ):
@@ -127,6 +129,9 @@ class WorkflowInterpreter(Generic[io_T]):
             extra_args: Additional positional arguments for dependency injection.
             extra_kwargs: Additional keyword arguments for dependency injection.
             addr_stack: Optional pre-initialized return address stack.
+            context_stack: Optional pre-initialized interpreter context stack.
+            middleware: Optional middleware function to execute before each node.
+            parent_interpreter: Optional parent interpreter for sub-interpreter relationship.
         """
         # Kernel initialization
         self._interpreter_id = uuid4().hex
@@ -151,6 +156,9 @@ class WorkflowInterpreter(Generic[io_T]):
         self._jump_marked = False
         self._interpret_lock = aiologic.Lock()
         self._middleware = middleware
+
+        self._if_flag = False
+        self._context_stack = context_stack or Stack()
         # Sub-Parent interpreter relationship management
         self._parent_interpreter = parent_interpreter
         self._sub_interpreters = {}
@@ -246,6 +254,8 @@ class WorkflowInterpreter(Generic[io_T]):
         self._ret_addr_stack.clear()
         self._jump_marked = False
         self._panic_exc = None
+        self._if_flag = False
+        self._context_stack.clear()
 
     def fork_interpreter(
         self,
@@ -335,13 +345,61 @@ class WorkflowInterpreter(Generic[io_T]):
     def jump_marked(self) -> bool:
         return self._jump_marked
 
+    @property
+    def if_flag(self) -> bool:
+        return self._if_flag
+
+    @if_flag.setter
+    def if_flag(self, value: bool) -> None:
+        if not isinstance(value, bool):
+            raise TypeError("if_flag must be a boolean value")
+        self._if_flag = value
+
+    @property
+    def context_stack(self) -> Stack[InterpreterContext]:
+        return self._context_stack
+
+    def dump_interpreter(
+        self, exclude_deps: bool = True, exclude_stack: bool = True
+    ) -> InterpreterContext:
+        """Dump the interpreter state into InterpreterContext object
+
+        Returns:
+            InterpreterContext: Interpreter context
+        """
+        return InterpreterContext(
+            ptr=self._pointer.copy(),
+            exception_ignored=self._exc_ignored,
+            s_args=None if exclude_deps else self._ava_args,
+            s_kwargs=None if exclude_deps else self._ava_kwargs,
+            extra={},
+            stack=None if exclude_stack else self._ret_addr_stack,
+            exception=self._panic_exc,
+        )
+
+    def rebase_context(self, ctx: InterpreterContext) -> None:
+        """Rebase the interpreter context stack to the current pointer and state.
+
+        Args:
+            ctx: The InterpreterContext object to rebase.
+        """
+        self.rebase_ptr(ctx.ptr)
+        self._exc_ignored = ctx.exception_ignored
+        if ctx.s_args and ctx.s_kwargs:
+            self._ava_args = ctx.s_args
+            self._ava_kwargs = ctx.s_kwargs
+        self._ret_addr_stack = ctx.stack or self._ret_addr_stack
+        self._panic_exc = ctx.exception
+
     def rebase_ptr(self, ptr: list[int] | PointerVector) -> None:
         """Rebase the pointer to a new address.
 
         Args:
             ptr: The new base address vector for the pointer.
         """
-        self._pointer.base_addr = list(ptr) if isinstance(ptr, list) else ptr.base_addr.copy()
+        self._pointer.base_addr = (
+            list(ptr) if isinstance(ptr, list) else ptr.base_addr.copy()
+        )
 
     @markup
     def jump_to(self, addr: list[int]) -> None:
@@ -656,7 +714,8 @@ class WorkflowInterpreter(Generic[io_T]):
         except InterruptNotice as e:
             logger.info(f"Interrupt notice at {self._pointer} :{e.message}")
             logger.info("Cleaning up pointer stack...")
-            self.reset()
+            if not isinstance(e, InterruptKeepContext):
+                self.reset()
 
         except BaseException as e:
             if isinstance(e, Exception):
@@ -953,7 +1012,7 @@ class WorkflowInterpreter(Generic[io_T]):
             DependsInjectFailed: If dependency injection fails at runtime.
             RuntimeError: If attempting to call a NodeCompose directly.
         """
-
+        global nop
         addr_getter = addr_getter or self.find_addr
         node: BaseNode | NodeComposeRendered = addr_getter(self._pointer.base_addr)
         if isinstance(node, NodeComposeRendered):
@@ -963,11 +1022,19 @@ class WorkflowInterpreter(Generic[io_T]):
                 f"Cannot call a NodeCompose in addr {self._pointer.base_addr}."
             )
         await self.object_io._wait_for_continue(node.tag)
+        if __flags__.JIT_OPTIMIZE:
+            if nop is None:
+                from amrita_sense.instructions.workfl_ctrl import _no_operation
+
+                nop = _no_operation
+            if node is nop:
+                return
 
         node._pre_check(self)
 
         ava_args = self._ava_args
-        ava_args += extra_args
+        if extra_args:
+            ava_args += extra_args
         if extra_kwargs:  # To avoid a copy cost.
             ava_kwargs = self._ava_kwargs.copy()
             ava_kwargs.update(extra_kwargs)
@@ -1011,3 +1078,6 @@ class WorkflowInterpreter(Generic[io_T]):
             return await asyncio.to_thread(fun, **kw_rsved)
         else:
             return fun(**kw_rsved)
+
+
+__all__ = ["PC_CHECKPOINT", "WorkflowInterpreter", "fun_T", "io_T"]

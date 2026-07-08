@@ -35,6 +35,7 @@ def __init__(
     extra_args: tuple = (),
     extra_kwargs: dict[str, Any] | None = None,
     addr_stack: Stack[PointerVector] | None = None,
+    context_stack: Stack[InterpreterContext] | None = None,
     middleware: Callable[['WorkflowInterpreter'], Awaitable[Any]] | None = None,
 )
 ```
@@ -44,6 +45,7 @@ def __init__(
 - `exception_ignored`：声明为不可捕获的异常类型元组。`InterruptNotice` 和 `BreakLoop` 会被自动加入此元组
 - `extra_args` / `extra_kwargs`：传递给每个节点的额外参数，供依赖注入使用
 - `addr_stack`：可选的外部调用栈。若不传，解释器内部创建一个新的 `Stack[PointerVector]`
+- `context_stack`（v0.4.x+）：可选的预初始化解释器上下文栈，用于保存/恢复工作流。默认创建新的空 `Stack[InterpreterContext]`
 - `middleware`：可选异步可调用对象，接收 `WorkflowInterpreter` 实例。设置后，`run_step_by()` 和 `call_sub()` 不再直接调用节点，而是将执行委托给 middleware。middleware 可自行决定是否执行节点、如何执行、以及如何转换结果。
 - `parent_interpreter`（v0.3.0+）：可选的父 `WorkflowInterpreter`，用于构建解释器树。由 `fork_interpreter()` 自动设置——一般无需直接使用。
 
@@ -70,6 +72,8 @@ def __init__(
 - `_ret_addr_stack: Stack[PointerVector]`：返回地址栈。`call_sub` 和 `CALL` 指令压入返回地址，执行完毕弹栈恢复
 - `_jump_marked: bool`：跳转标记。当 `True` 时，主循环跳过本次的 `advance_pointer()` 步进，下一轮直接从跳转目标继续
 - `_interpret_lock: aiologic.Lock`：解释锁。每次迭代获取一次，保证单个节点的执行原子性。同时也是外部安全调用的互斥锁
+- `_if_flag: bool`（v0.4.x+）：标记解释器是否处于中断上下文的布尔标志
+- `_context_stack: Stack[InterpreterContext]`（v0.4.x+）：`InterpreterContext` 快照的后进先出栈，用于 PUSH_CONTEXT/POP_CONTEXT 和 INTERRUPT_INTO/INTERRUPT_RET
 - `_ava_args / _ava_kwargs`：执行期可用参数池，供依赖注入系统从中匹配节点的参数签名
 - `_exc_ignored: tuple[type[BaseException], ...]`：运行时自动包含 `InterruptNotice` 和 `BreakLoop`。这些异常不会被任何 `CATCH` 块捕获，直接穿透到顶层。**v0.3.0+**：可通过 `__flags__.DISABLE_EXC_IGNORED = True` 禁用此自动加入行为
 - `object_io: io_T`：泛型的外部 I/O 接口。节点可通过 `pc.object_io` 进行流式产出、挂起控制
@@ -137,6 +141,33 @@ def __init__(
 将解释器执行状态重置为初始值：清除指针、返回地址栈、跳转标记、pending stop 标志、waiter future 和 panic 异常。此方法**与恢复流程无关**——从 panic 恢复只需直接调用 `run()`，无需先 reset。
 
 `reset()` 适用于在不创建新解释器的前提下、从同一工作流图重新开始执行的场景。
+
+**`if_flag` 属性**（v0.4.x+）
+
+获取或设置中断上下文标志。setter 校验值为 bool 类型。当为 `True` 时，`INTERRUPT_INTO` 无法调用（抛出 `IllegalState`）。
+
+**`context_stack` 属性**（v0.4.x+）
+
+返回解释器的上下文栈——一个用于保存/恢复工作流的 `Stack[InterpreterContext]`。
+
+**`dump_interpreter(exclude_deps=True, exclude_stack=True) -> InterpreterContext`**（v0.4.x+）
+
+导出当前解释器状态的完整快照。由 `PUSH_CONTEXT` 和 `INTERRUPT_INTO` 使用。
+
+参数：
+
+- `exclude_deps`：若为 `True`（默认），从快照中排除依赖注入参数。
+- `exclude_stack`：若为 `True`（默认），从快照中排除返回地址栈。
+
+返回：包含 `ptr`、`exception_ignored`、可选 `s_args`/`s_kwargs`、可选 `stack`、`extra` 和 `exception` 字段的 `InterpreterContext` 数据类。
+
+**`rebase_context(ctx: InterpreterContext) -> None`**（v0.4.x+）
+
+从 `InterpreterContext` 快照恢复解释器状态。从上下文中设置指针、异常忽略列表、依赖注入参数、返回地址栈和 panic 异常。
+
+参数：
+
+- `ctx`：要从中恢复的 `InterpreterContext`。
 
 #### 地址解析
 

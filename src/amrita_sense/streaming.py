@@ -8,6 +8,8 @@ import anyio
 from anyio.abc import ObjectReceiveStream, ObjectSendStream
 from typing_extensions import LiteralString
 
+from amrita_sense.exceptions import StreamStateError
+
 ObjectTypeT = TypeVar("ObjectTypeT")
 CALLBACK_TYPE: TypeAlias = Callable[[ObjectTypeT], Awaitable[Any]]
 SUSPEND_ON_YIELD: LiteralString = "SuspendObjectStream::yield_response"
@@ -161,14 +163,14 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
             timeout: Timeout for waiting.  Defaults to None (no timeout).
 
         Raises:
-            RuntimeError: Raised when already waiting.
+            StreamStateError: Raised when already waiting.
         """
         async with self._state_lock:
             if self.__suspend_signal is not None:
                 if self.__suspend_signal.done():
                     self.__suspend_signal = None
                 else:
-                    raise RuntimeError("Already waiting for suspend!")
+                    raise StreamStateError("Already waiting for suspend!")
             self._suspend_tags = tags
             self.__suspend_signal = asyncio.Future()
         try:
@@ -221,7 +223,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         await self._wait_for_continue(SUSPEND_ON_YIELD)
         async with self._state_lock:
             if self._queue_done:
-                raise RuntimeError("Queue is closed.")
+                raise StreamStateError("Queue is closed.")
         await self._put_to_queue(obj)
 
     async def yield_response(self, response: ObjectTypeT) -> None:
@@ -234,7 +236,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         async with self._state_lock:
             cb = self._callback_fun
             if cb is None and self._queue_done:
-                raise RuntimeError("Queue is closed.")
+                raise StreamStateError("Queue is closed.")
         if cb is not None:
             async with self._callback_lock:
                 await cb(response)
@@ -248,11 +250,11 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
             func: Function to be executed when a response is yielded.
 
         Raises:
-            RuntimeError: If a callback function is already set.
+            StreamStateError: If a callback function is already set.
         """
         with self._state_lock:
             if self._callback_fun:
-                raise RuntimeError(
+                raise StreamStateError(
                     "The callback function of this chat object has already been set!"
                 )
             self._callback_fun = func
@@ -265,7 +267,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         """
         with self._state_lock:
             if self._callback_fun_sending:
-                raise RuntimeError(
+                raise StreamStateError(
                     "The callback function for sending-side responses has already been set!"
                 )
             self._callback_fun_sending = func
@@ -288,11 +290,11 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
             ObjectTypeT: Either a string or MessageContent object from the response queue.
 
         Raises:
-            RuntimeError: If response is already being consumed.
+            StreamStateError: If response is already being consumed.
         """
         with self._state_lock:
             if self._has_consumer or self._callback_fun is not None:
-                raise RuntimeError("Response is already being consumed.")
+                raise StreamStateError("Response is already being consumed.")
             self._has_consumer = True
         return self._response_generator()
 

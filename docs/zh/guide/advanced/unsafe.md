@@ -87,6 +87,18 @@ NO_SHARED_MIDDLEWARE: bool = False
 
 **适用场景**：希望父子解释器之间严格隔离中间件，倾向于显式按需开启的模式。
 
+### `JIT_OPTIMIZE`（v0.4.x+）
+
+```python
+JIT_OPTIMIZE: bool = False
+```
+
+启用后，NOP 节点（`_no_operation`）在 `_call()` 执行中被跳过，不调用完整的依赖注入路径。这避免了占位节点的 asyncio 上下文切换和锁获取/释放开销。
+
+**适用场景**：在具有大量 NOP 汇合点的工作流中（如重度使用 IF/ELIF 分支），此标志可降低逐节点开销。
+
+> **注意**：此标志标记为 `# TODO: more optimizations`——未来版本可能会添加更多 JIT 优化。
+
 ## 与其他系统的交互
 
 多个内置指令和匹配器系统在关键决策点读取标志：
@@ -98,6 +110,7 @@ NO_SHARED_MIDDLEWARE: bool = False
 | `NO_DEPENDENCY_META_CACHE` | `WorkflowInterpreter._call()`、`MatcherFactory._prepare()`                       |
 | `FORCE_NOT_WRAP_TO_ASYNC`  | `WorkflowInterpreter._call()`                                                    |
 | `NO_SHARED_MIDDLEWARE`     | `WorkflowInterpreter.fork_interpreter()`                                         |
+| `JIT_OPTIMIZE`             | `WorkflowInterpreter._call()`                                                    |
 
 ## 汇总
 
@@ -108,3 +121,4 @@ NO_SHARED_MIDDLEWARE: bool = False
 | `ALLOW_CALL_NODECOMPOSE`   | `False` | 允许直接调用 `NodeCompose` |
 | `NO_DEPENDENCY_META_CACHE` | `False` | 每次调用重新解析依赖元数据 |
 | `NO_SHARED_MIDDLEWARE`     | `False` | fork 时不继承父中间件      |
+| `JIT_OPTIMIZE`             | `False` | 执行时跳过 NOP 节点        |

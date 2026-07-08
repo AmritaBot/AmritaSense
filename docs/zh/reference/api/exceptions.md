@@ -34,6 +34,16 @@ Python 的 `except Exception` 不会捕获 `BaseException` 的子类。因此，
 4. 重置 `_jump_marked` 标记
 5. 工作流干净退出，不留下残留状态
 
+## InterruptKeepContext（v0.4.x+）
+
+`InterruptKeepContext` 是 `InterruptNotice` 的子类，终止工作流执行但**保留解释器状态**。与 `InterruptNotice` 触发完整 `reset()` 不同，此异常会保留指针、调用栈和依赖注入参数。
+
+**适用场景**：
+
+- 暂停-检查-恢复调试
+- 检查点-重启工作流
+- 由 `INTERRUPT_KEEP_CTX` 指令节点触发
+
 ## NullPointerException
 
 ```python
@@ -48,7 +58,7 @@ class NullPointerException(Exception):
 **触发场景**
 
 - `GOTO`、`CALL` 等跳转指令的目标地址在 `NodeComposeRendered` 中不存在
-- 别名解析时在 `alias2vector_map` 中找不到对应条目（此时 `JumpNode` 和 `CallNode` 的 `_pre_check` 会先抛出带有拼写建议的 `RuntimeError` 或 `ValueError`，而非直接抛出此异常）
+- 别名解析时在 `alias2vector_map` 中找不到对应条目（此时 `JumpNode` 和 `CallNode` 的 `_pre_check` 会抛出 `AliasNotFoundError`）
 - 运行时通过 `find_addr` 访问越界的索引
 
 **与别名校验的关系**
@@ -99,6 +109,7 @@ def process_item():
 - 在非顶层解释器上调用 `terminate_all()` 或 `wait_all()`
 - 在已在运行的解释器上启动 `run()`
 - 在未运行的解释器上访问 `wait`
+- 违反 TRY/CATCH 语法约束（如在 FINALLY 之后添加 CATCH、重复 THEN 等）
 
 正确的使用模式请参见 [子图隔离调用](../../guide/practice/subgraph-isolation.md)。
 
@@ -110,6 +121,10 @@ def process_item():
 class DependsException(Exception):
     """Base class for all dependency injection related exceptions."""
 ```
+
+### AliasNotFoundError（v0.4.x+）
+
+GOTO 或 CALL 指令引用的别名在工作流图的别名注册表中不存在时抛出。替代了之前用于别名解析失败的通用 `RuntimeError` / `ValueError`。
 
 ### DependsResolveFailed
 
@@ -159,16 +174,37 @@ def search_exceptions(
 
 递归搜索一个序列（可能包含嵌套的异常列表），返回所有 `BaseException` 实例的扁平列表。`FUN_BLOCK` 内部使用该函数从子解释器树中收集异常。
 
+## GraphBuildError（v0.4.x+）
+
+工作流图构建或渲染失败时抛出。常见触发场景：
+
+- 同一编排中出现重复的别名
+- 尝试构建已构建过的 `NodeComposeRendered`
+- 渲染过程中缺少原始图
+
+## StreamStateError（v0.4.x+）
+
+`SuspendObjectStream` 操作在不合法状态下被尝试时抛出。常见触发场景：
+
+- 向已关闭的队列 push
+- 已在等待挂起时再次调用 `wait_to_suspend()`
+- 重复设置回调函数
+- 已被消费时再次调用 `get_response_generator()`
+
 ## 异常层次结构
 
 ```text
 BaseException
-└── InterruptNotice          # 继承 BaseException，默认不可被 CATCH 捕获
+├── InterruptNotice          # 继承 BaseException，默认不可被 CATCH 捕获
+│   └── InterruptKeepContext  # 中断但保留解释器上下文
 
 Exception
 ├── IllegalState              # 不合法状态操作
 ├── NullPointerException      # 地址无效
 ├── BreakLoop                 # 循环跳出信号
+├── AliasNotFoundError        # 别名解析失败
+├── GraphBuildError           # 图构建/渲染失败
+├── StreamStateError          # 流操作状态非法
 └── DependsException          # 依赖注入基类
     ├── DependsResolveFailed   # 依赖无法解析
     └── DependsInjectFailed    # 依赖注入过程异常
@@ -177,6 +213,8 @@ Exception
 **设计原则**：
 
 - `InterruptNotice` 继承 `BaseException`，实现天然的不可捕获性
+- `InterruptKeepContext` 继承 `InterruptNotice`，保留上下文供后续恢复
 - `BreakLoop` 继承 `Exception`，但通过自动加入 `_exc_ignored` 获得等效的穿透能力
-- `IllegalState` 是 v0.3.0 新增，用于保护解释器树 API 的调用合法性
-- 依赖相关异常继承同一个基类 `DependsException`，允许用户按需捕获整个依赖类别的错误
+- `IllegalState` 是 v0.3.0 新增，用于保护解释器树 API 的调用合法性和指令语法约束
+- `AliasNotFoundError`/`GraphBuildError`/`StreamStateError` 为 v0.4.x+ 新增的细分异常类型
+- 依赖相关异常统一继承 `DependsException`，允许用户按需捕获整个依赖类别的错误

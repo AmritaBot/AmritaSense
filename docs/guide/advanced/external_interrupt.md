@@ -133,3 +133,21 @@ Or, while the workflow is running, call `call_sub(interrupt=True)` from another 
 `aiologic.Lock` ensures only one injection executes at a time. Multiple external callers will queue without nested injection. The interpreter's internal state remains stable under lock protection.
 
 Through this mechanism, AmritaSense transforms external intervention from "disruptive interrupts" into "safe function calls," providing a solid foundation for building full-featured debuggers, monitoring systems, and dynamic flow control.
+
+## 4.4.5 Interrupt Routines & Context Snapshots (v0.4.x+)
+
+AmritaSense v0.4.x+ provides built-in instructions for interrupt-style control transfer **within** a workflow: `INTERRUPT_INTO` / `INTERRUPT_RET`. Unlike `call_sub(interrupt=True)` which injects code from **outside** the interpreter, these instructions are placed directly in the `>>` chain and perform:
+
+1. Save complete interpreter state → `InterpreterContext`
+2. Jump to a handler routine (e.g., stored in `ARCHIVED_NODES`)
+3. Restore state and return
+
+This is useful for:
+
+- Error recovery subroutines that need full context
+- Debugging breakpoints with state inspection
+- Nested interrupt handling (LIFO context stack)
+
+**External vs Internal**: `call_sub(interrupt=True)` is externally driven (debugger, HTTP endpoint); `INTERRUPT_INTO`/`INTERRUPT_RET` are internally orchestrated in the `>>` chain. Both mechanisms are complementary and can be composed.
+
+For complete examples and patterns, see [Interrupt Routine & Return](/guide/practice/interrupt-routine).

@@ -163,6 +163,10 @@ export default withMermaid({
                     text: "Exception Handling (TRY/CATCH/THEN/FIN)",
                     link: "/guide/advanced/built-in_instruction_set/try_clause",
                   },
+                  {
+                    text: "Context Snapshot & Interrupt Transfer (PUSH_CONTEXT/INTERRUPT_INTO)",
+                    link: "/guide/advanced/built-in_instruction_set/context_clause",
+                  },
                 ],
               },
               { text: "Custom Nodes", link: "/guide/advanced/custom_node" },
@@ -191,6 +195,10 @@ export default withMermaid({
               {
                 text: "CLCA Design Pattern",
                 link: "/guide/practice/clca-design-pattern",
+              },
+              {
+                text: "Interrupt Routine & Return",
+                link: "/guide/practice/interrupt-routine",
               },
               { text: "Under Construction..." },
             ],
@@ -325,6 +333,10 @@ export default withMermaid({
                     text: "异常处理 (TRY/CATCH/THEN/FIN)",
                     link: "/zh/guide/advanced/built-in_instruction_set/try_clause",
                   },
+                  {
+                    text: "上下文与中断转移 (PUSH_CONTEXT/INTERRUPT_INTO)",
+                    link: "/zh/guide/advanced/built-in_instruction_set/context_clause",
+                  },
                 ],
               },
               { text: "自定义节点", link: "/zh/guide/advanced/custom_node" },
@@ -353,6 +365,10 @@ export default withMermaid({
               {
                 text: "CLCA 设计模式",
                 link: "/zh/guide/practice/clca-design-pattern",
+              },
+              {
+                text: "中断例程与中断返回",
+                link: "/zh/guide/practice/interrupt-routine",
               },
               { text: "正在施工中......" },
             ],

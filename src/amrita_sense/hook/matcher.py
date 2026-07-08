@@ -315,7 +315,6 @@ class MatcherFactory:
         resolve_tasks = []
         if not runtime_args and not runtime_kwargs:
             return True
-        session_args = session_args
         session_kwargs = session_kwargs
         for idx, factory in runtime_args.items():
             task = factory.resolve(*session_args, **session_kwargs)

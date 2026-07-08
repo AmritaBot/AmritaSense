@@ -87,6 +87,18 @@ By default, `fork_interpreter()` inherits the parent's middleware when `middlewa
 
 **When to use**: When you want strict middleware isolation between parent and child interpreters, and prefer an explicit opt-in model.
 
+### `JIT_OPTIMIZE` (v0.4.x+)
+
+```python
+JIT_OPTIMIZE: bool = False
+```
+
+When enabled, NOP nodes (`_no_operation`) are skipped during `_call()` execution without invoking the full dependency-injection path. This avoids the overhead of an asyncio context switch and lock acquire/release for placeholder nodes.
+
+**When to use**: In workflows with many NOP convergence points (e.g., heavy use of IF/ELIF branching), this flag can reduce per-node overhead.
+
+> **Note**: This flag is marked `# TODO: more optimizations` — additional JIT optimizations may be added in future versions.
+
 ## Interaction with Other Systems
 
 Several built-in instructions and the matcher system read flags at key decision points:
@@ -98,6 +110,7 @@ Several built-in instructions and the matcher system read flags at key decision 
 | `NO_DEPENDENCY_META_CACHE` | `WorkflowInterpreter._call()`, `MatcherFactory._prepare()`                       |
 | `FORCE_NOT_WRAP_TO_ASYNC`  | `WorkflowInterpreter._call()`                                                    |
 | `NO_SHARED_MIDDLEWARE`     | `WorkflowInterpreter.fork_interpreter()`                                         |
+| `JIT_OPTIMIZE`             | `WorkflowInterpreter._call()`                                                    |
 
 ## Summary
 
@@ -108,3 +121,4 @@ Several built-in instructions and the matcher system read flags at key decision 
 | `ALLOW_CALL_NODECOMPOSE`   | `False` | Allow `NodeCompose` to be called directly |
 | `NO_DEPENDENCY_META_CACHE` | `False` | Re-resolve dependency metadata each call  |
 | `NO_SHARED_MIDDLEWARE`     | `False` | Don't inherit parent middleware in forks  |
+| `JIT_OPTIMIZE`             | `False` | Skip NOP nodes during execution           |
