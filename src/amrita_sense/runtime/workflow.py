@@ -33,7 +33,7 @@ from amrita_sense.logging import debug_log, logger
 from amrita_sense.node.core import BaseNode, NodeComposeRendered
 from amrita_sense.node.core import Node as _Node
 from amrita_sense.node.self_compile import SelfCompileInstruction
-from amrita_sense.runtime.types import IntpreterContext
+from amrita_sense.runtime.types import InterpreterContext
 from amrita_sense.streaming import SuspendObjectStream
 from amrita_sense.types import PointerVector, Stack
 
@@ -70,7 +70,7 @@ class WorkflowInterpreter(Generic[io_T]):
     _panic_exc: Exception | None
 
     _if_flag: bool  # Whether in the interrupt mode
-    _context_stack: Stack[IntpreterContext]
+    _context_stack: Stack[InterpreterContext]
 
     _parent_interpreter: WorkflowInterpreter | None
     _glob_top_mod_lock: aiologic.Lock
@@ -116,7 +116,7 @@ class WorkflowInterpreter(Generic[io_T]):
         extra_args: tuple = (),
         extra_kwargs: dict[str, Any] | None = None,
         addr_stack: Stack[PointerVector] | None = None,
-        context_stack: Stack[IntpreterContext] | None = None,
+        context_stack: Stack[InterpreterContext] | None = None,
         middleware: Callable[[WorkflowInterpreter], Awaitable[Any]] | None = None,
         parent_interpreter: WorkflowInterpreter | None = None,
     ):
@@ -349,19 +349,25 @@ class WorkflowInterpreter(Generic[io_T]):
     def if_flag(self) -> bool:
         return self._if_flag
 
+    @if_flag.setter
+    def if_flag(self, value: bool) -> None:
+        if not isinstance(value, bool):
+            raise TypeError("if_flag must be a boolean value")
+        self._if_flag = value
+
     @property
-    def context_stack(self) -> Stack[IntpreterContext]:
+    def context_stack(self) -> Stack[InterpreterContext]:
         return self._context_stack
 
     def dump_interpreter(
         self, exclude_deps: bool = True, exclude_stack: bool = True
-    ) -> IntpreterContext:
+    ) -> InterpreterContext:
         """Dump the interpreter state into InterpreterContext object
 
         Returns:
-            IntpreterContext: Interpreter context
+            InterpreterContext: Interpreter context
         """
-        return IntpreterContext(
+        return InterpreterContext(
             ptr=self._pointer.copy(),
             exception_ignored=self._exc_ignored,
             s_args=None if exclude_deps else self._ava_args,
@@ -371,11 +377,11 @@ class WorkflowInterpreter(Generic[io_T]):
             exception=self._panic_exc,
         )
 
-    def rebase_context(self, ctx: IntpreterContext) -> None:
+    def rebase_context(self, ctx: InterpreterContext) -> None:
         """Rebase the interpreter context stack to the current pointer and state.
 
         Args:
-            ctx: The IntpreterContext object to rebase.
+            ctx: The InterpreterContext object to rebase.
         """
         self.rebase_ptr(ctx.ptr)
         self._exc_ignored = ctx.exception_ignored

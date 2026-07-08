@@ -5,7 +5,7 @@ from amrita_sense.types import PointerVector, Stack
 
 
 @dataclass
-class IntpreterContext:
+class InterpreterContext:
     ptr: PointerVector
     exception_ignored: tuple[
         type[BaseException], ...

@@ -1,6 +1,7 @@
 from .alias import ALIAS
 from .func_block import FUN_BLOCK
 from .if_clause import IF
+from .interrupt import INTERRUPT_INTO, INTERRUPT_RET, POP_CONTEXT, PUSH_CONTEXT
 from .jump import GOTO
 from .loop.do_while import DO
 from .loop.while_clause import WHILE
@@ -19,8 +20,12 @@ __all__ = (
     "GOTO",
     "IF",
     "INTERRUPT",
+    "INTERRUPT_INTO",
+    "INTERRUPT_RET",
     "NOP",
+    "POP_CONTEXT",
     "PUSH_AND_GOTO",
+    "PUSH_CONTEXT",
     "PUSH_STACK",
     "RET_FAR",
     "TRIGGER_EVENT",
