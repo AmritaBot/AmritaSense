@@ -35,9 +35,12 @@ The simplest pattern — save full state, jump to a sub-routine, restore and ret
 from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
 from amrita_sense.instructions import GOTO, INTERRUPT_RET, PUSH_CONTEXT
 
-@Node()  async def start() -> None: ...
-@Node()  async def sub_routine() -> None: ...
-@Node()  async def after_restore() -> None: ...
+@Node()
+async def start() -> None: ...
+@Node()
+async def sub_routine() -> None: ...
+@Node()
+async def after_restore() -> None: ...
 
 comp = (
     start
@@ -61,8 +64,10 @@ await WorkflowInterpreter(comp.render()).run()
 from amrita_sense import ALIAS, ARCHIVED_NODES, NOP, Node, WorkflowInterpreter
 from amrita_sense.instructions import GOTO, INTERRUPT_INTO, INTERRUPT_RET
 
-@Node()  async def main_logic() -> None: ...
-@Node()  async def error_handler() -> None:
+@Node()
+async def main_logic() -> None: ...
+@Node()
+async def error_handler() -> None:
     print("Handling error")
 
 handler_block = ARCHIVED_NODES(
@@ -99,12 +104,15 @@ Build a library of named interrupt handlers that normal execution skips.
 from amrita_sense import ALIAS, ARCHIVED_NODES, NOP, Node, WorkflowInterpreter
 from amrita_sense.instructions import GOTO, INTERRUPT_INTO, INTERRUPT_RET
 
-@Node()  async def main_flow() -> None: ...
+@Node()
+async def main_flow() -> None: ...
 
-@Node()  async def handle_timeout() -> None:
+@Node()
+async def handle_timeout() -> None:
     print("[timeout] Cleaning up...")
 
-@Node()  async def handle_auth_failure() -> None:
+@Node()
+async def handle_auth_failure() -> None:
     print("[auth] Refreshing credentials...")
 
 handler_library = ARCHIVED_NODES(
