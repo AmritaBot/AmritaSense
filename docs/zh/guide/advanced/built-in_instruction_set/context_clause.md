@@ -24,25 +24,30 @@ from amrita_sense.instructions import (
 
 ```python
 def PUSH_CONTEXT(
+    alias_or_idata: str | list[int],
+    *,
     exclude_deps: bool = True,
     exclude_stack: bool = True,
 ) -> NodeType[None]
 ```
 
-将当前解释器状态的完整快照保存到**上下文栈**（`pc.context_stack`）上。快照以 `InterpreterContext` 数据类存储。
+将当前解释器状态的完整快照保存到**上下文栈**（`pc.context_stack`）上，**然后跳转到** `alias_or_idata`。快照以 `InterpreterContext` 数据类存储。
+
+这是底层原语——与 `INTERRUPT_INTO` 不同，它**不**设置 `if_flag`。配合 `INTERRUPT_RET` 恢复；也可手动弹出并调用 `pc.rebase_context()`。
 
 ### 参数
 
-| 参数            | 类型   | 默认值 | 说明                                  |
-| --------------- | ------ | ------ | ------------------------------------- |
-| `exclude_deps`  | `bool` | `True` | 若为 `True`，从快照中排除依赖注入参数 |
-| `exclude_stack` | `bool` | `True` | 若为 `True`，从快照中排除返回地址栈   |
+| 参数             | 类型               | 默认值 | 说明                                   |
+| ---------------- | ------------------ | ------ | -------------------------------------- |
+| `alias_or_idata` | `str \| list[int]` | —      | 要跳转到的别名（运行时解析）或绝对地址 |
+| `exclude_deps`   | `bool`             | `True` | 若为 `True`，从快照中排除依赖注入参数  |
+| `exclude_stack`  | `bool`             | `True` | 若为 `True`，从快照中排除返回地址栈    |
 
 ### 保存内容
 
 | 字段                  | 条件                            |
 | --------------------- | ------------------------------- |
-| `ptr` (PointerVector) | 始终保存                        |
+| `ptr` (PointerVector) | 始终保存（跳转前位置的快照）    |
 | `exception_ignored`   | 始终保存                        |
 | `s_args` / `s_kwargs` | 仅当 `exclude_deps=False` 时    |
 | `stack`（返回地址栈） | 仅当 `exclude_stack=False` 时   |
@@ -51,9 +56,10 @@ def PUSH_CONTEXT(
 
 ### 执行流程
 
-1. 调用 `pc.dump_interpreter(exclude_deps, exclude_stack)` 构建 `InterpreterContext`。
-2. 将上下文压入 `pc.context_stack`。
-3. 返回 `None`——执行继续到 `>>` 链中的下一个节点。
+1. 将 `alias_or_idata` 解析为绝对地址。
+2. 调用 `pc.dump_interpreter(exclude_deps, exclude_stack)` 构建 `InterpreterContext`。
+3. 将上下文压入 `pc.context_stack`。
+4. 调用 `pc.jump_to(addr)`——执行在目标处继续。
 
 ---
 
@@ -63,25 +69,14 @@ def PUSH_CONTEXT(
 def POP_CONTEXT() -> NodeType[InterpreterContext]
 ```
 
-从上下文栈弹出顶部 `InterpreterContext`，并将其**作为节点结果返回**。调用方自行决定如何处理上下文——可以检查、序列化，或传递给 `pc.rebase_context(ctx)` 以真正恢复保存的状态。
+从上下文栈弹出顶部 `InterpreterContext`，并**将其作为节点结果返回**。返回值流向解释器的步进生成器——**不会**自动流入下一个 `>>` 节点的参数。
+
+要实际恢复状态，要么使用 `INTERRUPT_RET()` 自动弹出并恢复，要么在 `@Node` 函数内通过 `pc.context_stack.pop()` 手动弹出。
 
 ### 执行流程
 
 1. 弹出 `pc.context_stack` 顶部。
 2. 将 `InterpreterContext` 作为节点输出返回。
-3. **`>>` 链中的下一个节点**以该 `InterpreterContext` 作为输入参数接收。
-
-### 重要说明
-
-`POP_CONTEXT` **不会**自动恢复状态。若需恢复，接收节点必须调用 `pc.rebase_context(ctx)`：
-
-```python
-@Node()
-async def restore(ctx: InterpreterContext, pc: WorkflowInterpreter) -> None:
-    pc.rebase_context(ctx)
-```
-
-或使用 `INTERRUPT_RET()` 自动执行恢复。
 
 ---
 
@@ -89,31 +84,37 @@ async def restore(ctx: InterpreterContext, pc: WorkflowInterpreter) -> None:
 
 ```python
 def INTERRUPT_INTO(
-    alias_or_idata: str | list[int],
+    jump_to: str | list[int],
+    ret_to: str | list[int],
     if_state: bool = False,
 ) -> NodeType[None]
 ```
 
-一条便捷指令，在单个节点中组合 `PUSH_CONTEXT` + `jump_to`。它保存当前解释器状态后跳转到目标地址——正如 CPU 中断在向量到 ISR 之前保存上下文。
+中断式控制转移的便捷指令。保存当前解释器状态并跳转到 `jump_to`，但**用 `ret_to` 覆盖保存的指针**，使 `INTERRUPT_RET` 在 `ret_to` 处恢复——而不是原始位置。
+
+这反映了真实的 CPU 中断语义：返回地址显式地是被中断指令**之后**的指令。
 
 ### 参数
 
-| 参数             | 类型               | 默认值  | 说明                                 |
-| ---------------- | ------------------ | ------- | ------------------------------------ |
-| `alias_or_idata` | `str \| list[int]` | —       | 目标别名（运行时解析）或绝对地址向量 |
-| `if_state`       | `bool`             | `False` | 跳转后为解释器的 `if_flag` 设置的值  |
+| 参数       | 类型               | 默认值  | 说明                           |
+| ---------- | ------------------ | ------- | ------------------------------ |
+| `jump_to`  | `str \| list[int]` | —       | 跳转到**哪里**（处理程序入口） |
+| `ret_to`   | `str \| list[int]` | —       | 快照中保存的返回目标地址       |
+| `if_state` | `bool`             | `False` | 跳转后为 `if_flag` 设置的值    |
 
 ### 执行流程
 
-1. **守卫检查**：若 `pc.if_flag` 已为 `True`，抛出 `IllegalState("Interrupt into is not allowed in IF statement")`。不允许在 IF 分支内嵌套 interrupt-into 调用。
+1. **守卫检查**：若 `pc.if_flag` 已为 `True`，抛出 `IllegalState("Interrupt into is not allowed in IF statement")`。
 2. 设置 `pc.if_flag = if_state`。
-3. 若为字符串，通过 `pc.find_addr_alias()` 解析别名为绝对地址。
-4. 通过 `pc.dump_interpreter()` 保存解释器状态并压入 `pc.context_stack`。
-5. 通过 `pc.jump_to(addr)` 跳转到目标地址。
+3. 解析 `jump_to` 和 `ret_to` 地址（首次解析后缓存）。
+4. 通过 `pc.dump_interpreter()` 保存解释器状态。
+5. **覆盖** `ctx.ptr` 为 `PointerVector(ret_to)`。
+6. 将上下文压入 `pc.context_stack`。
+7. 通过 `pc.jump_to()` 跳转到 `jump_to`。
 
 ### 限制
 
-- **不能在 IF 分支内使用**（`pc.if_flag == True` 时抛出异常）。这防止中断式跳转破坏条件流程的完整性。
+- **不能在 IF 分支内使用**（`pc.if_flag == True` 时抛出异常）。
 
 ---
 
@@ -123,29 +124,27 @@ def INTERRUPT_INTO(
 def INTERRUPT_RET() -> NodeType[None]
 ```
 
-`INTERRUPT_INTO` 的对应指令。从上下文栈弹出顶部 `InterpreterContext`，并通过 `pc.rebase_context(ctx)` 将解释器恢复到中断前的状态。同时清除 `pc.if_flag`。
+`INTERRUPT_INTO` 的对应指令。从上下文栈弹出顶部 `InterpreterContext`，通过 `pc.rebase_context(ctx)` 将解释器恢复到中断前的状态。同时清除 `pc.if_flag`。
 
 ### 执行流程
 
-1. 从 `pc.context_stack` 弹出顶部 `InterpreterContext`。
+1. 弹出 `pc.context_stack` 顶部的 `InterpreterContext`。
 2. 调用 `pc.rebase_context(ctx)`——恢复指针、异常忽略列表、依赖注入参数、返回地址栈。
 3. 设置 `pc.if_flag = False`。
-
-这是从通过 `INTERRUPT_INTO` 进入的处理程序中返回的推荐方式。
 
 ---
 
 ## 三种保存/恢复机制对比
 
-| 特性             | PUSH_STACK + RET_FAR | PUSH_CONTEXT + POP_CONTEXT       | INTERRUPT_INTO + INTERRUPT_RET |
-| ---------------- | -------------------- | -------------------------------- | ------------------------------ |
-| **保存内容**     | 仅返回地址           | 完整解释器状态                   | 完整解释器状态                 |
-| **依赖注入参数** | 不保存               | 可选（`exclude_deps=False`）     | 始终保存                       |
-| **返回地址栈**   | 调用方手动管理       | 可选（`exclude_stack=False`）    | 始终保存                       |
-| **if_flag 管理** | 不涉及               | 不涉及                           | 入口自动设置，出口自动清除     |
-| **恢复方式**     | `RET_FAR` 弹出并跳转 | 调用方调用 `rebase_context(ctx)` | `INTERRUPT_RET` 自动恢复       |
-| **适用场景**     | 自定义调用/返回方案  | 细粒度状态检查/操作              | 中断式处理入口/出口            |
-| **复杂度**       | 低                   | 中（需手动 rebase）              | 低（一键保存/恢复）            |
+| 特性             | PUSH_STACK + RET_FAR | PUSH_CONTEXT + INTERRUPT_RET | INTERRUPT_INTO + INTERRUPT_RET |
+| ---------------- | -------------------- | ---------------------------- | ------------------------------ |
+| **保存内容**     | 仅返回地址           | 完整解释器状态               | 完整解释器状态                 |
+| **保存时跳转**   | 否（需单独 GOTO）    | 是（跳转到目标）             | 是（jump_to）                  |
+| **返回地址**     | PUSH_STACK 目标      | 从保存的指针恢复             | 显式 ret_to 参数               |
+| **依赖注入参数** | 不保存               | 可选（exclude_deps=False）   | 始终保存                       |
+| **if_flag 管理** | 不涉及               | 不涉及                       | 入口自动设置，出口自动清除     |
+| **适用场景**     | 自定义调用/返回方案  | 上下文保存 + 跳转底层        | 中断式处理入口/出口            |
+| **复杂度**       | 低                   | 低                           | 低                             |
 
 ---
 
@@ -155,7 +154,7 @@ def INTERRUPT_RET() -> NodeType[None]
 
 ```python
 from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
-from amrita_sense.instructions import GOTO, POP_CONTEXT, PUSH_CONTEXT
+from amrita_sense.instructions import GOTO, INTERRUPT_RET, PUSH_CONTEXT
 
 @Node()
 async def start() -> None:
@@ -166,22 +165,16 @@ async def sub_work() -> None:
     print("  [子流程] 在隔离上下文中工作")
 
 @Node()
-async def inspect_context(ctx) -> None:
-    # ctx 是 POP_CONTEXT 弹出的 InterpreterContext
-    print(f"  上下文快照 — 指针位于: {ctx.ptr}")
-
-@Node()
-async def finish() -> None:
-    print("完成")
+async def after_restore() -> None:
+    print("Back — 由 INTERRUPT_RET 恢复")
 
 comp = (
     start
-    >> PUSH_CONTEXT()
-    >> GOTO("sub")
-    >> ALIAS(sub_work, "sub")
-    >> POP_CONTEXT()
-    >> inspect_context
-    >> finish
+    >> PUSH_CONTEXT("sub_entry")
+    >> after_restore
+    >> GOTO("done")
+    >> ALIAS(sub_work, "sub_entry")
+    >> INTERRUPT_RET()
     >> ALIAS(NOP, "done")
 )
 await WorkflowInterpreter(comp.render()).run()
@@ -205,7 +198,6 @@ async def handler() -> None:
 async def back() -> None:
     print("[主流程] 从中断返回")
 
-# 存档处理程序——正常执行时跳过
 handler_block = ARCHIVED_NODES(
     ALIAS(handler, "int_handler"),
     INTERRUPT_RET(),
@@ -213,7 +205,8 @@ handler_block = ARCHIVED_NODES(
 
 comp = (
     main_start
-    >> INTERRUPT_INTO("int_handler")
+    >> INTERRUPT_INTO("int_handler", "restore_here")
+    >> ALIAS(NOP, "restore_here")
     >> back
     >> GOTO("done")
     >> handler_block
@@ -222,18 +215,4 @@ comp = (
 await WorkflowInterpreter(comp.render()).run()
 ```
 
-### 在快照中包含依赖注入参数
-
-```python
-# 保存所有内容，包括依赖注入状态
-comp = (
-    start
-    >> PUSH_CONTEXT(exclude_deps=False, exclude_stack=False)
-    >> GOTO("sub")
-    >> ALIAS(sub_work, "sub")
-    >> POP_CONTEXT()
-    >> restore_and_continue  # 接收完整的 InterpreterContext
-)
-```
-
-> **另见**：[中断例程与中断返回](/zh/guide/practice/interrupt-routine) 了解高级模式，包括嵌套中断、手动 rebase 以及与外部中断调用的集成。
+> **另见**：[中断例程与中断返回](/zh/guide/practice/interrupt-routine) 了解高级模式。

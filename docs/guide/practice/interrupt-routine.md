@@ -27,9 +27,35 @@ Each `WorkflowInterpreter` now maintains a **context stack** (`pc.context_stack`
 
 ---
 
-## Pattern 1: INTERRUPT_INTO + INTERRUPT_RET (Simplest)
+## Pattern 1: PUSH_CONTEXT + INTERRUPT_RET (Simplest Context Save)
 
-The most concise pattern — best for most interrupt scenarios.
+The simplest pattern — save full state, jump to a sub-routine, restore and return.
+
+```python
+from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
+from amrita_sense.instructions import GOTO, INTERRUPT_RET, PUSH_CONTEXT
+
+@Node()  async def start() -> None: ...
+@Node()  async def sub_routine() -> None: ...
+@Node()  async def after_restore() -> None: ...
+
+comp = (
+    start
+    >> PUSH_CONTEXT("sub_entry")   # save state, jump to sub
+    >> after_restore                # resumed here after INTERRUPT_RET
+    >> GOTO("done")
+    >> ALIAS(sub_routine, "sub_entry")
+    >> INTERRUPT_RET()              # pop & restore
+    >> ALIAS(NOP, "done")
+)
+await WorkflowInterpreter(comp.render()).run()
+```
+
+---
+
+## Pattern 2: INTERRUPT_INTO + INTERRUPT_RET (Interrupt with Explicit Return)
+
+`INTERRUPT_INTO(jump_to, ret_to)` takes **two** addresses: where to go now, and where to return. This is the closest analog to CPU interrupt semantics.
 
 ```python
 from amrita_sense import ALIAS, ARCHIVED_NODES, NOP, Node, WorkflowInterpreter
@@ -37,20 +63,19 @@ from amrita_sense.instructions import GOTO, INTERRUPT_INTO, INTERRUPT_RET
 
 @Node()  async def main_logic() -> None: ...
 @Node()  async def error_handler() -> None:
-    print("Handling error, will restore context on return")
-@Node()  async def after_handler() -> None: ...
+    print("Handling error")
 
-# Step 1: Define the handler inside ARCHIVED_NODES
 handler_block = ARCHIVED_NODES(
     ALIAS(error_handler, "on_error"),
-    INTERRUPT_RET(),  # <-- restores context and returns
+    INTERRUPT_RET(),
 )
 
-# Step 2: Use INTERRUPT_INTO in the main composition
 comp = (
     main_logic
-    >> INTERRUPT_INTO("on_error")    # save state + jump
-    >> after_handler                  # resumed here after INTERRUPT_RET
+    >> INTERRUPT_INTO("on_error", "restore_here")
+    #     ^jump now            ^return address saved in context
+    >> ALIAS(NOP, "restore_here")
+    >> after_handler
     >> GOTO("done")
     >> handler_block
     >> ALIAS(NOP, "done")
@@ -60,56 +85,9 @@ await WorkflowInterpreter(comp.render()).run()
 
 **What happens:**
 
-1. `INTERRUPT_INTO("on_error")` saves the full interpreter state and jumps to `error_handler`.
-2. `error_handler` runs. Then `INTERRUPT_RET` restores the saved state (pointer, exception-ignore list, etc.) and jumps back.
-3. The interpreter continues at `after_handler`.
-
----
-
-## Pattern 2: Manual PUSH_CONTEXT + GOTO + rebase_context (Fine-Grained)
-
-When you need to inspect or modify the saved context before restoring, use manual context management.
-
-```python
-from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
-from amrita_sense.instructions import GOTO, POP_CONTEXT, PUSH_CONTEXT
-
-@Node()  async def start() -> None:
-    print("Saving context...")
-
-@Node()  async def sub_routine() -> None:
-    print("  [sub] Working in sub-routine")
-    # Could modify pc state here — changes will be visible after restore
-
-@Node()
-async def examine_and_restore(ctx: InterpreterContext, pc: WorkflowInterpreter) -> None:
-    """Receives the popped context, inspects it, then restores."""
-    print(f"  Saved ptr was: {ctx.ptr}")
-    print(f"  Ignored exceptions: {ctx.exception_ignored}")
-    # Optionally modify ctx before restoring
-    pc.rebase_context(ctx)
-
-@Node()  async def finish() -> None:
-    print("Back in original flow")
-
-comp = (
-    start
-    >> PUSH_CONTEXT()
-    >> GOTO("sub")
-    >> ALIAS(sub_routine, "sub")
-    >> POP_CONTEXT()
-    >> examine_and_restore
-    >> finish
-    >> ALIAS(NOP, "done")
-)
-await WorkflowInterpreter(comp.render()).run()
-```
-
-**When to use:**
-
-- You need to inspect the saved state before restoring.
-- You want to conditionally restore or modify the context.
-- You need to serialize the context for debugging/auditing.
+1. `INTERRUPT_INTO("on_error", "restore_here")` saves interpreter state, **replaces** the saved ptr with `"restore_here"`, sets `if_flag`, jumps to `error_handler`.
+2. `error_handler` runs. `INTERRUPT_RET` pops and restores the state — resuming at `"restore_here"`.
+3. `after_handler` executes, then `GOTO("done")`.
 
 ---
 
@@ -123,27 +101,22 @@ from amrita_sense.instructions import GOTO, INTERRUPT_INTO, INTERRUPT_RET
 
 @Node()  async def main_flow() -> None: ...
 
-# --- Handler library ---
 @Node()  async def handle_timeout() -> None:
-    print("[timeout handler] Cleaning up...")
+    print("[timeout] Cleaning up...")
 
 @Node()  async def handle_auth_failure() -> None:
-    print("[auth handler] Refreshing credentials...")
-
-@Node()  async def health_check() -> None:
-    print("[health] All systems nominal")
+    print("[auth] Refreshing credentials...")
 
 handler_library = ARCHIVED_NODES(
     ALIAS(handle_timeout, "timeout"),
     ALIAS(handle_auth_failure, "auth"),
-    ALIAS(health_check, "health"),
-    INTERRUPT_RET(),  # shared return for all handlers
+    INTERRUPT_RET(),  # shared return
 )
 
-# --- Main composition ---
 comp = (
     main_flow
-    >> INTERRUPT_INTO("timeout")      # choose which handler to invoke
+    >> INTERRUPT_INTO("timeout", "after_timeout")
+    >> ALIAS(NOP, "after_timeout")
     >> GOTO("done")
     >> handler_library
     >> ALIAS(NOP, "done")
@@ -151,24 +124,17 @@ comp = (
 await WorkflowInterpreter(comp.render()).run()
 ```
 
-**Note:** When multiple handlers share one `INTERRUPT_RET()`, make sure each handler logically ends by reaching that node. For handlers that need their own return paths, place `INTERRUPT_RET()` inside each handler block.
-
 ---
 
 ## Pattern 4: Nested Interrupts
 
-The context stack supports **nested** save/restore — like a CPU handling nested interrupts. Each `INTERRUPT_INTO` pushes a new context; each `INTERRUPT_RET` pops the most recent one.
+The context stack supports **nested** save/restore — like a CPU handling nested interrupts.
 
 ```python
-# Outer handler enters via INTERRUPT_INTO
-# Inner handler is triggered by another INTERRUPT_INTO inside the outer handler
-# Returns unwind in LIFO order: inner RET first, then outer RET
-
 @Node()
 async def outer_handler() -> None:
     print("  [outer] Starting...")
-    # INTERRUPT_INTO("inner") — nested interrupt
-    print("  [outer] Back from inner interrupt")
+    # hits INTERRUPT_INTO inside the outer handler
 
 @Node()
 async def inner_handler() -> None:
@@ -176,7 +142,8 @@ async def inner_handler() -> None:
 
 handlers = ARCHIVED_NODES(
     ALIAS(outer_handler, "outer_handler"),
-    INTERRUPT_INTO("inner_handler"),  # nested interrupt call
+    INTERRUPT_INTO("inner_handler", "after_inner"),
+    ALIAS(NOP, "after_inner"),
     INTERRUPT_RET(),                   # outer return
     ALIAS(inner_handler, "inner_handler"),
     INTERRUPT_RET(),                   # inner return
@@ -184,20 +151,14 @@ handlers = ARCHIVED_NODES(
 
 comp = (
     main_start
-    >> INTERRUPT_INTO("outer_handler")
+    >> INTERRUPT_INTO("outer_handler", "after_outer")
+    >> ALIAS(NOP, "after_outer")
     >> after_all
     >> GOTO("done")
     >> handlers
     >> ALIAS(NOP, "done")
 )
 ```
-
-**Execution order:**
-
-1. `main_start` → `INTERRUPT_INTO("outer_handler")` saves context A, jumps to `outer_handler`.
-2. `outer_handler` runs, hits `INTERRUPT_INTO("inner_handler")` — saves context B, jumps to `inner_handler`.
-3. `inner_handler` runs, hits `INTERRUPT_RET()` — restores context B, returns to `outer_handler`.
-4. `outer_handler` continues, hits `INTERRUPT_RET()` — restores context A, returns to `after_all`.
 
 ---
 
@@ -208,20 +169,15 @@ comp = (
 | `call_sub(interrupt=True)`         | **External** | Outside code injects a subroutine at node boundaries             |
 | `INTERRUPT_INTO` / `INTERRUPT_RET` | **Internal** | Instructions in the `>>` chain perform context save/jump/restore |
 
-These mechanisms are **complementary**:
-
-- External `call_sub` can invoke a handler that was entered via `INTERRUPT_INTO`.
-- An `INTERRUPT_INTO` handler can be stored in `ARCHIVED_NODES` and called externally via `call_sub(interrupt=True)`.
-- Use `INTERRUPT_INTO` for **workflow-internal** interrupt patterns; use `call_sub(interrupt=True)` for **debugger/external-agent** injection.
-
 See [External Interrupt Calls](/guide/advanced/external_interrupt) for the external mechanism.
 
 ---
 
 ## Caveats
 
-1. **No INTERRUPT_INTO inside IF branches**: Attempting `INTERRUPT_INTO` while `pc.if_flag == True` raises `IllegalState`. This protects conditional flow integrity.
-2. **Context stack integrity**: `INTERRUPT_RET` pops unconditionally. Ensure every `INTERRUPT_INTO` has a corresponding `INTERRUPT_RET` (or manual `POP_CONTEXT` + `rebase_context`).
-3. **if_flag is cleared on return**: After `INTERRUPT_RET`, `pc.if_flag` is always reset to `False`, regardless of the `if_state` set at entry.
-4. **`INTERRUPT_RET` performs `jump_to`**: Like other jump instructions, it sets `_jump_marked = True`. The interpreter will not advance the pointer — execution resumes at the restored address.
-5. **Dependency injection is preserved**: When `INTERRUPT_INTO` saves context, it always includes `s_args` and `s_kwargs`. Nodes after `INTERRUPT_RET` will see the same dependency injection parameters as before the interrupt.
+1. **No INTERRUPT_INTO inside IF branches**: `pc.if_flag == True` raises `IllegalState`.
+2. **Explicit ret_to**: With `INTERRUPT_INTO`, you must always provide a return destination alias.
+3. **if_flag cleared on return**: After `INTERRUPT_RET`, `pc.if_flag` is always reset to `False`.
+4. **INTERRUPT_RET performs jump_to**: Like other jump instructions, it sets `_jump_marked = True`.
+5. **Dependency injection preserved**: `INTERRUPT_INTO` always includes `s_args` and `s_kwargs`.
+6. **Context stack integrity**: Ensure each `PUSH_CONTEXT`/`INTERRUPT_INTO` has a corresponding `INTERRUPT_RET`.
