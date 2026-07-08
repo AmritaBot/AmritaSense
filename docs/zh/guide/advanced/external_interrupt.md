@@ -133,3 +133,21 @@ pc.object_io.resume()
 `aiologic.Lock` 确保同一时刻只有一个注入在执行。多个外部调用者会排队，不会出现嵌套注入。解释器内部的状态在锁的保护下保持稳定。
 
 通过这套机制，AmritaSense 将外部干预从“破坏性中断”变为“安全的功能调用”，为构建全功能调试器、监控系统和动态流控提供了坚实的基础。
+
+## 4.4.5 中断例程与上下文快照（v0.3.x+）
+
+AmritaSense v0.3.x+ 提供了用于工作流**内部**中断式控制转移的内置指令：`INTERRUPT_INTO` / `INTERRUPT_RET`。与从解释器**外部**注入代码的 `call_sub(interrupt=True)` 不同，这些指令直接放置在 `>>` 链中，执行：
+
+1. 保存完整解释器状态 → `InterpreterContext`
+2. 跳转到处理例程（如存储在 `ARCHIVED_NODES` 中）
+3. 恢复状态并返回
+
+适用场景：
+
+- 需要完整上下文的错误恢复子程序
+- 带状态检查的调试断点
+- 嵌套中断处理（LIFO 上下文栈）
+
+**外部 vs 内部**：`call_sub(interrupt=True)` 是外部驱动的（调试器、HTTP 端点）；`INTERRUPT_INTO`/`INTERRUPT_RET` 是在 `>>` 链中内部编排的。两种机制互补且可组合使用。
+
+完整示例和模式请参见[中断例程与中断返回](/zh/guide/practice/interrupt-routine)。

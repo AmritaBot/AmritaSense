@@ -22,6 +22,7 @@ WorkflowInterpreter(
     extra_args: tuple = (),
     extra_kwargs: dict[str, Any] | None = None,
     addr_stack: Stack[PointerVector] | None = None,
+    context_stack: Stack[InterpreterContext] | None = None,
     middleware: Callable[['WorkflowInterpreter'], Awaitable[Any]] | None = None,
 )
 ```
@@ -33,6 +34,7 @@ Arguments:
 - `exception_ignored`: Exception types to bypass TRY/CATCH blocks.
 - `extra_args` / `extra_kwargs`: Additional runtime values available for dependency injection.
 - `addr_stack`: Optional return address stack.
+- `context_stack` (v0.3.x+): Optional pre-initialized interpreter context stack for save/restore workflows. Defaults to a new empty `Stack[InterpreterContext]`.
 - `middleware`: Optional async callable that receives the `WorkflowInterpreter` instance. When set, `run_step_by()` and `call_sub()` delegate to the middleware instead of calling nodes directly. The middleware can decide whether and how to execute nodes, transform results, or inject custom logic around every step.
 - `parent_interpreter` (v0.3.0+): Optional parent `WorkflowInterpreter` for building an interpreter tree. Set automatically by `fork_interpreter()` — rarely needed directly.
 
@@ -59,6 +61,8 @@ To recover from a panic, simply call `run()` (or `run_step_by()`) again on the s
 - `_ret_addr_stack`: Return address stack for subroutine calls.
 - `_jump_marked`: Flag indicating whether a jump operation occurred.
 - `_interpret_lock`: Async lock used to guarantee one-node-at-a-time execution.
+- `_if_flag` (v0.3.x+): Boolean flag indicating whether the interpreter is in an interrupt context.
+- `_context_stack` (v0.3.x+): LIFO stack of `InterpreterContext` snapshots used by PUSH_CONTEXT/POP_CONTEXT and INTERRUPT_INTO/INTERRUPT_RET.
 - `object_io`: External I/O stream used for suspend/resume and streaming output.
 
 ### Interpreter Tree (v0.3.0+)
@@ -181,13 +185,44 @@ Return the last panic exception, or `None` if the interpreter finished normally 
 
 #### `reset()` (v0.3.1+)
 
-Reset the interpreter's execution state to its initial values: clear the pointer, return address stack, jump marker, pending stop flag, waiter future, and panic exception. This is **independent of the recovery flow** — to recover from a panic, simply call `run()` again without resetting.
+Reset the interpreter's execution state to its initial values: clear the pointer, return address stack, jump marker, pending stop flag, waiter future, panic exception, context stack, and `if_flag`. This is **independent of the recovery flow** — to recover from a panic, simply call `run()` again without resetting.
 
 `reset()` is intended for scenarios where you want to restart execution from scratch on the same workflow graph without creating a new interpreter.
 
 #### `find_addr_alias(alias: str) -> list[int]`
 
 Resolve an alias to its absolute address vector. Raises `NullPointerException` if the alias does not exist.
+
+#### `if_flag` property (v0.3.x+)
+
+Get or set the interrupt context flag. The setter validates that the value is a boolean. When `True`, `INTERRUPT_INTO` cannot be called (raises `IllegalState`).
+
+**Type**: `bool`
+
+#### `context_stack` property (v0.3.x+)
+
+Returns the interpreter's context stack — a `Stack[InterpreterContext]` used for save/restore workflows.
+
+**Type**: `Stack[InterpreterContext]`
+
+#### `dump_interpreter(exclude_deps=True, exclude_stack=True) -> InterpreterContext` (v0.3.x+)
+
+Export a complete snapshot of the current interpreter state. Used by `PUSH_CONTEXT` and `INTERRUPT_INTO`.
+
+**Parameters**
+
+- `exclude_deps`: If `True` (default), dependency args/kwargs are excluded from the snapshot.
+- `exclude_stack`: If `True` (default), the return-address stack is excluded.
+
+**Returns**: An `InterpreterContext` dataclass with `ptr`, `exception_ignored`, optional `s_args`/`s_kwargs`, optional `stack`, `extra`, and `exception` fields.
+
+#### `rebase_context(ctx: InterpreterContext) -> None` (v0.3.x+)
+
+Restore the interpreter state from an `InterpreterContext` snapshot. Sets the pointer, exception-ignore list, dependency args, return-address stack, and panic exception from the context.
+
+**Parameters**
+
+- `ctx`: The `InterpreterContext` to restore from.
 
 #### `find_addr(addr: list[int]) -> BaseNode | NodeComposeRendered`
 

@@ -66,7 +66,7 @@ graph TD
 > 🛂 **比喻**：海关检查站——每件货物都经过检查，但检查完立即放行，不会长时间滞留。
 
 ::: warning 回调模式与迭代器互斥
-**重要限制**：`callback` 与 `async for` 迭代消费是**互斥的**。同一个 `SuspendObjectStream` 实例只能选择其中一种方式处理响应流。同时设置回调并使用迭代器将导致 `RuntimeError`。
+**重要限制**：`callback` 与 `async for` 迭代消费是**互斥的**。同一个 `SuspendObjectStream` 实例只能选择其中一种方式处理响应流。同时设置回调并使用迭代器将导致 `StreamStateError`。
 :::
 
 ### 挂起点 vs 时钟中断：有状态与无状态
@@ -249,7 +249,7 @@ async def foo(self, stream, x): ...
 
 | 异常                   | 触发条件                                  |
 | ---------------------- | ----------------------------------------- |
-| `RuntimeError`         | 已经有一个 `wait_to_suspend()` 正在等待中 |
+| `StreamStateError`     | 已经有一个 `wait_to_suspend()` 正在等待中 |
 | `asyncio.TimeoutError` | 在 `timeout` 秒内未到达匹配的断点         |
 
 **标签匹配规则**：
@@ -324,10 +324,10 @@ async def custom_step(self, stream: SuspendObjectStream):
 | ----- | ------------- | ---------------- |
 | `obj` | `ObjectTypeT` | 要推入队列的对象 |
 
-| 异常           | 触发条件                                |
-| -------------- | --------------------------------------- |
-| `RuntimeError` | 队列已关闭（`queue_closed() == True`）  |
-| `TimeoutError` | 队列满且在 `queue_timeout` 秒内无法放入 |
+| 异常               | 触发条件                                |
+| ------------------ | --------------------------------------- |
+| `StreamStateError` | 队列已关闭（`queue_closed() == True`）  |
+| `TimeoutError`     | 队列满且在 `queue_timeout` 秒内无法放入 |
 
 ```python
 await stream.push_object("用户输入数据")
@@ -341,10 +341,10 @@ await stream.push_object("用户输入数据")
 | ---------- | ------------- | ---------------- |
 | `response` | `ObjectTypeT` | 要发送的响应对象 |
 
-| 异常           | 触发条件               |
-| -------------- | ---------------------- |
-| `RuntimeError` | 未配置回调且队列已关闭 |
-| `TimeoutError` | 队列模式且队列满时超时 |
+| 异常               | 触发条件               |
+| ------------------ | ---------------------- |
+| `StreamStateError` | 未配置回调且队列已关闭 |
+| `TimeoutError`     | 队列模式且队列满时超时 |
 
 **执行路径**：
 
@@ -395,9 +395,9 @@ await stream.yield_response_iteration(my_generator())
 | ------ | --------------- | ---------------------------------------------- |
 | `func` | `CALLBACK_TYPE` | 签名为 `async (ObjectTypeT) -> Any` 的协程函数 |
 
-| 异常           | 触发条件                             |
-| -------------- | ------------------------------------ |
-| `RuntimeError` | 回调已被设置（每个实例只能设置一次） |
+| 异常               | 触发条件                             |
+| ------------------ | ------------------------------------ |
+| `StreamStateError` | 回调已被设置（每个实例只能设置一次） |
 
 ```python
 async def monitor(response: str):
@@ -417,9 +417,9 @@ stream.set_callback_func(monitor)
 | ------ | --------------- | ---------------------------------------------- |
 | `func` | `CALLBACK_TYPE` | 签名为 `async (ObjectTypeT) -> Any` 的协程函数 |
 
-| 异常           | 触发条件     |
-| -------------- | ------------ |
-| `RuntimeError` | 回调已被设置 |
+| 异常               | 触发条件     |
+| ------------------ | ------------ |
+| `StreamStateError` | 回调已被设置 |
 
 ---
 
@@ -433,9 +433,9 @@ stream.set_callback_func(monitor)
 | ----------------------------------- | ---------------------------- |
 | `AsyncGenerator[ObjectTypeT, None]` | 迭代产出响应对象的异步生成器 |
 
-| 异常           | 触发条件                                                        |
-| -------------- | --------------------------------------------------------------- |
-| `RuntimeError` | 已有消费者在迭代（`_has_consumer == True`）**或**已设置回调函数 |
+| 异常               | 触发条件                                                        |
+| ------------------ | --------------------------------------------------------------- |
+| `StreamStateError` | 已有消费者在迭代（`_has_consumer == True`）**或**已设置回调函数 |
 
 **生成器生命周期**：
 
@@ -451,7 +451,7 @@ async for response in stream.get_response_generator():
 ```
 
 ::: warning
-`get_response_generator()` 只能调用**一次**。同时存在多个消费者或与回调混用将抛出 `RuntimeError`。
+`get_response_generator()` 只能调用**一次**。同时存在多个消费者或与回调混用将抛出 `StreamStateError`。
 :::
 
 ---

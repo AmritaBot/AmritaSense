@@ -135,6 +135,20 @@ Python's `except Exception` does not catch `BaseException` subclasses. Therefore
    workflow = Sequence(StepA(), Branch(If(condition=is_error, then=INTERRUPT), ...))
    ```
 
+**InterruptKeepContext (v0.3.x+)**
+
+`InterruptKeepContext` is a subclass of `InterruptNotice` that provides a **context-preserving** variant. When the interpreter catches it, instead of calling `reset()`, the pointer, call stacks, and dependency injection parameters are left intact. Execution can be resumed by calling `run()` again on the same interpreter.
+
+| Exception              | After catch                       | Recoverable | Node                 |
+| ---------------------- | --------------------------------- | ----------- | -------------------- |
+| `InterruptNotice`      | `reset()` — clears all state      | ❌          | `INTERRUPT`          |
+| `InterruptKeepContext` | Skips `reset()` — state preserved | ✅ `run()`  | `INTERRUPT_KEEP_CTX` |
+
+**Trigger methods**:
+
+1. Insert `INTERRUPT_KEEP_CTX` node in the workflow (from `amrita_sense.instructions.workfl_ctrl`)
+2. Raise `InterruptKeepContext` directly from node code
+
 **Interpreter main loop handling**:
 
 ```python
@@ -152,6 +166,7 @@ except InterruptNotice as e:
 | -------------- | ----------------------------------- | ------------ | -------------------------------- | ----------------------- |
 | Suppressible   | `Exception` subclasses              | ✅ TRY/CATCH | Panic -> Interpreter Dumped      | ✅ Recovered from Panic |
 | Unsuppressible | `InterruptNotice` (`BaseException`) | ❌           | Clear stack & pointer, terminate | ❌                      |
+| Keep-context   | `InterruptKeepContext`              | ❌           | Preserve state, wait for resume  | ✅ `run()` again        |
 
 ## 3.4.3 External Interrupt — `call_sub(interrupt=True)`
 

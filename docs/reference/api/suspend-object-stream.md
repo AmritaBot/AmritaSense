@@ -66,7 +66,7 @@ Implemented via the `callback` mechanism:
 > 🛂 **Analogy**: A customs checkpoint — every item is inspected, but released immediately after inspection without prolonged detention.
 
 ::: warning Callback and Iterator Are Mutually Exclusive
-**Important limitation**: `callback` and `async for` iteration are **mutually exclusive**. A single `SuspendObjectStream` instance can only use one method to handle the response stream. Setting a callback and using an iterator simultaneously will raise `RuntimeError`.
+**Important limitation**: `callback` and `async for` iteration are **mutually exclusive**. A single `SuspendObjectStream` instance can only use one method to handle the response stream. Setting a callback and using an iterator simultaneously will raise `StreamStateError`.
 :::
 
 ### Suspend Points vs. Clock-Cycle Interrupts: Stateful vs. Stateless
@@ -249,7 +249,7 @@ async def foo(self, stream, x): ...
 
 | Raises                 | Condition                                               |
 | ---------------------- | ------------------------------------------------------- |
-| `RuntimeError`         | Another `wait_to_suspend()` is already in progress      |
+| `StreamStateError`     | Another `wait_to_suspend()` is already in progress      |
 | `asyncio.TimeoutError` | No matching breakpoint reached within `timeout` seconds |
 
 **Tag matching rules**:
@@ -324,10 +324,10 @@ Pushes an object into the stream's send queue. This method first passes through 
 | --------- | ------------- | --------------------------------- |
 | `obj`     | `ObjectTypeT` | The object to push into the queue |
 
-| Raises         | Condition                                                   |
-| -------------- | ----------------------------------------------------------- |
-| `RuntimeError` | Queue is closed (`queue_closed() == True`)                  |
-| `TimeoutError` | Queue is full and cannot put within `queue_timeout` seconds |
+| Raises             | Condition                                                   |
+| ------------------ | ----------------------------------------------------------- |
+| `StreamStateError` | Queue is closed (`queue_closed() == True`)                  |
+| `TimeoutError`     | Queue is full and cannot put within `queue_timeout` seconds |
 
 ```python
 await stream.push_object("User input data")
@@ -341,10 +341,10 @@ Sends a response object to the consumer. **This is the primary data exit point f
 | ---------- | ------------- | --------------------------- |
 | `response` | `ObjectTypeT` | The response object to send |
 
-| Raises         | Condition                                  |
-| -------------- | ------------------------------------------ |
-| `RuntimeError` | No callback configured and queue is closed |
-| `TimeoutError` | Queue mode and queue is full with timeout  |
+| Raises             | Condition                                  |
+| ------------------ | ------------------------------------------ |
+| `StreamStateError` | No callback configured and queue is closed |
+| `TimeoutError`     | Queue mode and queue is full with timeout  |
 
 **Execution path**:
 
@@ -395,9 +395,9 @@ Sets the producer-side response callback. Once set, all `yield_response()` calls
 | --------- | --------------- | ---------------------------------------------------------------- |
 | `func`    | `CALLBACK_TYPE` | A coroutine function with signature `async (ObjectTypeT) -> Any` |
 
-| Raises         | Condition                                                         |
-| -------------- | ----------------------------------------------------------------- |
-| `RuntimeError` | Callback has already been set (can only be set once per instance) |
+| Raises             | Condition                                                         |
+| ------------------ | ----------------------------------------------------------------- |
+| `StreamStateError` | Callback has already been set (can only be set once per instance) |
 
 ```python
 async def monitor(response: str):
@@ -417,9 +417,9 @@ Sets the sender-side response callback (for intercepting the `push_object()` pat
 | --------- | --------------- | ---------------------------------------------------------------- |
 | `func`    | `CALLBACK_TYPE` | A coroutine function with signature `async (ObjectTypeT) -> Any` |
 
-| Raises         | Condition                     |
-| -------------- | ----------------------------- |
-| `RuntimeError` | Callback has already been set |
+| Raises             | Condition                     |
+| ------------------ | ----------------------------- |
+| `StreamStateError` | Callback has already been set |
 
 ---
 
@@ -433,9 +433,9 @@ Returns an async generator that iterates over response objects until the done ma
 | ----------------------------------- | -------------------------------------------- |
 | `AsyncGenerator[ObjectTypeT, None]` | An async generator yielding response objects |
 
-| Raises         | Condition                                                                                  |
-| -------------- | ------------------------------------------------------------------------------------------ |
-| `RuntimeError` | A consumer is already iterating (`_has_consumer == True`) **or** a callback is already set |
+| Raises             | Condition                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------ |
+| `StreamStateError` | A consumer is already iterating (`_has_consumer == True`) **or** a callback is already set |
 
 **Generator lifecycle**:
 
@@ -451,7 +451,7 @@ async for response in stream.get_response_generator():
 ```
 
 ::: warning
-`get_response_generator()` may only be called **once**. Multiple concurrent consumers or mixing with callback will raise `RuntimeError`.
+`get_response_generator()` may only be called **once**. Multiple concurrent consumers or mixing with callback will raise `StreamStateError`.
 :::
 
 ---

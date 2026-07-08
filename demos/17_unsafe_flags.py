@@ -15,6 +15,7 @@ import asyncio
 # __flags__.DISABLE_EXC_IGNORED = True
 # __flags__.NO_DEPENDENCY_META_CACHE = True
 # __flags__.NO_SHARED_MIDDLEWARE = True
+# __flags__.JIT_OPTIMIZE = True
 from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
 
 # ✅ Correct: configure flags at the very top of the entry point
@@ -62,9 +63,20 @@ async def demo_flag_lock() -> None:
         print(f"RuntimeError (expected): {e}")
 
 
+async def demo_jit_optimize() -> None:
+    """Demonstrate JIT_OPTIMIZE flag behavior.
+
+    When JIT_OPTIMIZE is enabled, NOP nodes are skipped entirely in _call(),
+    avoiding the per-node overhead of dependency injection and lock acquire/release.
+    """
+    print("\n=== Demo 3: JIT_OPTIMIZE flag ===")
+    print(f"JIT_OPTIMIZE (before any set): {__flags__.JIT_OPTIMIZE}")
+
+
 async def main() -> None:
     await demo_normal()
     await demo_flag_lock()
+    await demo_jit_optimize()
 
 
 if __name__ == "__main__":

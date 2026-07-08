@@ -72,14 +72,57 @@ The only exception is when `InterruptNotice` is explicitly included in the `exce
 - **Emergency safety stop**: insert `INTERRUPT` in the workflow when an unrecoverable error or dangerous condition occurs.
 - **Timeout handling**: a node can check timeout conditions before execution and raise `INTERRUPT` to force termination.
 
+## INTERRUPT_KEEP_CTX context-preserving termination (v0.3.x+)
+
+`INTERRUPT_KEEP_CTX` is a variant termination node that raises `InterruptKeepContext` instead of `InterruptNotice`. Unlike `INTERRUPT`, the interpreter does **not** call `reset()` after catching this exception — the pointer, call stack, dependency injection parameters, and all execution state are **preserved** for later recovery.
+
+### Implementation
+
+```python
+@_node_fun(wrap_to_async=False, address_able=True)
+def _interrupt_keep_ctx() -> NoReturn:
+    raise InterruptKeepContext("Interrupt Node with context retention")
+
+INTERRUPT_KEEP_CTX: _Node[NoReturn] = _interrupt_keep_ctx
+```
+
+### Key attributes
+
+- `address_able=True`: unlike `INTERRUPT`, this node **can** be aliased and placed in `ARCHIVED_NODES` as a target.
+- `NoReturn`: same as `INTERRUPT` — the node never returns normally.
+- Raises `InterruptKeepContext` (a subclass of `InterruptNotice`).
+
+### Execution mechanism
+
+1. **Raise `InterruptKeepContext`**: a `BaseException` subclass that the interpreter's main loop catches.
+2. **Interpreter response**: the main loop checks `isinstance(e, InterruptKeepContext)`. If true, it skips the `reset()` call — the pointer, stacks, and dependency args are left intact.
+3. **State preserved**: `_panic_exc` is set, `_waiter_fut` receives the exception.
+4. **Recovery**: call `run()` or `run_step_by()` again on the same interpreter to resume from the preserved state.
+
+### Comparison with INTERRUPT
+
+| Aspect      | INTERRUPT                    | INTERRUPT_KEEP_CTX                      |
+| ----------- | ---------------------------- | --------------------------------------- |
+| Exception   | `InterruptNotice`            | `InterruptKeepContext`                  |
+| After catch | `reset()` — clears all state | Skips `reset()` — state preserved       |
+| Addressable | No                           | Yes                                     |
+| Recoverable | No (fresh start required)    | Yes (call `run()` to resume)            |
+| Use case    | Emergency termination        | Pause-inspect-resume, debug breakpoints |
+
+### Usage scenarios
+
+- **Pause-inspect-resume**: terminate with context preserved, inspect state via `get_exception()`, then `run()` to resume.
+- **Debug breakpoints**: place `INTERRUPT_KEEP_CTX` in `ARCHIVED_NODES`, call externally via `call_sub(interrupt=True)` to break and inspect.
+- **Checkpoint-restart**: save work-in-progress state, restart from the exact point later.
+
 ## Comparison summary
 
-|                  | NOP                                       | INTERRUPT                      |
-| ---------------- | ----------------------------------------- | ------------------------------ |
-| Responsibility   | placeholder, convergence, return point    | emergency termination          |
-| Addressable      | yes                                       | no                             |
-| Return type      | `None`                                    | `NoReturn`                     |
-| Control impact   | none, execution continues                 | terminates entire workflow     |
-| Typical position | ALIAS target, branch tail, subroutine end | error branch end, timeout path |
+|                  | NOP                                       | INTERRUPT                      | INTERRUPT_KEEP_CTX                |
+| ---------------- | ----------------------------------------- | ------------------------------ | --------------------------------- |
+| Responsibility   | placeholder, convergence, return point    | emergency termination          | pause with context preservation   |
+| Addressable      | yes                                       | no                             | yes                               |
+| Return type      | `None`                                    | `NoReturn`                     | `NoReturn`                        |
+| Control impact   | none, execution continues                 | terminates, clears state       | terminates, preserves state       |
+| Typical position | ALIAS target, branch tail, subroutine end | error branch end, timeout path | debug breakpoints, ARCHIVED_NODES |
 
 `NOP` is the silent scaffolding for complex control flow, while `INTERRUPT` is the final safety valve. Together, they form the foundation of AmritaSense’s execution control system.

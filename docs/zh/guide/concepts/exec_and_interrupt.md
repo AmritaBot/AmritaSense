@@ -145,6 +145,20 @@ class InterruptNotice(BaseException):
    ```
    `INTERRUPT` 是一个 `address_able=False` 的特殊节点，执行时直接抛出 `InterruptNotice("Interrupt Node")`。
 
+**InterruptKeepContext（v0.3.x+）**
+
+`InterruptKeepContext` 是 `InterruptNotice` 的子类，提供**保留上下文**的变体。解释器捕获后不调用 `reset()`，而是保留指针、调用栈和依赖注入参数。可在同一解释器上再次调用 `run()` 恢复执行。
+
+| 异常                   | 捕获后                    | 可恢复     | 对应节点             |
+| ---------------------- | ------------------------- | ---------- | -------------------- |
+| `InterruptNotice`      | `reset()` — 清空所有状态  | ❌         | `INTERRUPT`          |
+| `InterruptKeepContext` | 跳过 `reset()` — 状态保留 | ✅ `run()` | `INTERRUPT_KEEP_CTX` |
+
+**触发方式**：
+
+1. 在工作流中插入 `INTERRUPT_KEEP_CTX` 节点（从 `amrita_sense.instructions.workfl_ctrl` 导入）
+2. 从节点代码中直接 `raise InterruptKeepContext()`
+
 **解释器主循环处理流程**：
 
 ```python
@@ -163,6 +177,7 @@ except InterruptNotice as e:
 | ------------ | ----------------------------------- | ------------ | --------------------------- | ----------------------- |
 | 可压制异常   | `Exception` 子类                    | ✅ TRY/CATCH | Panic -> Interpreter Dumped | ✅ Recovered from Panic |
 | 不可压制异常 | `InterruptNotice` (`BaseException`) | ❌           | 清空栈与指针，工作流终止    | ❌                      |
+| 保留上下文   | `InterruptKeepContext`              | ❌           | 保留状态，等待恢复          | ✅ 再次 `run()`         |
 
 ## 3.4.3 外中断（External Interrupt）—— `call_sub(interrupt=True)`
 

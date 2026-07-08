@@ -75,14 +75,57 @@ INTERRUPT: _Node[NoReturn] = _interrput_operation
 - **紧急安全停止**：在检测到不可恢复的错误或危险状态时，编排中主动插入的 `INTERRUPT` 节点触发立即退出
 - **超时处理**：`@Node()` 节点在开始执行前检查超时条件，若超时则返回 `INTERRUPT`，强制终止后续流程
 
+## INTERRUPT_KEEP_CTX 上下文保留终止指令（v0.3.x+）
+
+`INTERRUPT_KEEP_CTX` 是 `INTERRUPT` 的变体终止节点，抛出 `InterruptKeepContext` 而非 `InterruptNotice`。与 `INTERRUPT` 不同，解释器捕获此异常后**不**调用 `reset()`——指针、调用栈、依赖注入参数和所有执行状态均被**保留**，供后续恢复使用。
+
+### 实现
+
+```python
+@_node_fun(wrap_to_async=False, address_able=True)
+def _interrupt_keep_ctx() -> NoReturn:
+    raise InterruptKeepContext("Interrupt Node with context retention")
+
+INTERRUPT_KEEP_CTX: _Node[NoReturn] = _interrupt_keep_ctx
+```
+
+### 关键属性
+
+- `address_able=True`：与 `INTERRUPT` 不同，此节点**可以**被别名化并放入 `ARCHIVED_NODES` 作为目标。
+- `NoReturn`：与 `INTERRUPT` 相同——节点永远不会正常返回。
+- 抛出 `InterruptKeepContext`（`InterruptNotice` 的子类）。
+
+### 执行机制
+
+1. **抛出 `InterruptKeepContext`**：解释器主循环捕获的 `BaseException` 子类。
+2. **解释器响应**：主循环检查 `isinstance(e, InterruptKeepContext)`。若为 true，跳过 `reset()` 调用——指针、栈和依赖注入参数保持完整。
+3. **状态保留**：`_panic_exc` 被设置，`_waiter_fut` 接收异常。
+4. **恢复**：在同一解释器上再次调用 `run()` 或 `run_step_by()` 即可从保留状态恢复执行。
+
+### 与 INTERRUPT 的对比
+
+| 方面     | INTERRUPT                | INTERRUPT_KEEP_CTX        |
+| -------- | ------------------------ | ------------------------- |
+| 异常类型 | `InterruptNotice`        | `InterruptKeepContext`    |
+| 捕获后   | `reset()` — 清空所有状态 | 跳过 `reset()` — 状态保留 |
+| 可寻址   | 否                       | 是                        |
+| 可恢复   | 否（需全新启动）         | 是（调用 `run()` 恢复）   |
+| 适用场景 | 紧急终止                 | 暂停-检查-恢复、调试断点  |
+
+### 使用场景
+
+- **暂停-检查-恢复**：保留上下文终止，通过 `get_exception()` 检查状态，然后 `run()` 恢复。
+- **调试断点**：将 `INTERRUPT_KEEP_CTX` 放入 `ARCHIVED_NODES`，通过 `call_sub(interrupt=True)` 外部调用以中断并检查。
+- **检查点-重启**：保存进行中的工作状态，稍后从精确位置重新开始。
+
 ## 对比总结
 
-|                | NOP                                | INTERRUPT                      |
-| -------------- | ---------------------------------- | ------------------------------ |
-| 职责           | 占位、汇合、返回点                 | 紧急终止                       |
-| 可寻址         | 是                                 | 否                             |
-| 返回类型       | `None`                             | `NoReturn`                     |
-| 对控制流的影响 | 无，执行后自动推进                 | 彻底终止整个工作流             |
-| 典型位置       | `ALIAS` 目标、分支尾部、子程序末尾 | 错误处理路径末端、超时检查之后 |
+|                | NOP                                | INTERRUPT                      | INTERRUPT_KEEP_CTX       |
+| -------------- | ---------------------------------- | ------------------------------ | ------------------------ |
+| 职责           | 占位、汇合、返回点                 | 紧急终止                       | 暂停并保留上下文         |
+| 可寻址         | 是                                 | 否                             | 是                       |
+| 返回类型       | `None`                             | `NoReturn`                     | `NoReturn`               |
+| 对控制流的影响 | 无，执行后自动推进                 | 彻底终止，清空状态             | 终止但保留状态           |
+| 典型位置       | `ALIAS` 目标、分支尾部、子程序末尾 | 错误处理路径末端、超时检查之后 | 调试断点、ARCHIVED_NODES |
 
 `NOP` 是编织复杂控制流的**静默节点**，`INTERRUPT` 是守护工作流安全边界的**最后防线**。两者一静一动，构成了 AmritaSense 控制流体系的基石。
