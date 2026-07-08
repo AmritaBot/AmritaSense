@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar, overload
 
 from typing_extensions import Self
 
-from amrita_sense.exceptions import NullPointerException
+from amrita_sense.exceptions import GraphBuildError, NullPointerException
 from amrita_sense.hook.fun_typing import DependencyMeta, sign_func
 from amrita_sense.logging import debug_log, logger
 from amrita_sense.node.self_compile import SelfCompileInstruction
@@ -360,7 +360,7 @@ class NodeComposeRendered:
             top: Reference to the top-level rendered composition for alias registration.
 
         Raises:
-            RuntimeError: If the composition is already built or has no original graph.
+            GraphBuildError: If the composition is already built or has no original graph.
         """
 
         if current_path is None:
@@ -369,9 +369,9 @@ class NodeComposeRendered:
             top = self
 
         if hasattr(self, "_graph"):
-            raise RuntimeError("NodeComposeRendered is already built")
+            raise GraphBuildError("NodeComposeRendered is already built")
         if not self.__original_tmp:
-            raise RuntimeError("No original graph to build")
+            raise GraphBuildError("No original graph to build")
 
         self._graph = []
 
@@ -422,7 +422,7 @@ class NodeComposeRendered:
                         f"Alias node `{node.alias}` cannot be used in an addressable node."
                     )
                 if node.alias in top.alias2vector_map:
-                    raise RuntimeError(
+                    raise GraphBuildError(
                         f"Alias {node.alias} already exists in address `{top.alias2vector_map[node.alias]}`"
                     )
                 top.alias2vector_map[node.alias] = node_path

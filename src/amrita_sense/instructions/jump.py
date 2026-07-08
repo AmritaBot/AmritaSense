@@ -5,6 +5,7 @@ from typing import Any
 
 from typing_extensions import override
 
+from amrita_sense.exceptions import AliasNotFoundError
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.node.core import BaseNode
 from amrita_sense.runtime.workflow import WorkflowInterpreter
@@ -56,7 +57,7 @@ class JumpNode(BaseNode):
                     hint = f"{self._alias_or_idata} not found in namespace, did you mean {suggestion}"
                 else:
                     hint = f"{self._alias_or_idata} not found in namespace, please check your alias!"
-                raise RuntimeError(hint)
+                raise AliasNotFoundError(hint)
             self._node_addr = pointer.find_addr_alias(self._alias_or_idata)
         else:
             pointer.find_addr(self._alias_or_idata)

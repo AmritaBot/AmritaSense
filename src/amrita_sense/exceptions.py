@@ -58,7 +58,7 @@ class DependsException(Exception):
     """
 
 
-class DependsResolveFailed(Exception):
+class DependsResolveFailed(DependsException):
     """Exception raised when dependency resolution fails.
 
     This exception occurs when the dependency injection system cannot resolve
@@ -67,7 +67,7 @@ class DependsResolveFailed(Exception):
     """
 
 
-class DependsInjectFailed(Exception):
+class DependsInjectFailed(DependsException):
     """Exception raised when dependency injection fails.
 
     This exception occurs when the dependency injection system successfully
@@ -81,4 +81,30 @@ class IllegalState(Exception):
 
     This exception occurs when an operation is attempted in an invalid or
     illegal state, usually due to a missing or invalid dependency or resource.
+    """
+
+
+class GraphBuildError(Exception):
+    """Exception raised when workflow graph building or rendering fails.
+
+    This exception occurs when the workflow graph compiler encounters errors
+    during the rendering process, such as duplicate aliases, missing original
+    graphs, or attempting to build an already-built composition.
+    """
+
+
+class StreamStateError(Exception):
+    """Exception raised when a stream/queue operation is in an invalid state.
+
+    This exception occurs when attempting operations on a SuspendObjectStream
+    that conflict with its current state, such as pushing to a closed queue,
+    waiting for suspend when already waiting, or setting a callback twice.
+    """
+
+
+class AliasNotFoundError(Exception):
+    """Exception raised when a node alias cannot be found in the graph.
+
+    This exception occurs when a jump or call operation references an alias
+    that does not exist in the workflow graph's alias registry.
     """

@@ -1,10 +1,14 @@
 from . import _unsafe
 from .exceptions import (
+    AliasNotFoundError,
     DependsException,
     DependsInjectFailed,
     DependsResolveFailed,
+    GraphBuildError,
+    IllegalState,
     InterruptNotice,
     NullPointerException,
+    StreamStateError,
 )
 from .hook.event import BaseEvent
 from .hook.fun_typing import sign_func
@@ -38,11 +42,14 @@ __all__ = [
     "POINTER_DEPENDS",
     "TRIGGER_EVENT",
     "WHILE",
+    "AliasNotFoundError",
     "BaseEvent",
     "DependsException",
     "DependsInjectFailed",
     "DependsResolveFailed",
     "EventRegistry",
+    "GraphBuildError",
+    "IllegalState",
     "InterruptNotice",
     "Matcher",
     "MatcherFactory",
@@ -53,6 +60,7 @@ __all__ = [
     "NullPointerException",
     "PointerVector",
     "Stack",
+    "StreamStateError",
     "Try",
     "WorkflowInterpreter",
     "_unsafe",

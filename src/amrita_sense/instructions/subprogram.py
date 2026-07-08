@@ -5,6 +5,7 @@ from typing import Any
 
 from typing_extensions import override
 
+from amrita_sense.exceptions import AliasNotFoundError
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.node.core import BaseNode, NodeCompose
@@ -94,7 +95,7 @@ class CallNode(BaseNode):
                 )
             else:
                 hint = f"{self._alias} not found in namespace, please check your alias!"
-            raise ValueError(hint)
+            raise AliasNotFoundError(hint)
         self._addr = addr
 
     async def __call__(self, pc: WorkflowInterpreter) -> Any:

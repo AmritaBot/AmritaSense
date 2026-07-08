@@ -2,6 +2,7 @@ from typing import Any, cast
 
 import pytest
 
+from amrita_sense.exceptions import AliasNotFoundError
 from amrita_sense.instructions.jump import GOTO
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 
@@ -49,5 +50,5 @@ def test_goto_with_alias_resolves_address():
 def test_goto_with_unknown_alias_raises():
     j = GOTO("nope")
     ptr = cast(WorkflowInterpreter[Any], _FakePointer({}))
-    with pytest.raises(RuntimeError):
+    with pytest.raises(AliasNotFoundError):
         j._pre_check(ptr)

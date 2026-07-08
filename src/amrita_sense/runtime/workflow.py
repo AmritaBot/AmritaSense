@@ -384,6 +384,7 @@ class WorkflowInterpreter(Generic[io_T]):
             self._ava_kwargs = ctx.s_kwargs
         self._ret_addr_stack = ctx.stack or self._ret_addr_stack
         self._panic_exc = ctx.exception
+
     def rebase_ptr(self, ptr: list[int] | PointerVector) -> None:
         """Rebase the pointer to a new address.
 

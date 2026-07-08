@@ -6,6 +6,7 @@ from typing import Any
 from typing_extensions import Self
 
 from amrita_sense._unsafe import __flags__
+from amrita_sense.exceptions import IllegalState
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
@@ -99,7 +100,7 @@ class TryClause(SelfCompileInstruction):
     @property
     def CATCH(self) -> Callable[[type[BaseException], Node], Self]:
         if self._finally is not None:
-            raise TypeError("Cannot add catch after finally")
+            raise IllegalState("Cannot add catch after finally")
 
         def _inner(exc: type[BaseException], then: Node) -> Self:
             self._catch_then.append((exc, then))
@@ -111,7 +112,7 @@ class TryClause(SelfCompileInstruction):
     def FINALLY(self) -> Callable[[Node], Self]:
         def _inner(finally_node: Node) -> Self:
             if self._finally is not None:
-                raise TypeError("Cannot add finally after finally")
+                raise IllegalState("Cannot add finally after finally")
             self._finally = finally_node
             return self
 
@@ -121,7 +122,7 @@ class TryClause(SelfCompileInstruction):
     def THEN(self) -> Callable[[Node], Self]:
         def _inner(nd: Node):
             if self._then is not None:
-                raise TypeError("Cannot add THEN after THEN")
+                raise IllegalState("Cannot add THEN after THEN")
             self._then = nd
             return self
 
@@ -129,7 +130,7 @@ class TryClause(SelfCompileInstruction):
 
     def extract(self) -> NodeCompose:
         if not self._catch_then and not self._finally:
-            raise TypeError("Try Clause must have at least one catch or finally")
+            raise IllegalState("Try Clause must have at least one catch or finally")
         cp: list[BaseNode] = [NOP, self._do]
         ctl: list[Node] = []
         catch_chain: list[tuple[type[BaseException], int]] = []

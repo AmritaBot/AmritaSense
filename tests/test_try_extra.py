@@ -1,5 +1,6 @@
 import pytest
 
+from amrita_sense.exceptions import IllegalState
 from amrita_sense.instructions.try_catch import Try, TryNode
 from amrita_sense.node.wrapper import Node as NodeDecorator
 
@@ -16,7 +17,7 @@ def test_try_requires_catch_or_finally():
     """TryClause without catch or finally should raise on extract."""
     node = _make_node(1)
     tc = Try(node)
-    with pytest.raises(TypeError):
+    with pytest.raises(IllegalState):
         tc.extract()
 
 
