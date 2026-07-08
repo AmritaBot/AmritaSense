@@ -28,6 +28,8 @@ class _Flags:
     """Ignore the case that `DependencyMeta` is cached, resolve it in each call"""
     NO_SHARED_MIDDLEWARE: bool = field(default=False)
     """Ignore the case that `middleware` is shared between `WorkflowInterpreter`, set it to None."""
+    JIT_OPTIMIZE: bool = field(default=False)  # TODO: more optimizations
+    """Enable JIT optimization for workflow execution"""
     _modified_flags: set = field(default_factory=set)
 
     if not TYPE_CHECKING:

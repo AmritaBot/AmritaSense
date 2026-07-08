@@ -21,6 +21,16 @@ class InterruptNotice(BaseException):
         return f"InterruptNotice {self.message or ''}"
 
 
+class InterruptKeepContext(InterruptNotice):
+    """Exception raised to signal an interrupt in workflow execution.
+
+    This exception is used to gracefully terminate workflow execution, but keep the state of the workflow.
+
+    Attributes:
+        message: Optional message describing the interrupt reason.
+    """
+
+
 class NullPointerException(Exception):
     """Exception raised when a node cannot be found by its pointer address.
 

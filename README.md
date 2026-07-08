@@ -37,7 +37,7 @@ Most workflow engines force you into a graph mindset: define nodes, connect edge
 - **VM-Style Execution**—A program counter (`PointerVector`) and call stack drive execution. Jumps are integer operations, not graph traversals.
 - **Async-Native Suspend/Resume**—Two `Future` callbacks enable full workflow interruption at any node boundary. Built for debuggers and human-in-the-loop systems.
 - **Declarative Dependency Injection**—Nodes declare dependencies via function signatures. The engine resolves them at runtime with type matching and concurrent resolution.
-- **Ultra Lightweight**—Core interpreter is ~300 lines. Compiles 100,000 nodes in ~200ms. Runs anywhere from Raspberry Pi to cloud.
+- **Ultra Lightweight**— Compiles 100,000 nodes in ~200ms. Runs anywhere from Raspberry Pi to cloud.
 - **Self-Compile Instructions**—Extend the instruction set with `SelfCompileInstruction`. Compile-time expansion, zero runtime overhead.
 
 ## Installation
