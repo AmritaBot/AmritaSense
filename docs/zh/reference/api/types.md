@@ -73,6 +73,26 @@ class PointerVector:
 - **相对寻址**: 在同一层级内进行偏移
 - **近寻址**: 修改当前层级索引，保持其他层级不变
 
+## DICache（v0.4.2+）
+
+`DICache` 是管理 `WorkflowInterpreter` 中依赖注入结果缓存的数据类。它将参数指纹与 LRU 缓存结合，避免重复 DI 解析。
+
+```python
+@dataclass
+class DICache:
+    args_hash: int
+    hash_trustable: bool
+    payload: LRUCache[int, dict[str, Any]] = field(
+        default_factory=lambda: LRUCache(1024)
+    )
+```
+
+字段说明：
+
+- `args_hash`：当前 DI 参数类型的整数哈希，由 `_fingerprint_args()` 计算。作为复合缓存键 `hash((hash(pointer), args_hash))` 的一部分。
+- `hash_trustable`：布尔值，指示 `args_hash` 是否保证与当前 `_ava_args` / `_ava_kwargs` 匹配。修改这些参数时置为 `False`；调用 `rehash_args()` 恢复。
+- `payload`：来自 `cachetools` 的 `LRUCache`，将复合缓存键映射到已解析的关键字参数字典。最大 1024 条，按最近最少使用策略淘汰。
+
 ## 事件类型
 
 ### BaseEvent

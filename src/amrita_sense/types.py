@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Iterator
-from typing import Generic, TypeVar
+from dataclasses import dataclass, field
+from typing import Any, Generic, TypeVar
 
+from cachetools import LRUCache
 from typing_extensions import Self
 
 T = TypeVar("T")
@@ -348,3 +350,12 @@ class PointerVector:
             ValueError: Always raised as deletion is not supported.
         """
         raise ValueError("Cannot delete items from PointerVector")
+
+
+@dataclass
+class DICache:
+    args_hash: int
+    hash_trustable: bool
+    payload: LRUCache[int, dict[str, Any]] = field(
+        default_factory=lambda: LRUCache(1024)
+    )

@@ -100,6 +100,18 @@ def __init__(
 
 **`get_exception() -> Exception | None`**（v0.3.1+）— 获取上次 panic 异常。若解释器正常完成或从未崩溃，返回 `None`。崩溃后即时可用，用于诊断。
 
+**`_di_cache: DICache`**（v0.4.2+）— 内部 DI 结果缓存。以 `hash((hash(_pointer), args_hash))` 为键存储已解析的依赖 kwargs。载体为 `LRUCache`，最大 1024 条。缓存失效见 `args_hash` 和 `args_hash_trustable`。
+
+**`args_hash_trustable: bool`**（v0.4.2+，只读）— 若缓存的参数哈希已知有效，返回 `True`。修改 `_ava_args` 或 `_ava_kwargs` 时自动置为 `False`。调用 `rehash_args()` 恢复信任。
+
+**`args_hash: int`**（v0.4.2+，只读）— 返回当前参数哈希，用作 DI 缓存键的一部分。由 `_fingerprint_args()` 计算。
+
+**`rehash_args() -> None`**（v0.4.2+）— 基于当前 `_ava_args` 和 `_ava_kwargs` 重新计算参数哈希，并将 `hash_trustable` 置为 `True`。若新哈希与旧值不同，清空整个 DI 缓存。
+
+**`_rslv_node(node, ava_args, ava_kwargs) -> dict[str, Any]`**（v0.4.2+，内部方法）— 为单个节点解析依赖。依次调用 `MatcherFactory._resolve_dependencies()` 和 `MatcherFactory._do_runtime_resolve()`。返回已解析的关键字参数字典。失败时抛出 `DependsResolveFailed` 或 `DependsInjectFailed`。此方法从 `_call()` 中提取，供主循环和预加载机制共用。
+
+**`_refresh_di_cache_full() -> None`**（v0.4.2+，内部方法）— 遍历整个工作流图，为每个节点预解析 DI 并存入 `_di_cache`。节点以 `WORKFLOW_DI_PRELOAD_BATCH` 控制的并发批量解析。仅在 `WORKFLOW_DI_PRELOAD_CACHE` 启用时于 `run()` 初始化阶段调用。若 `hash_trustable` 为 `False` 则抛出 `DependsResolveFailed`。
+
 ### 主要方法
 
 #### 解释器树管理（v0.3.0+）

@@ -147,3 +147,97 @@ TRY(
 ```
 
 This design ensures that dependency injection remains robust and predictable while giving developers a clear error handling mechanism.
+
+## 4.1.7 DI Result Cache (v0.4.2+)
+
+Starting from v0.4.2, the `WorkflowInterpreter` maintains an internal DI result cache (`_di_cache`) to avoid redundant dependency resolution when the same node is executed multiple times with the same argument types.
+
+### How it works
+
+The cache key is a composite of:
+
+- **Pointer hash**: `hash(self._pointer)` — the interpreter's current execution position
+- **Args hash**: a fingerprint computed from the types of `_ava_args` and `_ava_kwargs`
+
+The utility function `_fingerprint_args()` generates the args hash by:
+
+1. Extracting `type(arg).__name__` for each positional argument
+2. Extracting `(key, type(v).__name__)` for each keyword argument (sorted for stability)
+3. Hashing the combined tuple
+
+```python
+# Simplified illustration of the cache key
+cache_key = hash((hash(pointer), _fingerprint_args(ava_args, ava_kwargs)))
+```
+
+The cache payload is an `LRUCache` (from `cachetools`) with a maximum of 1024 entries. When the cache is full, the least recently used entry is evicted.
+
+### Cache lifecycle
+
+- **Initialization**: The cache is created during `WorkflowInterpreter.__init__()` with an initial args hash.
+- **Lookup**: Before resolving dependencies for a node, the interpreter checks `_di_cache.payload` for a matching key. On a cache hit, the cached kwargs are used directly, skipping all dependency resolution.
+- **Invalidation**: Modifying `_ava_args` or `_ava_kwargs` sets `hash_trustable = False`, indicating the args hash may be stale. Call `rehash_args()` to recompute the hash and restore trust. If the new hash differs from the old one, the entire cache is cleared.
+- **Disable**: Set `__flags__.WORKFLOW_DI_NO_CACHE = True` to disable caching entirely.
+
+### Code example
+
+```python
+from amrita_sense._unsafe import __flags__
+from amrita_sense.runtime.workflow import WorkflowInterpreter
+
+# Default: DI cache enabled
+pc = WorkflowInterpreter(rendered, extra_args=(my_service,))
+await pc.run()  # Second pass of a loop body will reuse cached DI results
+
+# Disable cache for providers with side effects
+__flags__.WORKFLOW_DI_NO_CACHE = True
+pc2 = WorkflowInterpreter(rendered)
+await pc2.run()  # Every node re-resolves dependencies from scratch
+```
+
+## 4.1.8 DI Preload Cache (v0.4.2+)
+
+When `__flags__.WORKFLOW_DI_PRELOAD_CACHE` is enabled, the interpreter pre-resolves dependency injection for **every node** during the `run()` initialization phase — before the first node executes.
+
+### How it works
+
+1. `run()` calls `_refresh_di_cache_full()` after resolving runtime arguments
+2. The method walks the entire workflow graph using `advance_pointer()` with a temporary `PointerVector`
+3. For each node, it spawns an async worker that resolves DI and stores the result in `_di_cache.payload`
+4. Workers run in concurrent batches controlled by `WORKFLOW_DI_PRELOAD_BATCH` (default: 10)
+5. After preloading completes, the main loop starts — every `_call()` is a cache hit
+
+### Performance characteristics
+
+| Aspect               | Without preload                      | With preload                             |
+| -------------------- | ------------------------------------ | ---------------------------------------- |
+| **Startup latency**  | Minimal                              | Proportional to graph size × batch count |
+| **Per-node latency** | First visit: full DI resolution      | Always: cache hit (O(1) lookup)          |
+| **Memory**           | Grows lazily as nodes are visited    | Pre-allocated for all nodes at startup   |
+| **Best for**         | Short workflows, one-shot executions | Long-running loops, repeated node visits |
+
+### Code example
+
+```python
+from amrita_sense._unsafe import __flags__
+
+__flags__.WORKFLOW_DI_PRELOAD_CACHE = True
+__flags__.WORKFLOW_DI_PRELOAD_BATCH = 20  # Increase parallelism
+
+pc = WorkflowInterpreter(rendered)
+await pc.run()  # DI is pre-resolved for all nodes before the first node runs
+```
+
+## 4.1.9 Cache Constraints and Flag Conflicts
+
+### `NO_DEPENDENCY_META_CACHE` conflict
+
+Setting `WORKFLOW_DI_PRELOAD_CACHE = True` together with `NO_DEPENDENCY_META_CACHE = True` raises a `RuntimeError`. The preload mechanism depends on cached `DependencyMeta` (from `sign_func`) for efficient batch resolution — disabling the meta cache makes preloading unreliable.
+
+### `WORKFLOW_DI_NO_CACHE` conflict
+
+Setting `WORKFLOW_DI_NO_CACHE = True` together with `WORKFLOW_DI_PRELOAD_CACHE = True` also raises a `RuntimeError`. These flags have contradictory intent: one disables caching, the other pre-populates it.
+
+### `hash_trustable` guard
+
+`_refresh_di_cache_full()` will raise `DependsResolveFailed` if `hash_trustable` is `False` when called. Always call `rehash_args()` after modifying DI arguments to ensure cache integrity.

@@ -293,7 +293,7 @@ class NodeCompose:
             r = NodeComposeRendered(self)
             r._build()
         time_end = tm.t_diff
-        logger.info(f"node compose rendered, cost: {time_end.microseconds / 1000}ms")
+        logger.info(f"node compose rendered, cost: {(time_end.total_seconds())}s")
         return r
 
 

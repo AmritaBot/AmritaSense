@@ -150,3 +150,97 @@ TRY(
 ```
 
 这种设计确保了依赖注入系统的健壮性和可预测性，同时为开发者提供了清晰的错误处理机制。
+
+## 4.1.7 DI 结果缓存（v0.4.2+）
+
+从 v0.4.2 起，`WorkflowInterpreter` 维护一个内部 DI 结果缓存（`_di_cache`），避免在相同参数类型下重复执行同一节点的依赖解析。
+
+### 工作原理
+
+缓存键由两部分组成：
+
+- **指针哈希**：`hash(self._pointer)` —— 解释器当前执行位置
+- **参数哈希**：基于 `_ava_args` 和 `_ava_kwargs` 的类型指纹
+
+工具函数 `_fingerprint_args()` 按以下方式生成参数哈希：
+
+1. 对每个位置参数提取 `type(arg).__name__`
+2. 对每个关键字参数提取 `(key, type(v).__name__)`（排序以保证稳定性）
+3. 合并后取 hash
+
+```python
+# 缓存键的简化示意
+cache_key = hash((hash(pointer), _fingerprint_args(ava_args, ava_kwargs)))
+```
+
+缓存载体是 `cachetools` 的 `LRUCache`，最大容量 1024 条。缓存满时按最近最少使用策略淘汰。
+
+### 缓存生命周期
+
+- **初始化**：`WorkflowInterpreter.__init__()` 中创建，携带初始参数哈希。
+- **查询**：解析节点依赖前，先检查 `_di_cache.payload` 是否有匹配键。命中则直接使用缓存的 kwargs，跳过全部依赖解析。
+- **失效**：修改 `_ava_args` 或 `_ava_kwargs` 会将 `hash_trustable` 设为 `False`，表示参数哈希可能过期。调用 `rehash_args()` 重新计算并恢复信任。若新哈希与旧值不同，整个缓存被清空。
+- **禁用**：设置 `__flags__.WORKFLOW_DI_NO_CACHE = True` 完全关闭缓存。
+
+### 代码示例
+
+```python
+from amrita_sense._unsafe import __flags__
+from amrita_sense.runtime.workflow import WorkflowInterpreter
+
+# 默认：DI 缓存开启
+pc = WorkflowInterpreter(rendered, extra_args=(my_service,))
+await pc.run()  # 循环体的第二次迭代将复用缓存的 DI 结果
+
+# 为有副作用的提供者禁用缓存
+__flags__.WORKFLOW_DI_NO_CACHE = True
+pc2 = WorkflowInterpreter(rendered)
+await pc2.run()  # 每个节点从头重新解析依赖
+```
+
+## 4.1.8 DI 预加载缓存（v0.4.2+）
+
+启用 `__flags__.WORKFLOW_DI_PRELOAD_CACHE` 后，解释器在 `run()` 初始化阶段为**每个节点**预解析依赖注入——在第一个节点执行之前完成。
+
+### 工作原理
+
+1. `run()` 在解析完运行时参数后调用 `_refresh_di_cache_full()`
+2. 方法使用临时 `PointerVector` + `advance_pointer()` 遍历整个工作流图
+3. 为每个节点启动一个异步 worker，解析 DI 并将结果存入 `_di_cache.payload`
+4. Worker 以 `WORKFLOW_DI_PRELOAD_BATCH`（默认 10）控制的并发批量运行
+5. 预加载完成后主循环启动——每次 `_call()` 均为缓存命中
+
+### 性能特征
+
+| 方面           | 无预加载               | 有预加载                    |
+| -------------- | ---------------------- | --------------------------- |
+| **启动延迟**   | 极低                   | 与图大小 × 批量数成正比     |
+| **逐节点延迟** | 首次访问：完整 DI 解析 | 始终：缓存命中（O(1) 查找） |
+| **内存**       | 随节点访问惰性增长     | 启动时为所有节点预分配      |
+| **最适合**     | 短工作流、一次性执行   | 长时间循环、节点重复访问    |
+
+### 代码示例
+
+```python
+from amrita_sense._unsafe import __flags__
+
+__flags__.WORKFLOW_DI_PRELOAD_CACHE = True
+__flags__.WORKFLOW_DI_PRELOAD_BATCH = 20  # 提高并行度
+
+pc = WorkflowInterpreter(rendered)
+await pc.run()  # 第一个节点运行前，所有节点的 DI 已预解析完成
+```
+
+## 4.1.9 缓存限制与标志冲突
+
+### `NO_DEPENDENCY_META_CACHE` 冲突
+
+同时设置 `WORKFLOW_DI_PRELOAD_CACHE = True` 和 `NO_DEPENDENCY_META_CACHE = True` 会抛出 `RuntimeError`。预加载机制依赖缓存的 `DependencyMeta`（来自 `sign_func`）进行高效批量解析——禁用元数据缓存会使预加载不可靠。
+
+### `WORKFLOW_DI_NO_CACHE` 冲突
+
+同时设置 `WORKFLOW_DI_NO_CACHE = True` 和 `WORKFLOW_DI_PRELOAD_CACHE = True` 也会抛出 `RuntimeError`。这两个标志意图矛盾：一个禁用缓存，另一个预填充缓存。
+
+### `hash_trustable` 守卫
+
+调用 `_refresh_di_cache_full()` 时若 `hash_trustable` 为 `False`，将抛出 `DependsResolveFailed`。修改 DI 参数后务必调用 `rehash_args()` 以确保缓存完整性。
