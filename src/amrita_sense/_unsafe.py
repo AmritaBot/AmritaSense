@@ -37,11 +37,11 @@ class _Flags:
     WORKFLOW_DI_PRELOAD_BATCH: int = field(default=10)
     """Preload DI resolving batch size"""
     _writeables: set[str] = field(
-        default={"WORKFLOW_DI_PRELOAD_BATCH", "WORKFLOW_DI_NO_CACHE"}
+        default_factory=lambda: {"WORKFLOW_DI_PRELOAD_BATCH", "WORKFLOW_DI_NO_CACHE"}
     )
     _modified_flags: set[str] = field(default_factory=set)
     _args_conflicts: set[tuple[str, ...]] = field(
-        default={
+        default_factory=lambda: {
             ("WORKFLOW_DI_PRELOAD_CACHE", "NO_DEPENDENCY_META_CACHE"),
             ("WORKFLOW_DI_NO_CACHE", "WORKFLOW_DI_PRELOAD_CACHE"),
         }
