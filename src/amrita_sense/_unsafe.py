@@ -48,7 +48,7 @@ class _Flags:
     )
     if not TYPE_CHECKING:
 
-        def __setattr__(self, key: str, value: bool) -> None:
+        def __setattr__(self, key: str, value) -> None:
 
             if not key.isupper():
                 super().__setattr__(key, value)
