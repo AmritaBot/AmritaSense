@@ -30,8 +30,22 @@ class _Flags:
     """Ignore the case that `middleware` is shared between `WorkflowInterpreter`, set it to None."""
     JIT_OPTIMIZE: bool = field(default=False)  # TODO: more optimizations
     """Enable JIT optimization for workflow execution"""
-    _modified_flags: set = field(default_factory=set)
-
+    WORKFLOW_DI_NO_CACHE: bool = field(default=False)
+    """Disable DI cache for workflow execution"""
+    WORKFLOW_DI_PRELOAD_CACHE: bool = field(default=False)
+    """Enable DI cache for workflow execution"""
+    WORKFLOW_DI_PRELOAD_BATCH: int = field(default=10)
+    """Preload DI resolving batch size"""
+    _writeables: set[str] = field(
+        default={"WORKFLOW_DI_PRELOAD_BATCH", "WORKFLOW_DI_NO_CACHE"}
+    )
+    _modified_flags: set[str] = field(default_factory=set)
+    _args_conflicts: set[tuple[str, ...]] = field(
+        default={
+            ("WORKFLOW_DI_PRELOAD_CACHE", "NO_DEPENDENCY_META_CACHE"),
+            ("WORKFLOW_DI_NO_CACHE", "WORKFLOW_DI_PRELOAD_CACHE"),
+        }
+    )
     if not TYPE_CHECKING:
 
         def __setattr__(self, key: str, value: bool) -> None:
@@ -41,8 +55,16 @@ class _Flags:
                 return
 
             if hasattr(self, "_modified_flags"):
-                if key in self._modified_flags:
+                if key not in self._writeables and key in self._modified_flags:
                     raise RuntimeError(f"{key} is modified")
+                for flags in self._args_conflicts:
+                    if all(
+                        (getattr(self, flag, False) if flag != key else value)
+                        for flag in flags
+                    ):
+                        raise RuntimeError(
+                            f"Conflicting flags:{flags} are set, please check the documentation for more details"
+                        )
                 super().__setattr__(key, value)
                 self._modified_flags.add(key)
             else:

@@ -86,3 +86,18 @@ def search_exceptions(
         elif isinstance(exc, list):
             sequ.extend(search_exceptions(exc))
     return sequ
+
+
+def _fingerprint_args(ava_args: tuple, ava_kwargs: dict) -> int:
+    """Generate a hash for DI args.
+
+    Args:
+        ava_args (tuple): DI Type arguments
+        ava_kwargs (dict): DI keyword-only arguments
+
+    Returns:
+        int: hash of DI args
+    """
+    type_seq = tuple(type(arg).__name__ for arg in ava_args)
+    kw_seq = tuple(sorted((k, type(v).__name__) for k, v in ava_kwargs.items()))
+    return hash((type_seq, kw_seq))

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine, Sequence
 from contextlib import nullcontext
 from functools import wraps
 from inspect import iscoroutinefunction
@@ -35,7 +35,8 @@ from amrita_sense.node.core import Node as _Node
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.runtime.types import InterpreterContext
 from amrita_sense.streaming import SuspendObjectStream
-from amrita_sense.types import PointerVector, Stack
+from amrita_sense.types import DICache, PointerVector, Stack
+from amrita_sense.utils import TimeInsighter, _fingerprint_args
 
 PC_CHECKPOINT = "WorkflowInterpreter::each_node"
 NULL_CTX = nullcontext()
@@ -60,9 +61,12 @@ class WorkflowInterpreter(Generic[io_T]):
     _graph: NodeComposeRendered
     _pointer: PointerVector
     _jump_marked: bool
-    _ava_args: tuple
-    _ava_kwargs: dict[str, Any]
+
+    __ava_args: tuple
+    __ava_kwargs: dict[str, Any]
     _exc_ignored: tuple[type[BaseException], ...]
+    _di_cache: DICache
+
     _ret_addr_stack: Stack[PointerVector]
 
     _interpreter_id: str  # Instance id
@@ -84,9 +88,10 @@ class WorkflowInterpreter(Generic[io_T]):
     _pending_stop: bool
     object_io: io_T
     __slots__ = (
-        "_ava_args",
-        "_ava_kwargs",
+        "__ava_args",
+        "__ava_kwargs",
         "_context_stack",
+        "_di_cache",
         "_exc_ignored",
         "_glob_top_mod_lock",
         "_graph",
@@ -141,14 +146,19 @@ class WorkflowInterpreter(Generic[io_T]):
         self._pointer = PointerVector()
         self._panic_exc = None
         # DI
-        self._ava_args = (self, *extra_args)
+        self.__ava_args = (self, *extra_args)
         extra_kwargs = extra_kwargs or {}
-        self._ava_kwargs = (extra_kwargs).copy()
+        self.__ava_kwargs = (extra_kwargs).copy()
         self._exc_ignored = (
             (*exception_ignored, InterruptNotice, BreakLoop)
             if not __flags__.DISABLE_EXC_IGNORED
             else ()
         )
+        self._di_cache = DICache(
+            args_hash=_fingerprint_args(self.__ava_args, self.__ava_kwargs),
+            hash_trustable=True,
+        )
+
         # Runtime attrs
         object_io = object_io or SuspendObjectStream()
         self.object_io = cast(io_T, object_io)
@@ -240,6 +250,45 @@ class WorkflowInterpreter(Generic[io_T]):
         """
         return self._sub_interpreters
 
+    @property
+    def args_hash_trustable(self) -> bool:
+        """Get whether the args hash is trustable.
+
+        Returns:
+            Whether the args hash is trustable.
+        """
+        return self._di_cache.hash_trustable
+
+    @property
+    def args_hash(self) -> int:
+        """Get the args hash."""
+        return self._di_cache.args_hash
+
+    def rehash_args(self) -> None:
+        pev = self._di_cache.args_hash
+        self._di_cache.args_hash = _fingerprint_args(self.__ava_args, self.__ava_kwargs)
+        self._di_cache.hash_trustable = True
+        if pev != self._di_cache.args_hash:
+            self._di_cache.payload.clear()
+
+    @property
+    def _ava_args(self) -> tuple:
+        return self.__ava_args
+
+    @property
+    def _ava_kwargs(self) -> dict:
+        return self.__ava_kwargs
+
+    @_ava_args.setter
+    def _ava_args(self, value: tuple) -> None:
+        self._di_cache.hash_trustable = False
+        self.__ava_args = value
+
+    @_ava_kwargs.setter
+    def _ava_kwargs(self, value: dict) -> None:
+        self._di_cache.hash_trustable = False
+        self.__ava_kwargs = value
+
     def get_exception(self) -> Exception | None:
         """Get the last panic exception."""
         return self._panic_exc
@@ -306,8 +355,8 @@ class WorkflowInterpreter(Generic[io_T]):
             object_io=object_io or self.object_io,
             exception_ignored=self._exc_ignored,
             middleware=mdw,
-            extra_args=self._ava_args[1:],  # Exclude self from args
-            extra_kwargs=self._ava_kwargs.copy(),
+            extra_args=self.__ava_args[1:],  # Exclude self from args
+            extra_kwargs=self.__ava_kwargs.copy(),
             parent_interpreter=self,
         )
 
@@ -370,8 +419,8 @@ class WorkflowInterpreter(Generic[io_T]):
         return InterpreterContext(
             ptr=self._pointer.copy(),
             exception_ignored=self._exc_ignored,
-            s_args=None if exclude_deps else self._ava_args,
-            s_kwargs=None if exclude_deps else self._ava_kwargs,
+            s_args=None if exclude_deps else self.__ava_args,
+            s_kwargs=None if exclude_deps else self.__ava_kwargs,
             extra={},
             stack=None if exclude_stack else self._ret_addr_stack,
             exception=self._panic_exc,
@@ -386,8 +435,9 @@ class WorkflowInterpreter(Generic[io_T]):
         self.rebase_ptr(ctx.ptr)
         self._exc_ignored = ctx.exception_ignored
         if ctx.s_args and ctx.s_kwargs:
-            self._ava_args = ctx.s_args
-            self._ava_kwargs = ctx.s_kwargs
+            self.__ava_args = ctx.s_args
+            self.__ava_kwargs = ctx.s_kwargs
+            self._di_cache.hash_trustable = False
         self._ret_addr_stack = ctx.stack or self._ret_addr_stack
         self._panic_exc = ctx.exception
 
@@ -667,8 +717,8 @@ class WorkflowInterpreter(Generic[io_T]):
             )
         try:
             self._waiter_fut = asyncio.Future()
-            session_args = list(self._ava_args)
-            session_kwargs: dict[str, Any] = self._ava_kwargs
+            session_args = list(self.__ava_args)
+            session_kwargs: dict[str, Any] = self.__ava_kwargs
             runtime_args: dict[int, DependsFactory] = {  # index -> DependsFactory
                 k: v
                 for k, v in enumerate(session_args)
@@ -688,7 +738,10 @@ class WorkflowInterpreter(Generic[io_T]):
                     exception_ignored=self._exc_ignored,
                 ):
                     raise RuntimeError("Runtime arguments cannot be resolved")
-            self._ava_args = tuple(session_args)
+            self.__ava_args = tuple(session_args)
+            self.rehash_args()
+            if __flags__.WORKFLOW_DI_PRELOAD_CACHE:
+                await self._refresh_di_cache_full()
             graph = self.get_graph()
             while True:
                 await self.object_io._wait_for_continue(PC_CHECKPOINT)
@@ -739,6 +792,41 @@ class WorkflowInterpreter(Generic[io_T]):
                 else:
                     self._waiter_fut.set_result(None)
             self._waiter_fut = None
+
+    async def _refresh_di_cache_full(self):
+        """Fully refresh DI cache of nodes.
+
+        !!!WARNINGS!!!: This method should only be used in initializing phase, because it's costy.
+        """
+        if not self._di_cache.hash_trustable:
+            raise DependsResolveFailed(
+                "Args hash is not trustable! Please use `rehash_args()` to rehash args."
+            )
+
+        async def _worker(node: BaseNode, ptr_hash: int):
+            kw = await self._rslv_node(node, self.__ava_args, self.__ava_kwargs)
+            self._di_cache.payload[ptr_hash] = kw
+
+        ptr = PointerVector([0])
+        logger.debug(f"Preloading DI cache for {self.id}")
+        coro: list[Coroutine[Any, Any, Any]] = []
+        with TimeInsighter() as t:
+            while True:
+                await asyncio.sleep(0)
+
+                node = self.find_addr(self._pointer.base_addr)
+                assert isinstance(node, BaseNode)
+                coro.append(
+                    _worker(node, hash((hash(self._pointer), self._di_cache.args_hash)))
+                )
+                if len(coro) > __flags__.WORKFLOW_DI_PRELOAD_BATCH:
+                    await asyncio.gather(*coro)
+                    coro.clear()
+                if not self.advance_pointer(ptr):
+                    break
+            if coro:
+                await asyncio.gather(*coro)
+        logger.debug(f"DI cache preloaded in {t.t_diff.total_seconds()}")
 
     @property
     def is_running(self) -> bool:
@@ -987,6 +1075,37 @@ class WorkflowInterpreter(Generic[io_T]):
         else:
             raise NullPointerException(f"Node at {addr} does not exist")
 
+    async def _rslv_node(
+        self, node: BaseNode, ava_args: tuple, ava_kwargs: dict[str, Any]
+    ) -> dict[str, Any]:
+        fun = node.func
+        fail, kw_rsved, kw2rsev = MatcherFactory._resolve_dependencies(
+            node.fun_sign
+            if not __flags__.NO_DEPENDENCY_META_CACHE
+            else sign_func(node.func),
+            ava_args,
+            ava_kwargs,
+        )
+        if fail is not None:
+            raise DependsResolveFailed(
+                f"Function {fun.__name__} in {node.tag} could not be resolved due to reason `{fail.value}`"
+            )
+        if kw2rsev and not await MatcherFactory._do_runtime_resolve(
+            runtime_args={},
+            runtime_kwargs=kw2rsev,
+            args2update=[],
+            kwargs2update=kw_rsved,
+            session_args=list(ava_args),
+            session_kwargs=ava_kwargs,
+            exception_ignored=self._exc_ignored,
+        ):
+            raise DependsInjectFailed(
+                "Runtime resolve failed for kwargs: {}".format(
+                    ", ".join(kw2rsev.keys())
+                )
+            )
+        return kw_rsved
+
     async def _call(
         self,
         addr_getter: Callable[[list[int]], BaseNode | NodeComposeRendered]
@@ -1023,6 +1142,7 @@ class WorkflowInterpreter(Generic[io_T]):
             )
         await self.object_io._wait_for_continue(node.tag)
         if __flags__.JIT_OPTIMIZE:
+            # TODO: more optimizations here
             if nop is None:
                 from amrita_sense.instructions.workfl_ctrl import _no_operation
 
@@ -1032,42 +1152,29 @@ class WorkflowInterpreter(Generic[io_T]):
 
         node._pre_check(self)
 
-        ava_args = self._ava_args
+        ava_args = self.__ava_args
         if extra_args:
             ava_args += extra_args
         if extra_kwargs:  # To avoid a copy cost.
-            ava_kwargs = self._ava_kwargs.copy()
+            ava_kwargs = self.__ava_kwargs.copy()
             ava_kwargs.update(extra_kwargs)
         else:
-            ava_kwargs = self._ava_kwargs
+            ava_kwargs = self.__ava_kwargs
 
         fun = node.func
-
-        fail, kw_rsved, kw2rsev = MatcherFactory._resolve_dependencies(
-            node.fun_sign
-            if not __flags__.NO_DEPENDENCY_META_CACHE
-            else sign_func(node.func),
-            ava_args,
-            ava_kwargs,
-        )
-        if fail is not None:
-            raise DependsResolveFailed(
-                f"Function {fun.__name__} in {node.tag} could not be resolved due to reason `{fail.value}`"
-            )
-        if kw2rsev and not await MatcherFactory._do_runtime_resolve(
-            runtime_args={},
-            runtime_kwargs=kw2rsev,
-            args2update=[],
-            kwargs2update=kw_rsved,
-            session_args=list(ava_args),
-            session_kwargs=ava_kwargs,
-            exception_ignored=self._exc_ignored,
-        ):
-            raise DependsInjectFailed(
-                "Runtime resolve failed for kwargs: {}".format(
-                    ", ".join(kw2rsev.keys())
+        if (
+            not __flags__.WORKFLOW_DI_NO_CACHE
+            or not self._di_cache.hash_trustable
+            or (
+                kw_rsved := self._di_cache.payload.get(
+                    hash((hash(self._pointer), self._di_cache.args_hash))
                 )
             )
+            is None
+        ):
+            kw_rsved = await self._rslv_node(node, ava_args, ava_kwargs)
+            if not __flags__.WORKFLOW_DI_NO_CACHE:
+                self._di_cache.payload[hash(self._pointer)] = kw_rsved
         logger.debug(f"Running node {node.tag}:{node.func.__name__}")
         debug_log(
             f"Address is {self._pointer}, Type of node is {node.__class__.__name__}"
