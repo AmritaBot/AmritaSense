@@ -814,9 +814,7 @@ class WorkflowInterpreter(Generic[io_T]):
             while True:
                 node = self.find_addr(self._pointer.base_addr)
                 assert isinstance(node, BaseNode)
-                coro.append(
-                    _worker(node, hash((hash(self._pointer), self._di_cache.args_hash)))
-                )
+                coro.append(_worker(node, hash((hash(ptr), self._di_cache.args_hash))))
                 if len(coro) > __flags__.WORKFLOW_DI_PRELOAD_BATCH:
                     await asyncio.gather(*coro)
                     await asyncio.sleep(0)
