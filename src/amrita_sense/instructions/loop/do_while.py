@@ -4,6 +4,7 @@ from typing import Any
 
 from typing_extensions import Self
 
+from amrita_sense._unsafe import __flags__
 from amrita_sense.exceptions import BreakLoop
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.workfl_ctrl import NOP
@@ -42,11 +43,29 @@ class DONode(BaseNode):
         self._init(self._do_worker, None, True, False)
 
     async def _do_worker(self, ptr: WorkflowInterpreter):
-        try:
-            await ptr.call_offset(self._do_offset)
-        except BreakLoop:
-            return ptr.jump_near(self._break_addr)
-        ptr.jump_near(self._jmp_addr)
+        if not __flags__.SQUASHED_LOOP:
+            try:
+                await ptr.call_offset(self._do_offset)
+            except BreakLoop:
+                return ptr.jump_near(self._break_addr)
+            ptr.jump_near(self._jmp_addr)
+        else:
+            base = ptr._pointer.copy().offset(self._jmp_addr)
+            data = ptr.find_addr(
+                base.base_addr,
+            )
+            assert isinstance(data, DowhileNode)
+            condi_addr = base.copy().offset(data._condi_offset)
+
+            try:
+                while True:
+                    await ptr.call_offset(self._do_offset)
+                    if ptr.jump_marked:
+                        return
+                    if not await ptr.call_sub(condi_addr):
+                        return ptr.jump_near(self._break_addr)
+            except BreakLoop:
+                return ptr.jump_near(self._break_addr)
 
     def __call__(self, ptr: WorkflowInterpreter):
         return self._do_worker(ptr)

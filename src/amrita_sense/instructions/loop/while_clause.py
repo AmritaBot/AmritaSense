@@ -4,6 +4,7 @@ from typing import Any
 
 from typing_extensions import Self
 
+from amrita_sense._unsafe import __flags__
 from amrita_sense.exceptions import BreakLoop
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.jump import JumpNode
@@ -50,14 +51,24 @@ class WhileNode(BaseNode):
         self._init(self._while_worker, None, False, True)
 
     async def _while_worker(self, pc: WorkflowInterpreter):
-        if await pc.call_offset(self._condi_offset):
+        if not __flags__.SQUASHED_LOOP:
+            if await pc.call_offset(self._condi_offset):
+                try:
+                    await pc.call_offset(self._do_offset)
+                except BreakLoop:
+                    return pc.jump_near(self._else_addr)
+                pc.jump_near(self._checkup_addr)
+            else:
+                pc.jump_near(self._else_addr)
+        else:
             try:
-                await pc.call_offset(self._do_offset)
+                while await pc.call_offset(self._condi_offset):
+                    await pc.call_offset(self._do_offset)
+                    if pc._jump_marked:
+                        break
+                pc.jump_near(self._else_addr)
             except BreakLoop:
                 return pc.jump_near(self._else_addr)
-            pc.jump_near(self._checkup_addr)
-        else:
-            pc.jump_near(self._else_addr)
 
     def __call__(self, pc: WorkflowInterpreter):
         return self._while_worker(pc)

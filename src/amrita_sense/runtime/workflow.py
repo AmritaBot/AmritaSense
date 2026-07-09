@@ -17,6 +17,7 @@ from typing import (
 from uuid import uuid4
 
 import aiologic
+from cachetools import LRUCache
 
 from amrita_sense._unsafe import __flags__
 from amrita_sense.exceptions import (
@@ -46,7 +47,7 @@ UNSET = object()
 if not TYPE_CHECKING:
     nop: _Node[None] | None = None
 else:
-    from amrita_sense.instructions import NOP as nop
+    pass
 
 
 class WorkflowInterpreter(Generic[io_T]):
@@ -65,7 +66,9 @@ class WorkflowInterpreter(Generic[io_T]):
     __ava_args: tuple
     __ava_kwargs: dict[str, Any]
     _exc_ignored: tuple[type[BaseException], ...]
+
     _di_cache: DICache
+    _ptr_cache: LRUCache[int, list[int]]
 
     _ret_addr_stack: Stack[PointerVector]
 
@@ -104,6 +107,7 @@ class WorkflowInterpreter(Generic[io_T]):
         "_parent_interpreter",
         "_pending_stop",
         "_pointer",
+        "_ptr_cache",
         "_ret_addr_stack",
         "_sub_interpreters",
         "_sub_interpreters_all",
@@ -124,6 +128,7 @@ class WorkflowInterpreter(Generic[io_T]):
         context_stack: Stack[InterpreterContext] | None = None,
         middleware: Callable[[WorkflowInterpreter], Awaitable[Any]] | None = None,
         parent_interpreter: WorkflowInterpreter | None = None,
+        ptr_cache_size: int = 1024,
     ):
         """Initialize the workflow interpreter with a compiled workflow graph.
 
@@ -137,6 +142,7 @@ class WorkflowInterpreter(Generic[io_T]):
             context_stack: Optional pre-initialized interpreter context stack.
             middleware: Optional middleware function to execute before each node.
             parent_interpreter: Optional parent interpreter for sub-interpreter relationship.
+            ptr_cache_size: Size of the addressing cache.
         """
         # Kernel initialization
         self._interpreter_id = uuid4().hex
@@ -154,10 +160,12 @@ class WorkflowInterpreter(Generic[io_T]):
             if not __flags__.DISABLE_EXC_IGNORED
             else ()
         )
+        # Cache
         self._di_cache = DICache(
             args_hash=_fingerprint_args(self.__ava_args, self.__ava_kwargs),
             hash_trustable=True,
         )
+        self._ptr_cache = LRUCache(maxsize=ptr_cache_size)
 
         # Runtime attrs
         object_io = object_io or SuspendObjectStream()
@@ -804,7 +812,10 @@ class WorkflowInterpreter(Generic[io_T]):
             )
 
         async def _worker(node: BaseNode, ptr_hash: int):
+            if self._di_cache.payload.currsize >= self._di_cache.payload.maxsize:
+                return
             kw = await self._rslv_node(node, self.__ava_args, self.__ava_kwargs)
+
             self._di_cache.payload[ptr_hash] = kw
 
         ptr = PointerVector([0])
@@ -812,6 +823,8 @@ class WorkflowInterpreter(Generic[io_T]):
         coro: list[Coroutine[Any, Any, Any]] = []
         with TimeInsighter() as t:
             while True:
+                if self._di_cache.payload.currsize >= self._di_cache.payload.maxsize:
+                    break
                 node = self.find_addr(ptr.base_addr)
                 assert isinstance(node, BaseNode)
                 coro.append(_worker(node, hash((hash(ptr), self._di_cache.args_hash))))
@@ -922,30 +935,38 @@ class WorkflowInterpreter(Generic[io_T]):
         Returns:
             bool: True if the pointer was successfully advanced, False if at the end of workflow.
         """
+
         pointer: PointerVector = ptr if ptr is not None else self._pointer
+        ptr_hash = hash(pointer)
+        if (
+            not __flags__.NO_ADDRESSING_CACHE
+            and ptr is None
+            and (rst := self._ptr_cache.get(ptr_hash)) is not None
+            and rst != pointer.base_addr
+        ):
+            self._pointer.base_addr = rst.copy()
+            return True
+
         if not pointer:
             logger.debug("Pointer is empty, cannot advance")
             return False
-
-        debug_log(f"Advancing pointer from {pointer}")
         graph: NodeComposeRendered = self.get_graph()
         current_container: BaseNode | NodeComposeRendered = graph
         for idx in pointer.base_addr[:-1]:
             if isinstance(current_container, NodeComposeRendered):
                 current_container = current_container[idx]
             else:
-                logger.debug(f"Failed to traverse to container at index {idx}")
                 return False
 
         end_idx = pointer[-1]
         if not isinstance(current_container, NodeComposeRendered):
-            debug_log("Current container is not a NodeComposeRendered")
             return False
 
         current_node: BaseNode | NodeComposeRendered = current_container[end_idx]
         if isinstance(current_node, NodeComposeRendered) and current_node:
             pointer.append(0)
             debug_log(f"Entered nested container, new pointer: {pointer}")
+            self._ptr_cache[ptr_hash] = pointer.base_addr.copy()
             return True
 
         next_idx = end_idx + 1
@@ -961,6 +982,7 @@ class WorkflowInterpreter(Generic[io_T]):
             else:
                 pointer[-1] = next_idx
                 debug_log(f"Advanced to next sibling node, new pointer: {pointer}")
+            self._ptr_cache[ptr_hash] = pointer.base_addr.copy()
             return True
 
         while pointer:
@@ -988,14 +1010,9 @@ class WorkflowInterpreter(Generic[io_T]):
                     ):
                         pointer[-1] = current_parent_idx + 1
                         pointer.append(0)
-                        debug_log(
-                            f"Backtracked and advanced to nested container, new pointer: {pointer}"
-                        )
                     else:
                         pointer[-1] = current_parent_idx + 1
-                        debug_log(
-                            f"Backtracked and advanced to next sibling, new pointer: {pointer}"
-                        )
+                    self._ptr_cache[ptr_hash] = pointer.base_addr.copy()
                     return True
 
         logger.debug("Failed to advance pointer through any path")
@@ -1138,14 +1155,6 @@ class WorkflowInterpreter(Generic[io_T]):
                 f"Cannot call a NodeCompose in addr {self._pointer.base_addr}."
             )
         await self.object_io._wait_for_continue(node.tag)
-        if __flags__.JIT_OPTIMIZE:
-            # TODO: more optimizations here
-            if nop is None:
-                from amrita_sense.instructions.workfl_ctrl import _no_operation
-
-                nop = _no_operation
-            if node is nop:
-                return
 
         node._pre_check(self)
 

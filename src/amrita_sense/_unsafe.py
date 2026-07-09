@@ -28,14 +28,16 @@ class _Flags:
     """Ignore the case that `DependencyMeta` is cached, resolve it in each call"""
     NO_SHARED_MIDDLEWARE: bool = field(default=False)
     """Ignore the case that `middleware` is shared between `WorkflowInterpreter`, set it to None."""
-    JIT_OPTIMIZE: bool = field(default=False)  # TODO: more optimizations
-    """Enable JIT optimization for workflow execution"""
     WORKFLOW_DI_NO_CACHE: bool = field(default=False)
     """Disable DI cache for workflow execution"""
     WORKFLOW_DI_PRELOAD_CACHE: bool = field(default=False)
     """Enable DI cache for workflow execution"""
     WORKFLOW_DI_PRELOAD_BATCH: int = field(default=10)
     """Preload DI resolving batch size"""
+    SQUASHED_LOOP: bool = field(default=False)
+    """Enable squashed loop for workflow execution"""
+    NO_ADDRESSING_CACHE: bool = field(default=False)
+    """Disable addressing cache for workflow execution"""
     _writeables: set[str] = field(
         default_factory=lambda: {"WORKFLOW_DI_PRELOAD_BATCH", "WORKFLOW_DI_NO_CACHE"}
     )

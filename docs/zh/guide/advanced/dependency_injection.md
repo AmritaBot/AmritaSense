@@ -173,7 +173,7 @@ TRY(
 cache_key = hash((hash(pointer), _fingerprint_args(ava_args, ava_kwargs)))
 ```
 
-缓存载体是 `cachetools` 的 `LRUCache`，最大容量 1024 条。缓存满时按最近最少使用策略淘汰。
+缓存载体是 `cachetools` 的 `LRUCache`，最大容量 2048 条。缓存满时按最近最少使用策略淘汰。
 
 ### 缓存生命周期
 
@@ -208,7 +208,8 @@ await pc2.run()  # 每个节点从头重新解析依赖
 2. 方法使用临时 `PointerVector` + `advance_pointer()` 遍历整个工作流图
 3. 为每个节点启动一个异步 worker，解析 DI 并将结果存入 `_di_cache.payload`
 4. Worker 以 `WORKFLOW_DI_PRELOAD_BATCH`（默认 10）控制的并发批量运行
-5. 预加载完成后主循环启动——每次 `_call()` 均为缓存命中
+5. 预加载器尊重缓存容量上限——若 `_di_cache.payload` 达到最大容量（2048），跳过剩余节点以避免缓存颠簸
+6. 预加载完成后主循环启动——每次 `_call()` 均为缓存命中
 
 ### 性能特征
 

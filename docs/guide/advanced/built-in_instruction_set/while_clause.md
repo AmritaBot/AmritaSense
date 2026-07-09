@@ -117,6 +117,61 @@ def fetch():
 retry = DO(fetch).WHILE(has_more)
 ```
 
+## Squashed Loop Mode (v0.4.3+)
+
+By default, `WHILE` and `DO-WHILE` loops use a **stepping** execution model: the interpreter advances through `WhileNode`/`DONode` → condition → action → `CheckUpNode`/`DowhileNode` one node at a time, with each step going through the full `run_step_by()` cycle (pointer advance, lock acquire/release, jump operations).
+
+Setting `__flags__.SQUASHED_LOOP = True` switches to **squashed** execution: the entire loop runs as a native Python `while` loop inside a single interpreter step.
+
+### How it works
+
+In squashed mode, `WhileNode._while_worker()` and `DONode._do_worker()` are replaced with equivalent logic:
+
+**WHILE squashed:**
+
+```python
+while await pc.call_offset(self._condi_offset):
+    await pc.call_offset(self._do_offset)
+    if pc._jump_marked:
+        break
+pc.jump_near(self._else_addr)
+```
+
+**DO-WHILE squashed:**
+
+```python
+try:
+    while True:
+        await pc.call_offset(self._do_offset)
+        if ptr.jump_marked:
+            return
+        if not await ptr.call_sub(condi_addr):
+            return ptr.jump_near(self._break_addr)
+except BreakLoop:
+    return ptr.jump_near(self._break_addr)
+```
+
+### Comparison
+
+| Aspect                 | Normal (stepping)                          | Squashed                                   |
+| ---------------------- | ------------------------------------------ | ------------------------------------------ |
+| **Pointer operations** | Multiple per iteration (enter, exit, jump) | One per iteration (the body `call_offset`) |
+| **Lock acquire**       | Per sub-step (condition, body, jump)       | Once for the entire loop                   |
+| **External interrupt** | Possible between any sub-step              | Only at body boundaries (`call_offset`)    |
+| **`BreakLoop`**        | Caught by WhileNode/DONode                 | Caught by native except                    |
+| **Performance**        | Baseline                                   | Lower overhead per iteration               |
+
+### When to use
+
+| Scenario                                              | Recommended Mode |
+| ----------------------------------------------------- | ---------------- |
+| Need precise external interruption within a loop step | **Normal**       |
+| Hot inner loops with many iterations                  | **Squashed**     |
+| Compatibility with `GOTO` jumping outside the loop    | **Normal**       |
+| Maximum throughput for tight loops                    | **Squashed**     |
+
+> **Note**: In squashed mode, `jump_marked` is checked after each body execution. This means jumps via `GOTO` or `CALL` that set the jump marker are still respected — the loop will break and the jump target will execute next. However, `InterruptNotice` and external interruption via `object_io` can only be injected at `call_offset` boundaries, not between loop sub-steps.
+
 ## When to use WHILE vs DO-WHILE
 
 | Scenario                                            | Recommended |
