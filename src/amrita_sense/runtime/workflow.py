@@ -812,7 +812,7 @@ class WorkflowInterpreter(Generic[io_T]):
         coro: list[Coroutine[Any, Any, Any]] = []
         with TimeInsighter() as t:
             while True:
-                node = self.find_addr(self._pointer.base_addr)
+                node = self.find_addr(ptr.base_addr)
                 assert isinstance(node, BaseNode)
                 coro.append(_worker(node, hash((hash(ptr), self._di_cache.args_hash))))
                 if len(coro) > __flags__.WORKFLOW_DI_PRELOAD_BATCH:
