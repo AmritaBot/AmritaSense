@@ -90,7 +90,7 @@ class TestDICacheType:
         c = DICache(args_hash=0, hash_trustable=True)
         for i in range(2048):
             c.payload[i] = {"data": i}
-        assert len(c.payload) <= 1024
+        assert len(c.payload) <= 2048
 
 
 #  DI cache on WorkflowInterpreter

@@ -357,5 +357,5 @@ class DICache:
     args_hash: int
     hash_trustable: bool
     payload: LRUCache[int, dict[str, Any]] = field(
-        default_factory=lambda: LRUCache(1024)
+        default_factory=lambda: LRUCache(2048)
     )
