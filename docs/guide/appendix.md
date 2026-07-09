@@ -48,6 +48,7 @@ A sequence of nodes defined by the `ARCHIVED_NODES` instruction, skipped by `Sub
 - **Jump Mark**: The `_jump_marked` flag. When `True`, the interpreter skips the regular pointer advancement step and the next cycle starts from the jump target.
 - **Exception Penetration**: Exceptions marked via `exception_ignored` cannot be caught by any `CATCH` block and propagate directly to the top-level handler.
 - **Call Stack**: `Stack[PointerVector]`, managing return addresses for subroutine calls.
+- **DI Cache** (v0.4.2+): `DICache` — an LRU-based cache inside `WorkflowInterpreter` that stores resolved dependency injection kwargs. Keyed by `hash((hash(pointer), args_hash))`, it avoids redundant DI resolution when the same node is revisited with the same argument types. Controlled via unsafe flags `WORKFLOW_DI_NO_CACHE`, `WORKFLOW_DI_PRELOAD_CACHE`, and `WORKFLOW_DI_PRELOAD_BATCH`.
 
 ### 9.1.12 Abbreviations
 

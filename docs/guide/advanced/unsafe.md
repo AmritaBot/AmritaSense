@@ -16,7 +16,9 @@ from amrita_sense._unsafe import __flags__
 
 ### One-Time Set, Lock Forever
 
-Each flag may only be set **once**. Attempting to assign a flag a second time raises `RuntimeError`. This design prevents accidental runtime toggling and ensures consistent behavior throughout the interpreter lifecycle.
+Most flags may only be set **once**. Attempting to assign a one-time flag a second time raises `RuntimeError`. This design prevents accidental runtime toggling and ensures consistent behavior throughout the interpreter lifecycle.
+
+A small number of flags (listed in the `_writeables` set) are **repeatable** — they can be changed at any time. Currently these are `WORKFLOW_DI_PRELOAD_BATCH` and `WORKFLOW_DI_NO_CACHE`. See [Flag Conflict Detection](#flag-conflict-detection) for rules about mutually exclusive flags.
 
 The recommended practice is to configure flags at the very top of your application entry point, **before** any interpreter is created:
 
@@ -99,26 +101,79 @@ When enabled, NOP nodes (`_no_operation`) are skipped during `_call()` execution
 
 > **Note**: This flag is marked `# TODO: more optimizations` — additional JIT optimizations may be added in future versions.
 
+### `WORKFLOW_DI_NO_CACHE` (v0.4.2+)
+
+```python
+WORKFLOW_DI_NO_CACHE: bool = False
+```
+
+Disables the DI result cache for workflow execution. When `False` (default), the interpreter caches dependency injection results per node address — if the same node is revisited at the same pointer position with the same DI argument types, the cached kwargs are reused, avoiding repeated dependency resolution.
+
+Setting this flag to `True` forces every node invocation to re-resolve dependencies from scratch, bypassing the `_di_cache` entirely.
+
+**When to use**: When your dependency providers have side effects that must execute on every invocation, or when args change frequently and the cache hit rate is expected to be low. Note that this flag is in `_writeables` and can be toggled at runtime.
+
+### `WORKFLOW_DI_PRELOAD_CACHE` (v0.4.2+)
+
+```python
+WORKFLOW_DI_PRELOAD_CACHE: bool = False
+```
+
+When enabled, the interpreter pre-resolves dependency injection for **all nodes** in the workflow during the `run()` initialization phase, populating the `_di_cache` before the first node executes. This front-loads all DI resolution work so that individual node invocations during the main loop are cache hits with zero resolution overhead.
+
+**When to use**: In workflows where DI resolution is expensive (e.g., complex type matching, many nodes) and you want predictable, low-latency per-node execution. The trade-off is a one-time startup cost proportional to the size of the workflow graph.
+
+> **⚠️ Conflict**: This flag conflicts with `NO_DEPENDENCY_META_CACHE`. Setting both simultaneously raises `RuntimeError`.
+
+### `WORKFLOW_DI_PRELOAD_BATCH` (v0.4.2+)
+
+```python
+WORKFLOW_DI_PRELOAD_BATCH: int = 10
+```
+
+Controls the batch size for DI preloading when `WORKFLOW_DI_PRELOAD_CACHE` is enabled. During `_refresh_di_cache_full()`, nodes are resolved in concurrent batches of this size via `asyncio.gather()`. A larger batch increases parallelism but may overwhelm the event loop; a smaller batch is more gradual but takes longer overall.
+
+**When to use**: Tune this value when you need to balance preload speed against event-loop responsiveness. This flag is in `_writeables` and can be adjusted at any time before calling `run()`.
+
+### Flag Conflict Detection (v0.4.2+)
+
+Certain flag combinations are mutually exclusive. The engine enforces this at assignment time — setting a flag that would create a conflict raises `RuntimeError` with a message listing the conflicting flags.
+
+The following conflicts are defined:
+
+| Flag A                      | Flag B                      | Rationale                                                   |
+| --------------------------- | --------------------------- | ----------------------------------------------------------- |
+| `WORKFLOW_DI_NO_CACHE`      | `WORKFLOW_DI_PRELOAD_CACHE` | Preloading populates a cache that is immediately disabled   |
+| `WORKFLOW_DI_PRELOAD_CACHE` | `NO_DEPENDENCY_META_CACHE`  | Preloading relies on cached metadata for efficient batch DI |
+
+The conflict check runs on every flag assignment. It evaluates each conflict group: if all flags in a group would be truthy after the current assignment, the assignment is rejected.
+
 ## Interaction with Other Systems
 
 Several built-in instructions and the matcher system read flags at key decision points:
 
-| Flag                       | Affected Systems                                                                 |
-| -------------------------- | -------------------------------------------------------------------------------- |
-| `DISABLE_EXC_IGNORED`      | `TryNode._call()`, `MatcherFactory._resolve()`, `WorkflowInterpreter.__init__()` |
-| `ALLOW_CALL_NODECOMPOSE`   | `WorkflowInterpreter._call()`                                                    |
-| `NO_DEPENDENCY_META_CACHE` | `WorkflowInterpreter._call()`, `MatcherFactory._prepare()`                       |
-| `FORCE_NOT_WRAP_TO_ASYNC`  | `WorkflowInterpreter._call()`                                                    |
-| `NO_SHARED_MIDDLEWARE`     | `WorkflowInterpreter.fork_interpreter()`                                         |
-| `JIT_OPTIMIZE`             | `WorkflowInterpreter._call()`                                                    |
+| Flag                        | Affected Systems                                                                 |
+| --------------------------- | -------------------------------------------------------------------------------- |
+| `DISABLE_EXC_IGNORED`       | `TryNode._call()`, `MatcherFactory._resolve()`, `WorkflowInterpreter.__init__()` |
+| `ALLOW_CALL_NODECOMPOSE`    | `WorkflowInterpreter._call()`                                                    |
+| `NO_DEPENDENCY_META_CACHE`  | `WorkflowInterpreter._call()`, `MatcherFactory._prepare()`                       |
+| `FORCE_NOT_WRAP_TO_ASYNC`   | `WorkflowInterpreter._call()`                                                    |
+| `NO_SHARED_MIDDLEWARE`      | `WorkflowInterpreter.fork_interpreter()`                                         |
+| `JIT_OPTIMIZE`              | `WorkflowInterpreter._call()`                                                    |
+| `WORKFLOW_DI_NO_CACHE`      | `WorkflowInterpreter._call()`                                                    |
+| `WORKFLOW_DI_PRELOAD_CACHE` | `WorkflowInterpreter.run()`, `WorkflowInterpreter._call()`                       |
+| `WORKFLOW_DI_PRELOAD_BATCH` | `WorkflowInterpreter._refresh_di_cache_full()`                                   |
 
 ## Summary
 
-| Flag                       | Default | Effect                                    |
-| -------------------------- | ------- | ----------------------------------------- |
-| `FORCE_NOT_WRAP_TO_ASYNC`  | `False` | Force sync nodes to stay sync             |
-| `DISABLE_EXC_IGNORED`      | `False` | Disable automatic exception penetration   |
-| `ALLOW_CALL_NODECOMPOSE`   | `False` | Allow `NodeCompose` to be called directly |
-| `NO_DEPENDENCY_META_CACHE` | `False` | Re-resolve dependency metadata each call  |
-| `NO_SHARED_MIDDLEWARE`     | `False` | Don't inherit parent middleware in forks  |
-| `JIT_OPTIMIZE`             | `False` | Skip NOP nodes during execution           |
+| Flag                        | Default | Effect                                    |
+| --------------------------- | ------- | ----------------------------------------- |
+| `FORCE_NOT_WRAP_TO_ASYNC`   | `False` | Force sync nodes to stay sync             |
+| `DISABLE_EXC_IGNORED`       | `False` | Disable automatic exception penetration   |
+| `ALLOW_CALL_NODECOMPOSE`    | `False` | Allow `NodeCompose` to be called directly |
+| `NO_DEPENDENCY_META_CACHE`  | `False` | Re-resolve dependency metadata each call  |
+| `NO_SHARED_MIDDLEWARE`      | `False` | Don't inherit parent middleware in forks  |
+| `JIT_OPTIMIZE`              | `False` | Skip NOP nodes during execution           |
+| `WORKFLOW_DI_NO_CACHE`      | `False` | Disable DI result caching (repeatable)    |
+| `WORKFLOW_DI_PRELOAD_CACHE` | `False` | Pre-resolve DI for all nodes at startup   |
+| `WORKFLOW_DI_PRELOAD_BATCH` | `10`    | Batch size for DI preloading (repeatable) |

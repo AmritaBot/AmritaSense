@@ -87,6 +87,18 @@ Interpreters form a tree: a top-level interpreter may have child interpreters cr
 
 **`get_exception() -> Exception | None`** (v0.3.1+) — Return the last panic exception, or `None` if the interpreter finished normally or has never crashed. Available immediately after a panic for diagnostic purposes.
 
+**`_di_cache: DICache`** (v0.4.2+) — Internal DI result cache. Stores resolved dependency kwargs keyed by `hash((hash(_pointer), args_hash))`. The payload is an `LRUCache` with max 1024 entries. See `args_hash` and `args_hash_trustable` for cache invalidation.
+
+**`args_hash_trustable: bool`** (v0.4.2+, read-only) — Returns `True` if the cached args hash is known to be valid. Set to `False` whenever `_ava_args` or `_ava_kwargs` are modified. Call `rehash_args()` to restore trust.
+
+**`args_hash: int`** (v0.4.2+, read-only) — Returns the current args hash used as part of the DI cache key. Computed by `_fingerprint_args()`.
+
+**`rehash_args() -> None`** (v0.4.2+) — Recompute the args hash from the current `_ava_args` and `_ava_kwargs`. Sets `hash_trustable = True`. If the new hash differs from the old value, the entire DI cache payload is cleared.
+
+**`_rslv_node(node, ava_args, ava_kwargs) -> dict[str, Any]`** (v0.4.2+, internal) — Resolve dependencies for a single node. Calls `MatcherFactory._resolve_dependencies()` and `MatcherFactory._do_runtime_resolve()` in sequence. Returns the resolved keyword arguments dictionary. Raises `DependsResolveFailed` or `DependsInjectFailed` on failure. This is an internal method extracted from `_call()` to be shared between the main loop and the preload mechanism.
+
+**`_refresh_di_cache_full() -> None`** (v0.4.2+, internal) — Walk the entire workflow graph and pre-resolve DI for every node, storing results in `_di_cache`. Nodes are resolved in concurrent batches of size `WORKFLOW_DI_PRELOAD_BATCH`. Only called during `run()` initialization when `WORKFLOW_DI_PRELOAD_CACHE` is enabled. Raises `DependsResolveFailed` if `hash_trustable` is `False`.
+
 ### Important methods
 
 #### `async run() -> None`
