@@ -89,17 +89,27 @@ NO_SHARED_MIDDLEWARE: bool = False
 
 **适用场景**：希望父子解释器之间严格隔离中间件，倾向于显式按需开启的模式。
 
-### `JIT_OPTIMIZE`（v0.4.x+）
+### `SQUASHED_LOOP`（v0.4.3+）
 
 ```python
-JIT_OPTIMIZE: bool = False
+SQUASHED_LOOP: bool = False
 ```
 
-启用后，NOP 节点（`_no_operation`）在 `_call()` 执行中被跳过，不调用完整的依赖注入路径。这避免了占位节点的 asyncio 上下文切换和锁获取/释放开销。
+启用后，`WHILE` 和 `DO-WHILE` 循环以单个原生 Python `while` 循环执行，不再通过重复的 `call_offset`/`jump_near` 调用在 `WhileNode`/`DONode` → condition → action → `CheckUpNode`/`DowhileNode` 之间跳跃。整个循环体在单个解释器步骤内运行，避免了每次迭代的指针推进、锁获取和跳转操作的开销。
 
-**适用场景**：在具有大量 NOP 汇合点的工作流中（如重度使用 IF/ELIF 分支），此标志可降低逐节点开销。
+**适用场景**：热循环场景（具有大量迭代的紧内层循环），迭代间开销可测量且不需要在外层中断单个循环子步骤。注意在压扁模式下，`BreakLoop` 和 `jump_marked` 仍然被正确处理——不支持跳转到循环结构之外的地址。
 
-> **注意**：此标志标记为 `# TODO: more optimizations`——未来版本可能会添加更多 JIT 优化。
+### `NO_ADDRESSING_CACHE`（v0.4.3+）
+
+```python
+NO_ADDRESSING_CACHE: bool = False
+```
+
+禁用 `advance_pointer()` 中的 `_ptr_cache`。默认 `False` 时，解释器缓存指针推进的结果——若同一指针位置被再次访问，直接复用缓存的 `base_addr`，避免嵌套工作流中 O(D²) 的回溯遍历。
+
+设为 `True` 后，强制解释器每次从头从图中计算下一指针位置，完全绕过缓存。
+
+**适用场景**：调试期间，或工作流图结构在运行时动态变化导致缓存结果可能过时。禁用缓存也会减少内存使用，但以性能为代价。
 
 ### `WORKFLOW_DI_NO_CACHE`（v0.4.2+）
 
@@ -159,21 +169,23 @@ WORKFLOW_DI_PRELOAD_BATCH: int = 10
 | `NO_DEPENDENCY_META_CACHE`  | `WorkflowInterpreter._call()`、`MatcherFactory._prepare()`                       |
 | `FORCE_NOT_WRAP_TO_ASYNC`   | `WorkflowInterpreter._call()`                                                    |
 | `NO_SHARED_MIDDLEWARE`      | `WorkflowInterpreter.fork_interpreter()`                                         |
-| `JIT_OPTIMIZE`              | `WorkflowInterpreter._call()`                                                    |
+| `SQUASHED_LOOP`             | `WhileNode._while_worker()`、`DONode._do_worker()`                               |
+| `NO_ADDRESSING_CACHE`       | `WorkflowInterpreter.advance_pointer()`                                          |
 | `WORKFLOW_DI_NO_CACHE`      | `WorkflowInterpreter._call()`                                                    |
 | `WORKFLOW_DI_PRELOAD_CACHE` | `WorkflowInterpreter.run()`、`WorkflowInterpreter._call()`                       |
 | `WORKFLOW_DI_PRELOAD_BATCH` | `WorkflowInterpreter._refresh_di_cache_full()`                                   |
 
 ## 汇总
 
-| 标志                        | 默认值  | 效果                            |
-| --------------------------- | ------- | ------------------------------- |
-| `FORCE_NOT_WRAP_TO_ASYNC`   | `False` | 强制同步节点保持同步            |
-| `DISABLE_EXC_IGNORED`       | `False` | 禁用异常自动穿透                |
-| `ALLOW_CALL_NODECOMPOSE`    | `False` | 允许直接调用 `NodeCompose`      |
-| `NO_DEPENDENCY_META_CACHE`  | `False` | 每次调用重新解析依赖元数据      |
-| `NO_SHARED_MIDDLEWARE`      | `False` | fork 时不继承父中间件           |
-| `JIT_OPTIMIZE`              | `False` | 执行时跳过 NOP 节点             |
-| `WORKFLOW_DI_NO_CACHE`      | `False` | 禁用 DI 结果缓存（可重复写入）  |
-| `WORKFLOW_DI_PRELOAD_CACHE` | `False` | 启动时预解析所有节点的 DI       |
-| `WORKFLOW_DI_PRELOAD_BATCH` | `10`    | DI 预加载批量大小（可重复写入） |
+| 标志                        | 默认值  | 效果                             |
+| --------------------------- | ------- | -------------------------------- |
+| `FORCE_NOT_WRAP_TO_ASYNC`   | `False` | 强制同步节点保持同步             |
+| `DISABLE_EXC_IGNORED`       | `False` | 禁用异常自动穿透                 |
+| `ALLOW_CALL_NODECOMPOSE`    | `False` | 允许直接调用 `NodeCompose`       |
+| `NO_DEPENDENCY_META_CACHE`  | `False` | 每次调用重新解析依赖元数据       |
+| `NO_SHARED_MIDDLEWARE`      | `False` | fork 时不继承父中间件            |
+| `SQUASHED_LOOP`             | `False` | 将 while/do-while 压扁为原生循环 |
+| `NO_ADDRESSING_CACHE`       | `False` | 禁用指针推进缓存                 |
+| `WORKFLOW_DI_NO_CACHE`      | `False` | 禁用 DI 结果缓存（可重复写入）   |
+| `WORKFLOW_DI_PRELOAD_CACHE` | `False` | 启动时预解析所有节点的 DI        |
+| `WORKFLOW_DI_PRELOAD_BATCH` | `10`    | DI 预加载批量大小（可重复写入）  |

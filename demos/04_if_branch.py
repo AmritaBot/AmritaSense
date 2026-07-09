@@ -6,7 +6,7 @@ Usage:
 
 import asyncio
 
-from amrita_sense import IF, NOP, Node, NodeType, WorkflowInterpreter
+from amrita_sense import IF, Node, NodeType, WorkflowInterpreter
 
 
 @Node()
@@ -32,12 +32,7 @@ async def main() -> None:
     cond_a = NodeType(lambda: False, wrap_to_async=False, address_able=False, tag=None)
     cond_b = NodeType(lambda: True, wrap_to_async=False, address_able=False, tag=None)
 
-    comp = (
-        IF(cond_a, grade_a)  # type: ignore[arg-type]
-        .ELIF(cond_b, grade_b)  # type: ignore[arg-type]
-        .ELSE(grade_c)
-        >> NOP
-    )
+    comp = IF(cond_a, grade_a).ELIF(cond_b, grade_b).ELSE(grade_c).extract()
     rendered = comp.render()
     interpreter = WorkflowInterpreter(rendered)
     await interpreter.run()

@@ -170,7 +170,7 @@ The utility function `_fingerprint_args()` generates the args hash by:
 cache_key = hash((hash(pointer), _fingerprint_args(ava_args, ava_kwargs)))
 ```
 
-The cache payload is an `LRUCache` (from `cachetools`) with a maximum of 1024 entries. When the cache is full, the least recently used entry is evicted.
+The cache payload is an `LRUCache` (from `cachetools`) with a maximum of 2048 entries. When the cache is full, the least recently used entry is evicted.
 
 ### Cache lifecycle
 
@@ -205,7 +205,8 @@ When `__flags__.WORKFLOW_DI_PRELOAD_CACHE` is enabled, the interpreter pre-resol
 2. The method walks the entire workflow graph using `advance_pointer()` with a temporary `PointerVector`
 3. For each node, it spawns an async worker that resolves DI and stores the result in `_di_cache.payload`
 4. Workers run in concurrent batches controlled by `WORKFLOW_DI_PRELOAD_BATCH` (default: 10)
-5. After preloading completes, the main loop starts — every `_call()` is a cache hit
+5. The preloader respects the cache capacity — if `_di_cache.payload` reaches its maximum size (2048), remaining nodes are skipped to avoid cache thrashing
+6. After preloading completes, the main loop starts — every `_call()` is a cache hit
 
 ### Performance characteristics
 

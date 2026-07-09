@@ -119,6 +119,61 @@ def fetch():
 retry = DO(fetch).WHILE(has_more)
 ```
 
+## Squashed Loop 模式（v0.4.3+）
+
+默认情况下，`WHILE` 和 `DO-WHILE` 循环使用**步进式**执行模型：解释器逐节点推进 `WhileNode`/`DONode` → condition → action → `CheckUpNode`/`DowhileNode`，每一步都经过完整的 `run_step_by()` 循环（指针推进、锁获取/释放、跳转操作）。
+
+设置 `__flags__.SQUASHED_LOOP = True` 切换到**压扁式**执行：整个循环在单个解释器步骤内作为一个原生 Python `while` 循环运行。
+
+### 工作原理
+
+在压扁模式下，`WhileNode._while_worker()` 和 `DONode._do_worker()` 被替换为等价逻辑：
+
+**WHILE 压扁后：**
+
+```python
+while await pc.call_offset(self._condi_offset):
+    await pc.call_offset(self._do_offset)
+    if pc._jump_marked:
+        break
+pc.jump_near(self._else_addr)
+```
+
+**DO-WHILE 压扁后：**
+
+```python
+try:
+    while True:
+        await pc.call_offset(self._do_offset)
+        if ptr.jump_marked:
+            return
+        if not await ptr.call_sub(condi_addr):
+            return ptr.jump_near(self._break_addr)
+except BreakLoop:
+    return ptr.jump_near(self._break_addr)
+```
+
+### 对比
+
+| 方面            | 正常（步进式）                          | 压扁式                                |
+| --------------- | --------------------------------------- | ------------------------------------- |
+| **指针操作**    | 每次迭代多次（进入、退出、跳转）        | 每次迭代一次（body 的 `call_offset`） |
+| **锁获取**      | 每个子步骤一次（condition、body、jump） | 整个循环一次                          |
+| **外部中断**    | 可在任意子步骤之间                      | 仅在 body 边界（`call_offset`）       |
+| **`BreakLoop`** | 由 WhileNode/DONode 捕获                | 由原生 except 捕获                    |
+| **性能**        | 基准线                                  | 每次迭代开销更低                      |
+
+### 何时使用
+
+| 场景                             | 推荐模式   |
+| -------------------------------- | ---------- |
+| 需要在循环步内进行精确的外部中断 | **正常**   |
+| 具有大量迭代的热内层循环         | **压扁式** |
+| 与循环外部的 `GOTO` 跳转兼容     | **正常**   |
+| 紧循环的最大吞吐量               | **压扁式** |
+
+> **注意**：在压扁模式下，`jump_marked` 会在每次 body 执行后检查。这意味着通过 `GOTO` 或 `CALL` 设置跳转标记的跳转仍然被支持——循环会中断，跳转目标在下一步执行。但是，`InterruptNotice` 和通过 `object_io` 的外部中断只能在 `call_offset` 边界注入，不能在循环子步骤之间。
+
 ## 何时用 WHILE，何时用 DO-WHILE
 
 | 场景                                         | 推荐       |

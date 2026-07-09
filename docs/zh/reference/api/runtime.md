@@ -74,6 +74,7 @@ def __init__(
 - `_interpret_lock: aiologic.Lock`：解释锁。每次迭代获取一次，保证单个节点的执行原子性。同时也是外部安全调用的互斥锁
 - `_if_flag: bool`（v0.4.x+）：标记解释器是否处于中断上下文的布尔标志
 - `_context_stack: Stack[InterpreterContext]`（v0.4.x+）：`InterpreterContext` 快照的后进先出栈，用于 PUSH_CONTEXT/POP_CONTEXT 和 INTERRUPT_INTO/INTERRUPT_RET
+- `_ptr_cache`（v0.4.3+）：内部 `LRUCache[int, list[int]]`，缓存指针推进结果。以 `hash(pointer)` 为键，存储已解析的 `base_addr`，避免 `advance_pointer()` 中的 O(D²) 回溯遍历。通过 `NO_ADDRESSING_CACHE` unsafe 标志控制。
 - `_ava_args / _ava_kwargs`：执行期可用参数池，供依赖注入系统从中匹配节点的参数签名
 - `_exc_ignored: tuple[type[BaseException], ...]`：运行时自动包含 `InterruptNotice` 和 `BreakLoop`。这些异常不会被任何 `CATCH` 块捕获，直接穿透到顶层。**v0.3.0+**：可通过 `__flags__.DISABLE_EXC_IGNORED = True` 禁用此自动加入行为
 - `object_io: io_T`：泛型的外部 I/O 接口。节点可通过 `pc.object_io` 进行流式产出、挂起控制
@@ -100,7 +101,7 @@ def __init__(
 
 **`get_exception() -> Exception | None`**（v0.3.1+）— 获取上次 panic 异常。若解释器正常完成或从未崩溃，返回 `None`。崩溃后即时可用，用于诊断。
 
-**`_di_cache: DICache`**（v0.4.2+）— 内部 DI 结果缓存。以 `hash((hash(_pointer), args_hash))` 为键存储已解析的依赖 kwargs。载体为 `LRUCache`，最大 1024 条。缓存失效见 `args_hash` 和 `args_hash_trustable`。
+**`_di_cache: DICache`**（v0.4.2+）— 内部 DI 结果缓存。以 `hash((hash(_pointer), args_hash))` 为键存储已解析的依赖 kwargs。载体为 `LRUCache`，最大 2048 条。缓存失效见 `args_hash` 和 `args_hash_trustable`。
 
 **`args_hash_trustable: bool`**（v0.4.2+，只读）— 若缓存的参数哈希已知有效，返回 `True`。修改 `_ava_args` 或 `_ava_kwargs` 时自动置为 `False`。调用 `rehash_args()` 恢复信任。
 
@@ -284,10 +285,6 @@ def __init__(
 4. 若当前节点无后继 -> 沿指针栈**逐层向上回溯**，寻找父容器的下一个兄弟
 5. 回溯中寻得后继 -> 按相同逻辑处理，返回 `True`
 6. 回溯到顶层仍未找到 -> 返回 `False`（工作流结束）
-
-**弃用说明**
-
-`_advance_pointer` 属性已在 v0.3.0 弃用，请使用 `advance_pointer()` 方法。旧属性仅作为兼容性委托存在，将在未来版本中移除。
 
 ### 执行行为
 

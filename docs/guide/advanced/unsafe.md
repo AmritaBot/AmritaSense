@@ -89,17 +89,27 @@ By default, `fork_interpreter()` inherits the parent's middleware when `middlewa
 
 **When to use**: When you want strict middleware isolation between parent and child interpreters, and prefer an explicit opt-in model.
 
-### `JIT_OPTIMIZE` (v0.4.x+)
+### `SQUASHED_LOOP` (v0.4.3+)
 
 ```python
-JIT_OPTIMIZE: bool = False
+SQUASHED_LOOP: bool = False
 ```
 
-When enabled, NOP nodes (`_no_operation`) are skipped during `_call()` execution without invoking the full dependency-injection path. This avoids the overhead of an asyncio context switch and lock acquire/release for placeholder nodes.
+When enabled, `WHILE` and `DO-WHILE` loops execute as a single native Python `while` loop instead of bouncing between `WhileNode`/`DONode` → condition → action → `CheckUpNode`/`DowhileNode` via repeated `call_offset`/`jump_near` calls. The entire loop body runs inside one interpreter step, avoiding the overhead of per-iteration pointer advances, lock acquisitions, and jump operations.
 
-**When to use**: In workflows with many NOP convergence points (e.g., heavy use of IF/ELIF branching), this flag can reduce per-node overhead.
+**When to use**: In hot-loop scenarios (tight inner loops with many iterations) where per-iteration overhead is measurable and you don't need external interruption at individual loop sub-steps. Note that in squashed mode, `BreakLoop` and `jump_marked` are still respected — jumps to addresses outside the loop structure are not supported.
 
-> **Note**: This flag is marked `# TODO: more optimizations` — additional JIT optimizations may be added in future versions.
+### `NO_ADDRESSING_CACHE` (v0.4.3+)
+
+```python
+NO_ADDRESSING_CACHE: bool = False
+```
+
+Disables the `_ptr_cache` in `advance_pointer()`. When `False` (default), the interpreter caches the result of pointer advancement — if the same pointer position is visited again, the cached `base_addr` is reused, avoiding the O(D²) backtracking traversal for nested workflows.
+
+Setting this flag to `True` forces the interpreter to recompute the next pointer position from the graph on every call, bypassing the cache entirely.
+
+**When to use**: During debugging or when workflow graph structure changes dynamically at runtime and cached results may be stale. Disabling the cache also reduces memory usage at the cost of performance.
 
 ### `WORKFLOW_DI_NO_CACHE` (v0.4.2+)
 
@@ -159,7 +169,8 @@ Several built-in instructions and the matcher system read flags at key decision 
 | `NO_DEPENDENCY_META_CACHE`  | `WorkflowInterpreter._call()`, `MatcherFactory._prepare()`                       |
 | `FORCE_NOT_WRAP_TO_ASYNC`   | `WorkflowInterpreter._call()`                                                    |
 | `NO_SHARED_MIDDLEWARE`      | `WorkflowInterpreter.fork_interpreter()`                                         |
-| `JIT_OPTIMIZE`              | `WorkflowInterpreter._call()`                                                    |
+| `SQUASHED_LOOP`             | `WhileNode._while_worker()`, `DONode._do_worker()`                               |
+| `NO_ADDRESSING_CACHE`       | `WorkflowInterpreter.advance_pointer()`                                          |
 | `WORKFLOW_DI_NO_CACHE`      | `WorkflowInterpreter._call()`                                                    |
 | `WORKFLOW_DI_PRELOAD_CACHE` | `WorkflowInterpreter.run()`, `WorkflowInterpreter._call()`                       |
 | `WORKFLOW_DI_PRELOAD_BATCH` | `WorkflowInterpreter._refresh_di_cache_full()`                                   |
@@ -173,7 +184,8 @@ Several built-in instructions and the matcher system read flags at key decision 
 | `ALLOW_CALL_NODECOMPOSE`    | `False` | Allow `NodeCompose` to be called directly |
 | `NO_DEPENDENCY_META_CACHE`  | `False` | Re-resolve dependency metadata each call  |
 | `NO_SHARED_MIDDLEWARE`      | `False` | Don't inherit parent middleware in forks  |
-| `JIT_OPTIMIZE`              | `False` | Skip NOP nodes during execution           |
+| `SQUASHED_LOOP`             | `False` | Squash while/do-while into native loops   |
+| `NO_ADDRESSING_CACHE`       | `False` | Disable pointer advancement cache         |
 | `WORKFLOW_DI_NO_CACHE`      | `False` | Disable DI result caching (repeatable)    |
 | `WORKFLOW_DI_PRELOAD_CACHE` | `False` | Pre-resolve DI for all nodes at startup   |
 | `WORKFLOW_DI_PRELOAD_BATCH` | `10`    | Batch size for DI preloading (repeatable) |
