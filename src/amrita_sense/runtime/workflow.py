@@ -812,8 +812,6 @@ class WorkflowInterpreter(Generic[io_T]):
         coro: list[Coroutine[Any, Any, Any]] = []
         with TimeInsighter() as t:
             while True:
-                await asyncio.sleep(0)
-
                 node = self.find_addr(self._pointer.base_addr)
                 assert isinstance(node, BaseNode)
                 coro.append(
@@ -821,6 +819,7 @@ class WorkflowInterpreter(Generic[io_T]):
                 )
                 if len(coro) > __flags__.WORKFLOW_DI_PRELOAD_BATCH:
                     await asyncio.gather(*coro)
+                    await asyncio.sleep(0)
                     coro.clear()
                 if not self.advance_pointer(ptr):
                     break
@@ -1157,9 +1156,19 @@ class WorkflowInterpreter(Generic[io_T]):
             ava_args += extra_args
         if extra_kwargs:  # To avoid a copy cost.
             ava_kwargs = self.__ava_kwargs.copy()
+            if any(k in ava_kwargs for k in extra_kwargs.keys()):
+                raise DependsInjectFailed(
+                    "Cannot override existing kwargs: {}".format(
+                        ", ".join(extra_kwargs.keys())
+                    )
+                )
             ava_kwargs.update(extra_kwargs)
         else:
             ava_kwargs = self.__ava_kwargs
+        if extra_args or extra_kwargs:  # should rebuild hash:
+            code = _fingerprint_args(ava_args, ava_kwargs)
+        else:
+            code = self._di_cache.args_hash
 
         fun = node.func
         if (
@@ -1167,14 +1176,14 @@ class WorkflowInterpreter(Generic[io_T]):
             or not self._di_cache.hash_trustable
             or (
                 kw_rsved := self._di_cache.payload.get(
-                    hash((hash(self._pointer), self._di_cache.args_hash))
+                    hash((hash(self._pointer), code))
                 )
             )
             is None
         ):
             kw_rsved = await self._rslv_node(node, ava_args, ava_kwargs)
             if not __flags__.WORKFLOW_DI_NO_CACHE:
-                self._di_cache.payload[hash(self._pointer)] = kw_rsved
+                self._di_cache.payload[hash((hash(self._pointer), code))] = kw_rsved
         logger.debug(f"Running node {node.tag}:{node.func.__name__}")
         debug_log(
             f"Address is {self._pointer}, Type of node is {node.__class__.__name__}"
