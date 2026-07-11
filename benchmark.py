@@ -39,7 +39,7 @@ from amrita_sense.utils import TimeInsighter
 #  Global configuration
 
 RUNS = 5
-PREWARM = 100000000
+PREWARM = 10000000
 
 # Scenario constants (global, preserved)
 
