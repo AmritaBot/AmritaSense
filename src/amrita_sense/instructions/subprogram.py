@@ -8,7 +8,7 @@ from typing_extensions import override
 from amrita_sense.exceptions import AliasNotFoundError
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.workfl_ctrl import NOP
-from amrita_sense.node.core import BaseNode, NodeCompose
+from amrita_sense.node.core import BaseNode, NodeCompose, NodeComposeRendered
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 
@@ -84,9 +84,9 @@ class CallNode(BaseNode):
         self._init(self.__call__, tag, False, True)
 
     @override
-    def _pre_check(self, pointer: WorkflowInterpreter) -> None:
-        if (addr := pointer.get_graph().alias2vector_map.get(self._alias)) is None:
-            str_keys = list(pointer.get_graph().alias2vector_map.keys())
+    def _post_compile(self, compose: NodeComposeRendered) -> None:
+        if (addr := compose.alias2vector_map.get(self._alias)) is None:
+            str_keys = list(compose.alias2vector_map.keys())
             matches = difflib.get_close_matches(self._alias, str_keys, n=1, cutoff=0.6)
             if matches:
                 suggestion = matches[0]

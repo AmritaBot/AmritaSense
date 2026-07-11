@@ -24,7 +24,7 @@ External systems call directly through the interpreter object:
 ```python
 # Assuming interpreter is a WorkflowInterpreter instance
 await interpreter.call_sub(
-    interpreter.find_addr_alias("my_handler"),
+    interpreter.get_graph().calc.resolve_alias("my_handler"),
     interrupt=True,
     some_arg="value"
 )
@@ -121,7 +121,7 @@ An external system (such as a debugger) can inject like this:
 # First ensure the workflow is suspended at a checkpoint or node boundary
 await pc.object_io.wait_to_suspend(PC_CHECKPOINT)
 # Now the lock is free — safe to inject
-await pc.call_sub(pc.find_addr_alias("health_check"), interrupt=True)
+await pc.call_sub(pc.get_graph().calc.resolve_alias("health_check"), interrupt=True)
 # After injection completes, resume the workflow
 pc.object_io.resume()
 ```

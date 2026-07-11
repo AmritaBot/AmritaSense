@@ -41,7 +41,7 @@ AmritaSense 提供了完整的子程序调用机制。与 `GOTO` 的单向跳转
 async def caller_node(pc: WorkflowInterpreter):
     # 调用子程序并传入参数
     result = await pc.call_sub(
-        pc.find_addr_alias("target_sub"),
+        pc.get_graph().calc.resolve_alias("target_sub"),
         "positional_arg",
         custom_kw="value"
     )

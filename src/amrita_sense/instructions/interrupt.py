@@ -1,5 +1,6 @@
 from amrita_sense.exceptions import IllegalState
 from amrita_sense.node import NodeType
+from amrita_sense.node.core import NodeComposeRendered
 from amrita_sense.node.wrapper import Node
 from amrita_sense.runtime.types import InterpreterContext
 from amrita_sense.runtime.workflow import WorkflowInterpreter
@@ -42,14 +43,21 @@ def PUSH_CONTEXT(
     @Node("__PUSH_CONTEXT__", wrap_to_async=False)
     def call(pc: WorkflowInterpreter) -> None:
         nonlocal addr
-        if isinstance(alias_or_idata, str):
-            addr = pc.find_addr_alias(alias_or_idata)
-        else:
-            addr = alias_or_idata
+
         pc.context_stack.push(
             pc.dump_interpreter(exclude_deps=exclude_deps, exclude_stack=exclude_stack)
         )
+        assert addr is not None
         pc.jump_to(addr)
+
+    def _post_compile(compose: NodeComposeRendered):
+        nonlocal addr
+        if isinstance(alias_or_idata, str):
+            addr = compose.calc.resolve_alias(alias_or_idata)
+        else:
+            addr = alias_or_idata
+
+    call._post_compile = _post_compile
 
     return call
 
@@ -129,17 +137,30 @@ def INTERRUPT_INTO(
         pc.if_flag = if_state
 
         # Resolve lazily, cache once
-        if jmp_addr is None:
-            jmp_addr = (
-                pc.find_addr_alias(jump_to) if isinstance(jump_to, str) else jump_to
-            )
-        if ret_addr is None:
-            ret_addr = pc.find_addr_alias(ret_to) if isinstance(ret_to, str) else ret_to
+        assert jmp_addr is not None
+        assert ret_addr is not None
 
         ctx = pc.dump_interpreter()
         ctx.ptr = PointerVector(ret_addr)  # override: return here after IRET
         pc.context_stack.push(ctx)
         pc.jump_to(jmp_addr)
+
+    def _post_compile(compose: NodeComposeRendered):
+        nonlocal jmp_addr, ret_addr
+        if jmp_addr is None:
+            jmp_addr = (
+                compose.calc.resolve_alias(jump_to)
+                if isinstance(jump_to, str)
+                else jump_to
+            )
+        if ret_addr is None:
+            ret_addr = (
+                compose.calc.resolve_alias(ret_to)
+                if isinstance(ret_to, str)
+                else ret_to
+            )
+
+    call._post_compile = _post_compile
 
     return call
 

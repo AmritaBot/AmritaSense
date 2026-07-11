@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 from typing import Generic, TypeVar
 
@@ -101,3 +101,7 @@ def _fingerprint_args(ava_args: tuple, ava_kwargs: dict) -> int:
     type_seq = tuple(type(arg).__name__ for arg in ava_args)
     kw_seq = tuple(sorted((k, type(v).__name__) for k, v in ava_kwargs.items()))
     return hash((type_seq, kw_seq))
+
+
+def isabstractmethod(fn: Callable) -> bool:
+    return getattr(fn, "__isabstractmethod__", False)

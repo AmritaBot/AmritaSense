@@ -6,8 +6,7 @@ Usage:
 
 import asyncio
 
-from amrita_sense import ALIAS, ARCHIVED_NODES, CALL, Node, WorkflowInterpreter
-from amrita_sense.instructions import GOTO
+from amrita_sense import ALIAS, ARCHIVED_NODES, CALL, GOTO, Node, WorkflowInterpreter
 
 
 @Node()

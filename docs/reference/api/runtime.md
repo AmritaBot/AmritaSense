@@ -25,7 +25,6 @@ WorkflowInterpreter(
     context_stack: Stack[InterpreterContext] | None = None,
     middleware: Callable[['WorkflowInterpreter'], Awaitable[Any]] | None = None,
     parent_interpreter: WorkflowInterpreter | None = None,
-    ptr_cache_size: int = 1024,
 )
 ```
 
@@ -39,7 +38,6 @@ Arguments:
 - `context_stack` (v0.4.x+): Optional pre-initialized interpreter context stack for save/restore workflows. Defaults to a new empty `Stack[InterpreterContext]`.
 - `middleware`: Optional async callable that receives the `WorkflowInterpreter` instance. When set, `run_step_by()` and `call_sub()` delegate to the middleware instead of calling nodes directly. The middleware can decide whether and how to execute nodes, transform results, or inject custom logic around every step.
 - `parent_interpreter` (v0.3.0+): Optional parent `WorkflowInterpreter` for building an interpreter tree. Set automatically by `fork_interpreter()` — rarely needed directly.
-- `ptr_cache_size` (v0.4.3+): Size of the `_ptr_cache` LRU cache. Controls how many pointer advancement results are cached to avoid O(D²) backtracking traversal in deeply nested workflows. Defaults to 1024.
 
 ### Panic / Recover (v0.3.1+)
 
@@ -66,7 +64,6 @@ To recover from a panic, simply call `run()` (or `run_step_by()`) again on the s
 - `_interpret_lock`: Async lock used to guarantee one-node-at-a-time execution.
 - `_if_flag` (v0.4.x+): Boolean flag indicating whether the interpreter is in an interrupt context.
 - `_context_stack` (v0.4.x+): LIFO stack of `InterpreterContext` snapshots used by PUSH_CONTEXT/POP_CONTEXT and INTERRUPT_INTO/INTERRUPT_RET.
-- `_ptr_cache` (v0.4.3+): Internal `LRUCache[int, list[int]]` that caches pointer advancement results. Keyed by `hash(pointer)`, stores the resolved `base_addr` to avoid O(D²) backtracking traversal in `advance_pointer()`. Controlled via the `NO_ADDRESSING_CACHE` unsafe flag.
 - `object_io`: External I/O stream used for suspend/resume and streaming output.
 
 ### Interpreter Tree (v0.3.0+)
@@ -205,7 +202,15 @@ Reset the interpreter's execution state to its initial values: clear the pointer
 
 `reset()` is intended for scenarios where you want to restart execution from scratch on the same workflow graph without creating a new interpreter.
 
+#### `get_graph() -> NodeComposeRendered` (v0.4.4+)
+
+Return the rendered workflow graph being executed by this interpreter. The graph's `calc` property provides the `AddressCalculator` with methods `resolve_alias()`, `find_addr()`, `find_addr_safe()`, and `advance()`.
+
 #### `find_addr_alias(alias: str) -> list[int]`
+
+::: warning Deprecated
+This method is deprecated since v0.4.4. Use `get_graph().calc.resolve_alias(alias)` instead.
+:::
 
 Resolve an alias to its absolute address vector. Raises `NullPointerException` if the alias does not exist.
 
@@ -242,6 +247,10 @@ Restore the interpreter state from an `InterpreterContext` snapshot. Sets the po
 
 #### `find_addr(addr: list[int]) -> BaseNode | NodeComposeRendered`
 
+::: warning Deprecated
+This method is deprecated since v0.4.4. Use `get_graph().calc.find_addr(addr)` instead.
+:::
+
 Find a node or rendered composition by absolute address.
 
 #### `find_node_alias(alias: str) -> BaseNode | NodeComposeRendered`
@@ -250,7 +259,7 @@ Resolve an alias and return the corresponding node object.
 
 #### `advance_pointer(ptr: PointerVector | None = None) -> bool`
 
-Advance the execution pointer to the next node in the workflow graph. This method implements the logic for navigating through nested workflow structures, handling both sequential execution and hierarchical traversal.
+Advance the execution pointer to the next node in the workflow graph. This method delegates to `AddressCalculator.advance()` on the compiled graph. It handles navigation through nested workflow structures, supporting both sequential execution and hierarchical traversal.
 
 **Parameters**
 

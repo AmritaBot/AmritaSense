@@ -1,6 +1,6 @@
 # SuspendObjectStream
 
-`SuspendObjectStream` 是一个泛型异步双工流工具，为协作式挂起/恢复控制流程提供完整基础设施。它既是 AmritaCore `ChatObject` 响应流的底层实现，也是 AmritaSense `WorkflowInterpreter` 的 `object_io` 核心组件。
+`SuspendObjectStream` 是一个泛型异步双工流工具，为协作式挂起/恢复控制流程提供完整基础设施。它是 AmritaSense `WorkflowInterpreter` 的 `object_io` 核心组件。
 
 ## 概述
 

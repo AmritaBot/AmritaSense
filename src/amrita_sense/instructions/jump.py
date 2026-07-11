@@ -7,7 +7,7 @@ from typing_extensions import override
 
 from amrita_sense.exceptions import AliasNotFoundError
 from amrita_sense.hook.fun_typing import DependencyMeta
-from amrita_sense.node.core import BaseNode
+from amrita_sense.node.core import BaseNode, NodeComposeRendered
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 
 
@@ -43,12 +43,12 @@ class JumpNode(BaseNode):
         return self._jump(pc)
 
     @override
-    def _pre_check(self, pointer: WorkflowInterpreter) -> None:
+    def _post_compile(self, compose: NodeComposeRendered) -> None:
         if self._node_addr:
             return
         if isinstance(self._alias_or_idata, str):
-            if self._alias_or_idata not in pointer.get_graph().alias2vector_map:
-                str_keys = list(pointer.get_graph().alias2vector_map.keys())
+            if self._alias_or_idata not in compose.alias2vector_map:
+                str_keys = list(compose.alias2vector_map.keys())
                 matches = difflib.get_close_matches(
                     self._alias_or_idata, str_keys, n=1, cutoff=0.6
                 )
@@ -58,9 +58,11 @@ class JumpNode(BaseNode):
                 else:
                     hint = f"{self._alias_or_idata} not found in namespace, please check your alias!"
                 raise AliasNotFoundError(hint)
-            self._node_addr = pointer.find_addr_alias(self._alias_or_idata)
+            self._node_addr = compose.alias2vector_map[self._alias_or_idata]
         else:
-            pointer.find_addr(self._alias_or_idata)
+            compose.calc.find_addr(
+                self._alias_or_idata
+            )  # Make sure the address exists, fail in compile time
             self._node_addr = self._alias_or_idata
 
 

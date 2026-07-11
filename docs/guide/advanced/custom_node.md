@@ -85,8 +85,8 @@ The `Node` class is also memory-optimized using `__slots__`, avoiding a default 
 ### Lifecycle
 
 1. **Creation**: when the module loads, the `@Node()` decorator runs and creates a `Node` instance.
-2. **Compilation**: during `render()`, the node is placed into `NodeComposeRendered`’s `_graph` array and given a `PointerVector` address.
-3. **Pre-check**: before each execution, `_pre_check` is called. This is the entry for compile-time validation, such as alias resolution in `CallNode`.
+2. **Compilation**: during `render()`, the node is placed into `NodeComposeRendered`'s `_graph` array and given a `PointerVector` address. After the graph is fully built, `_post_compile` is called, where jump nodes resolve aliases at compile time.
+3. **Pre-check**: before each execution, `_pre_check` is called. Used for runtime checks that depend on interpreter state (e.g., `BatchRun` forks child interpreters here).
 4. **Execution**: the interpreter acquires the lock, checks suspension points, resolves dependencies, and calls `func`.
 5. **Completion**: after execution, the lock is released and the interpreter advances the pointer.
 
@@ -98,9 +98,12 @@ Node atomicity is guaranteed by the **interpreter lock** and **cooperative inter
 - **Node boundaries are safe boundaries**: interrupt signals are checked only after a node finishes, so the node body is not preempted.
 - **Exception safety**: if a node raises an exception, the interpreter’s `run_step_by()` loop catches and handles it at the top level. The return stack (`_ret_addr_stack`) and pointer state remain consistent because nodes do not manipulate those structures directly; the interpreter manages them.
 
-### Pre-check mechanism
+### Compile-time and pre-check hooks
 
-If a custom node class inherits from `BaseNode`, it can override `_pre_check`. This method is called before each node execution and can access the current interpreter instance to perform address validation, alias lookup, or other checks. `CallNode` and `JumpNode` both use this mechanism to resolve aliases to addresses before their first execution.
+If a custom node class inherits from `BaseNode`, it can override two lifecycle hooks:
+
+- **`_post_compile(compose: NodeComposeRendered)`** — called after the workflow graph is fully compiled. `CallNode` and `JumpNode` use this hook to resolve aliases to addresses at compile time, avoiding runtime overhead.
+- **`_pre_check(pointer: WorkflowInterpreter)`** — called before each node execution. Used for runtime checks that depend on interpreter state (e.g., `BatchRun` forks child interpreters here).
 
 ## 4.6.4 `POINTER_DEPENDS`: access to the interpreter
 
@@ -112,9 +115,9 @@ from amrita_sense.runtime.workflow import WorkflowInterpreter
 
 @Node()
 def my_node(pc: WorkflowInterpreter = Depends(POINTER_DEPENDS)):
-    current_addr = pc._pointer           # read current position
-    target = pc.find_addr_alias("foo")   # resolve alias
-    await pc.call_sub(target, arg=42)    # call a subroutine
+    current_addr = pc._pointer                         # read current position
+    target = pc.get_graph().calc.resolve_alias("foo")  # resolve alias
+    await pc.call_sub(target, arg=42)                  # call a subroutine
 ```
 
 ### What does the node gain?
@@ -123,7 +126,7 @@ By injecting `pc`, the node gains full access to the interpreter — reading the
 
 ### When to use and when not to use it
 
-- **Use `POINTER_DEPENDS`** when a node needs to call subroutines (`call_sub`), resolve aliases (`find_addr_alias`), or perform dynamic jumps.
+- **Use `POINTER_DEPENDS`** when a node needs to call subroutines (`call_sub`), resolve aliases (`get_graph().calc.resolve_alias()`), or perform dynamic jumps.
 - **Do not use it** when the node only implements pure business logic, such as data processing or API calls. In those cases, declare only business dependencies like a database connection or HTTP client.
 
 ### Power comes with responsibility
@@ -140,7 +143,7 @@ Custom nodes that need runtime context should use `POINTER_DEPENDS` to access `W
 - `jump_near(addr)`
 - `jump_offset(offset)`
 - `call_sub(addr, *args, interrupt=False)`
-- `find_addr_alias(alias)`
+- `get_graph().calc.resolve_alias(alias)`
 - `object_io`
 
 Because `object_io` is a generic `SuspendObjectStream` subclass, custom nodes can also participate in external suspend/resume or streaming I/O patterns without changing the core interpreter loop.

@@ -58,12 +58,12 @@ class NullPointerException(Exception):
 **触发场景**
 
 - `GOTO`、`CALL` 等跳转指令的目标地址在 `NodeComposeRendered` 中不存在
-- 别名解析时在 `alias2vector_map` 中找不到对应条目（此时 `JumpNode` 和 `CallNode` 的 `_pre_check` 会抛出 `AliasNotFoundError`）
+- 别名解析时在 `alias2vector_map` 中找不到对应条目（此时 `JumpNode` 和 `CallNode` 的 `_post_compile` 会抛出 `AliasNotFoundError`）
 - 运行时通过 `find_addr` 访问越界的索引
 
 **与别名校验的关系**
 
-`NullPointerException` 是运行时地址失效时的兜底异常。在实际使用中，如果通过 `ALIAS` + `GOTO`/`CALL` 正常寻址，拼写错误会在 `_pre_check` 阶段被拦截并提供纠错建议。裸地址 `list[int]` 直接使用时，若地址无效才会在运行时抛出此异常。
+`NullPointerException` 是运行时地址失效时的兜底异常。在实际使用中，如果通过 `ALIAS` + `GOTO`/`CALL` 正常寻址，拼写错误会在编译期的 `_post_compile` 阶段被拦截并提供纠错建议。裸地址 `list[int]` 直接使用时，若地址无效才会在运行时抛出此异常。
 
 ## BreakLoop
 
@@ -124,7 +124,7 @@ class DependsException(Exception):
 
 ### AliasNotFoundError（v0.4.x+）
 
-GOTO 或 CALL 指令引用的别名在工作流图的别名注册表中不存在时抛出。替代了之前用于别名解析失败的通用 `RuntimeError` / `ValueError`。
+GOTO 或 CALL 指令引用的别名在工作流图的别名注册表中不存在时抛出。在编译期的 `_post_compile` 阶段检测。替代了之前用于别名解析失败的通用 `RuntimeError` / `ValueError`。
 
 ### DependsResolveFailed
 

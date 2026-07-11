@@ -58,14 +58,15 @@ def __init__(
     exception_ignored: tuple[type[BaseException], ...] = (),
     extra_args: tuple = (),
     extra_kwargs: dict[str, Any] | None = None,
-    addr_stack: Stack[PointerVector] | None = None,
+    context_stack: Stack[InterpreterContext] | None = None,
+    middleware: Callable[['WorkflowInterpreter'], Awaitable[Any]] | None = None,
 ):...
 ```
 
 ### Parameters before `*`
 
 - `node_compose`: the node composition, which can be `NodeComposeRendered` or `SelfCompileInstruction` (you do not need to know what self-compiled instructions are yet. We will cover them later in advanced chapters. For now, just know that `IF()`, `WHILE`, and other control flow instructions are `SelfCompileInstruction`, and they automatically expand into node compositions).
-- `object_io`: an object input/output stream used for object I/O. See [AmritaCore-IOStream](https://core.amritabot.com/zh/guide/api-reference/classes/SuspendObjectStream.html).
+- `object_io`: an object input/output stream used for object I/O. It provides cooperative suspend/resume and streaming capabilities to nodes at runtime.
 
 ### Keyword-only parameters after `*`
 
@@ -74,6 +75,8 @@ These parameters must be passed as kwargs, not args.
 - `exception_ignored`: a tuple containing exception types to ignore. Ignored exceptions will not be caught by internal exception chains and are rethrown. The default is `(InterruptNotice, BreakLoop)`.
 - `extra_args`: a tuple of extra positional arguments. These arguments are passed to internal functions by type-bound dependency injection.
 - `extra_kwargs`: a dictionary of extra keyword arguments. These are also passed by type-bound dependency injection.
+- `context_stack` (v0.4.x+): Optional pre-initialized interpreter context stack for save/restore workflows.
+- `middleware`: Optional async callable that receives the `WorkflowInterpreter` instance, allowing custom logic around every step.
 
 The dependency injection details are explained in [Dependency Declaration](/guide/concepts/compose_and_exec#3.1.4-dependency-declaration) later.
 

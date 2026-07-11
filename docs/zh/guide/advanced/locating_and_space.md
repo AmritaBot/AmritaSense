@@ -45,9 +45,9 @@ workflow = IF(some_condition, GOTO("main_action")) >> labeled_action
 
 ### 跳转目标验证
 
-`GOTO` 的 `JumpNode` 在 `_pre_check` 阶段完成地址解析。这一设计让错误可以被**前置到首次执行前**：
+`GOTO` 的 `JumpNode` 在编译期的 `_post_compile` 阶段完成地址解析。这一设计让错误可以被**前置到编译期**：
 
-- 如果使用别名，`_pre_check` 会检查该别名是否存在于 `alias2vector_map` 中
+- 如果使用别名，`_post_compile` 会检查该别名是否存在于 `alias2vector_map` 中
 - 如果别名不存在，`JumpNode` 会列出所有已注册别名，并用 `difflib` 做模糊匹配，抛出带有“你是否想写 X？”建议的错误
 - 如果使用绝对地址（`list[int]`），会直接验证该地址是否指向有效节点
 
@@ -63,7 +63,7 @@ workflow = IF(some_condition, GOTO("main_action")) >> labeled_action
 
 ## 4.2.3 CALL 指令：子程序调用的入口
 
-除了 `GOTO` 的单向跳转，AmritaSense 还提供了 `CALL` 指令，用于**调用子程序并在执行完毕后自动返回**。`CALL` 与 `GOTO` 共享同一套别名寻址体系——两者都依赖 `ALIAS` 注册符号名，都在 `_pre_check` 阶段完成地址解析和拼写纠错。
+除了 `GOTO` 的单向跳转，AmritaSense 还提供了 `CALL` 指令，用于**调用子程序并在执行完毕后自动返回**。`CALL` 与 `GOTO` 共享同一套别名寻址体系——两者都依赖 `ALIAS` 注册符号名，都在编译期的 `_post_compile` 阶段完成地址解析和拼写纠错。
 
 ### 核心区别
 

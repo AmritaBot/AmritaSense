@@ -50,7 +50,7 @@ AmritaSense 的内置指令集全部是 `SelfCompileInstruction` 的子类。以
 
 ### 注意：CALL 不是自编译指令
 
-`CALL` 指令对应的 `CallNode` 直接继承自 `BaseNode`，是一个**普通节点**。它在编译期不展开，只是作为单个节点存在于工作流数组中，执行时通过 `_pre_check` 解析别名并调用 `pc.call_sub`。这与 `GOTO`（`JumpNode`）的设计一致——两者都是“原子”跳转节点，而非自编译结构。
+`CALL` 指令对应的 `CallNode` 直接继承自 `BaseNode`，是一个**普通节点**。它在编译期不展开，只是作为单个节点存在于工作流数组中，编译时通过 `_post_compile` 解析别名，执行时通过 `pc.call_sub` 完成调用。这与 `GOTO`（`JumpNode`）的设计一致——两者都是"原子"跳转节点，而非自编译结构。
 
 ## 自定义自编译指令
 

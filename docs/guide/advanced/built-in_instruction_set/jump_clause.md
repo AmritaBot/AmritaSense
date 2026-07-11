@@ -3,7 +3,7 @@
 `GOTO` and `CALL` are two core control flow jump instructions in AmritaSense. They share the same alias-based addressing infrastructure, but serve very different scenarios: `GOTO` is an unconditional one-way jump, while `CALL` is a subroutine invocation with a return.
 
 > **Common foundation**
-> Both rely on the same alias registry (`ALIAS`), perform address resolution during `_pre_check`, and use the `@markup` decorator to manage jump markers. Understanding these common mechanisms helps clarify the difference between them.
+> Both rely on the same alias registry (`ALIAS`), perform address resolution during compile-time `_post_compile`, and use the `@markup` decorator to manage jump markers. Understanding these common mechanisms helps clarify the difference between them.
 
 ## Non-self-compiled direct nodes
 
@@ -21,7 +21,7 @@ That means:
 
 ### Execution flow
 
-1. **Address resolution** (`_pre_check`): resolve alias names through the alias table, or validate raw addresses.
+1. **Address resolution** (`_post_compile`): resolve alias names through the alias table at compile time, or validate raw addresses.
 2. **Jump marker**: call `pc.jump_to(addr)`, which is guarded by `@markup` and sets `_jump_marked=True`.
 3. **Pointer replacement**: replace `_pointer` completely with the target address vector.
 4. **Interpreter response**: the main loop sees `_jump_marked` and skips normal `advance_pointer()`, continuing from the jump target.
@@ -44,7 +44,7 @@ That means:
 
 ### Execution flow
 
-1. **Address resolution** (`_pre_check`): resolve alias names and cache the absolute address.
+1. **Address resolution** (`_post_compile`): resolve alias names and cache the absolute address at compile time.
 2. **Push return address**: `call_sub` saves the current pointer vector on `_ret_addr_stack`.
 3. **Pointer replacement**: set the execution pointer to the subroutine’s entry address.
 4. **Execute subroutine**: the interpreter advances through the subroutine nodes.

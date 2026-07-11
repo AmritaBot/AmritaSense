@@ -36,8 +36,6 @@ class _Flags:
     """Preload DI resolving batch size"""
     SQUASHED_LOOP: bool = field(default=False)
     """Enable squashed loop for workflow execution"""
-    NO_ADDRESSING_CACHE: bool = field(default=False)
-    """Disable addressing cache for workflow execution"""
     _writeables: set[str] = field(
         default_factory=lambda: {"WORKFLOW_DI_PRELOAD_BATCH", "WORKFLOW_DI_NO_CACHE"}
     )

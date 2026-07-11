@@ -1,4 +1,3 @@
-import asyncio
 import contextlib
 from collections.abc import Awaitable, Callable
 from types import FrameType
@@ -47,7 +46,6 @@ class FuncBlock(BaseNode):
         object_io: SuspendObjectStream | None,
         one_time_interp: bool,
     ):
-        logger.info("Rendering sub compose")
         self._comp_rendered = sub_comp
         self._mdw = middleware
         self._io = object_io
@@ -67,14 +65,9 @@ class FuncBlock(BaseNode):
     async def __call__(self):
         assert self._interpreter
         logger.debug("Calling sub-workflow...")
-        task = asyncio.create_task(self._interpreter.run())
         try:
-            await task
+            await self._interpreter.run()
         finally:
-            if not task.done():
-                task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await task
             with contextlib.suppress(IllegalState):
                 await self._interpreter.terminate_all_forks(eol=self._onetime)
             if self._onetime:

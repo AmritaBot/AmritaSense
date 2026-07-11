@@ -79,10 +79,6 @@ print(result)  # "已处理: 42"
 
 节点直接读写 `self.xxx`。节点的返回值**不会**自动流入下一个节点的 DI 上下文——使用 `self` 上的实例字段来跨节点共享状态。
 
-## 真实示例
-
-AmritaCore 中的 `ChatObject` 是内联工作流模式的生产级实现：它继承 `SuspendObjectStream`，在 `__init__` 中用 `@Node()` 装饰十多个实例方法（`_render_train`、`_limiting_memory`、`_prepare_messages`、`_call_completion` 等），通过 `>>` 编排成完整流水线，渲染后创建解释器——所有状态自然挂在 `self` 字段上。上面展示的 `SimpleWorkflow` 正是其设计的简化核心。
-
 ## 何时使用（以及何时不使用）
 
 ### 适合内联工作流

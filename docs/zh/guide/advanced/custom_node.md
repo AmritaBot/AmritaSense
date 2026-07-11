@@ -94,8 +94,8 @@ def quick_check():
 ### 生命周期
 
 1. **创建**：模块加载时，`@Node()` 装饰器执行，创建 `Node` 实例
-2. **编译**：`render()` 阶段，节点被放置到 `NodeComposeRendered` 的 `_graph` 数组中，分配 `PointerVector` 地址
-3. **预检查**：每次执行前，`_pre_check` 被调用。这是编译期验证（如 `CallNode` 的别名存在性检查）的入口
+2. **编译**：`render()` 阶段，节点被放置到 `NodeComposeRendered` 的 `_graph` 数组中，分配 `PointerVector` 地址。图完整构建后，`_post_compile` 被调用，跳转节点在编译期完成别名解析
+3. **预检查**：每次执行前，`_pre_check` 被调用。用于依赖解释器状态的运行时检查（如 `BatchRun` 在此创建子解释器）
 4. **执行**：解释器获取锁，等待挂起信号，解析依赖，调用 `func`
 5. **完成**：节点执行完毕，锁释放，解释器推进指针到下一个节点
 
@@ -107,9 +107,12 @@ def quick_check():
 - **节点边界就是安全边界**：中断信号只在节点执行完毕后被检查，节点内部不会被抢占
 - **异常安全**：节点抛出异常时，解释器的 `run_step_by()` 主循环在最外层捕获并处理。调用栈（`_ret_addr_stack`）和指针状态在异常后仍然保持一致——因为节点执行不直接操作这些数据结构，它们由解释器管理
 
-### 预检查机制
+### 编译时钩子与预检查
 
-如果自定义节点类继承自 `BaseNode`，可以重写 `_pre_check` 方法。这个方法在每次节点执行前被调用，可以访问当前解释器实例来执行地址验证、别名查表等工作。`CallNode` 和 `JumpNode` 正是利用这一机制，在第一次执行前完成别名到地址的解析。
+如果自定义节点类继承自 `BaseNode`，可以重写两个生命周期钩子：
+
+- **`_post_compile(compose: NodeComposeRendered)`** — 在工作流图完整编译后被调用。`CallNode` 和 `JumpNode` 借此在编译期完成别名到地址的解析，避免运行时开销。
+- **`_pre_check(pointer: WorkflowInterpreter)`** — 每次节点执行前被调用。用于依赖解释器状态的运行时检查（如 `BatchRun` 在此创建子解释器）。
 
 ## 4.6.4 POINTER_DEPENDS：获得对解释器的访问
 
@@ -121,9 +124,9 @@ from amrita_sense.runtime.workflow import WorkflowInterpreter
 
 @Node()
 def my_node(pc: WorkflowInterpreter = Depends(POINTER_DEPENDS)):
-    current_addr = pc._pointer           # 读取当前位置
-    target = pc.find_addr_alias("foo")   # 解析别名
-    await pc.call_sub(target, arg=42)    # 调用子程序
+    current_addr = pc._pointer                         # 读取当前位置
+    target = pc.get_graph().calc.resolve_alias("foo")  # 解析别名
+    await pc.call_sub(target, arg=42)                  # 调用子程序
 ```
 
 ### 节点获得了什么？
@@ -132,7 +135,7 @@ def my_node(pc: WorkflowInterpreter = Depends(POINTER_DEPENDS)):
 
 ### 何时使用，何时不用
 
-- **需要**使用 `POINTER_DEPENDS`：当节点内部需要调用子程序（`call_sub`）、解析别名（`find_addr_alias`）、或执行动态跳转时
+- **需要**使用 `POINTER_DEPENDS`：当节点内部需要调用子程序（`call_sub`）、解析别名（`get_graph().calc.resolve_alias()`）、或执行动态跳转时
 - **不需要**使用：当节点只做纯业务逻辑（如数据处理、API 调用）时。节点完全可以只声明业务依赖（如数据库连接、HTTP 客户端），不碰工作流控制流
 
 ### 能力越大，责任越大

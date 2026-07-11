@@ -14,7 +14,11 @@ Key attributes:
 - `address_able`: Whether the node can be referenced by alias.
 - `fun_sign`: Dependency injection metadata extracted from the callable’s signature.
 
-`BaseNode` also exposes `_pre_check()`, a hook that subclasses can override to perform validation before executing the node.
+`BaseNode` also exposes two lifecycle hooks that subclasses can override:
+
+- `_post_compile(compose: NodeComposeRendered) -> None`: Called after the workflow graph is fully compiled. Subclasses use this to resolve aliases and validate addresses at compile time (e.g., `JumpNode`, `CallNode`, `PUSH_CONTEXT`, `INTERRUPT_INTO`).
+- `_pre_check(pointer: WorkflowInterpreter) -> None`: Called before each execution. Used for runtime checks that depend on the interpreter state (e.g., `BatchRun` forks child interpreters here).
+- `as_compose() -> NodeCompose`: Convenience method to wrap this node in a `NodeCompose`, enabling `node.as_compose().render()` as a one-liner.
 
 ## Node
 
@@ -52,7 +56,8 @@ workflow = a >> b
 
 Important features:
 
-- `alias2vector_map`: maps alias names to absolute `PointerVector` addresses.
+- `alias2vector_map`: maps alias names to absolute `PointerVector` addresses. Jump instructions resolve aliases at compile time via `_post_compile`.
+- `calc: AddressCalculator`: the compiled graph's address calculator, providing `resolve_alias()`, `find_addr()`, `find_addr_safe()`, and `advance()` methods. Available only on the top-level `NodeComposeRendered`.
 - `__getitem__`: access nodes by index in the rendered graph.
 - `__iter__`: iterate over compiled nodes.
 

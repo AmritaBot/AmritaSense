@@ -79,10 +79,6 @@ print(result)  # "processed: 42"
 
 Nodes read and write `self.xxx` directly. Node return values do **not** automatically flow into the next node's DI context — use instance fields on `self` to share state across nodes.
 
-## Real-World Example
-
-AmritaCore's `ChatObject` is a production-grade implementation of the inline workflow pattern: it extends `SuspendObjectStream`, decorates over a dozen instance methods with `@Node()` in `__init__` (`_render_train`, `_limiting_memory`, `_prepare_messages`, `_call_completion`, etc.), chains them into a full pipeline via `>>`, renders and creates the interpreter — all state lives naturally on `self`. The `SimpleWorkflow` above is the simplified core of that design.
-
 ## When to Use (and When Not To)
 
 ### Good fits for inline workflows
