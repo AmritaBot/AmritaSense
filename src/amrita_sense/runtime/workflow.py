@@ -707,29 +707,34 @@ class WorkflowInterpreter(Generic[io_T]):
             )
         try:
             self._waiter_fut = asyncio.Future()
-            session_args = list(self.__ava_args)
-            session_kwargs: dict[str, Any] = self.__ava_kwargs
-            runtime_args: dict[int, DependsFactory] = {  # index -> DependsFactory
-                k: v
-                for k, v in enumerate(session_args)
-                if isinstance(v, DependsFactory)
-            }
-            runtime_kwargs = {
-                k: v for k, v in session_kwargs.items() if isinstance(v, DependsFactory)
-            }
-            if runtime_args or runtime_kwargs:
-                if not await MatcherFactory._do_runtime_resolve(
-                    runtime_args=runtime_args,
-                    runtime_kwargs=runtime_kwargs,
-                    args2update=session_args,
-                    kwargs2update=session_kwargs,
-                    session_args=session_args,
-                    session_kwargs=session_kwargs,
-                    exception_ignored=self._exc_ignored,
-                ):
-                    raise RuntimeError("Runtime arguments cannot be resolved")
-            self.__ava_args = tuple(session_args)
-            self.rehash_args()
+            if any(isinstance(v, DependsFactory) for v in self.__ava_args) or any(
+                isinstance(v, DependsFactory) for v in self.__ava_kwargs.values()
+            ):
+                session_args = list(self.__ava_args)
+                session_kwargs: dict[str, Any] = dict(self.__ava_kwargs)
+                runtime_args: dict[int, DependsFactory] = {
+                    k: v
+                    for k, v in enumerate(session_args)
+                    if isinstance(v, DependsFactory)
+                }
+                runtime_kwargs = {
+                    k: v
+                    for k, v in session_kwargs.items()
+                    if isinstance(v, DependsFactory)
+                }
+                if runtime_args or runtime_kwargs:
+                    if not await MatcherFactory._do_runtime_resolve(
+                        runtime_args=runtime_args,
+                        runtime_kwargs=runtime_kwargs,
+                        args2update=session_args,
+                        kwargs2update=session_kwargs,
+                        session_args=session_args,
+                        session_kwargs=session_kwargs,
+                        exception_ignored=self._exc_ignored,
+                    ):
+                        raise RuntimeError("Runtime arguments cannot be resolved")
+                self.__ava_args = tuple(session_args)
+                self.rehash_args()
             if __flags__.WORKFLOW_DI_PRELOAD_CACHE:
                 await self._refresh_di_cache_full()
             graph = self.get_graph()
