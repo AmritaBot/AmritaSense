@@ -89,15 +89,15 @@ class BatchRun(BaseNode):
             if isinstance(pl, BaseNode):
                 nodes.append(pl)
             elif isinstance(pl, SelfCompileInstruction):
-                self._graphs.append(pl.extract().render(pre_cache=False))
+                self._graphs.append(pl.extract().render())
             else:
-                pl = pl.render(pre_cache=False)
+                pl = pl.render()
                 self._graphs.append(pl)
         if nodes:
             self._graphs.append(
                 NodeCompose(
                     _batch_call(nodes, fail_fast=self._fail_fast),
-                ).render(pre_cache=False)
+                ).render()
             )
         del self._origin
 

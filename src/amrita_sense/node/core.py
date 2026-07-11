@@ -14,7 +14,6 @@ from amrita_sense.logging import debug_log, logger
 from amrita_sense.node import addressing
 from amrita_sense.node.addressing import AddressCalculator
 from amrita_sense.node.self_compile import SelfCompileInstruction
-from amrita_sense.types import PointerVector
 from amrita_sense.utils import TimeInsighter, isabstractmethod
 
 from . import self_compile
@@ -298,9 +297,7 @@ class NodeCompose:
         self._graph.append(other)
         return self
 
-    def render(
-        self, cache_size: int = 1024, pre_cache: bool = True
-    ) -> NodeComposeRendered:
+    def render(self) -> NodeComposeRendered:
         """Compile this composition into an executable workflow graph.
 
         This method processes all nodes in the composition, resolves aliases,
@@ -316,7 +313,7 @@ class NodeCompose:
         debug_log(f"Size of the main graph is : {len(self._graph)}")
         with TimeInsighter() as tm:
             r = NodeComposeRendered(self)
-            r._build(cache_size=cache_size, pre_cache=pre_cache)
+            r._build()
         time_end = tm.t_diff
         logger.info(f"node compose rendered, cost: {(time_end.total_seconds())}s")
         return r
@@ -398,8 +395,6 @@ class NodeComposeRendered:
         self,
         current_path: list[int] | None = None,
         top: NodeComposeRendered | None = None,
-        cache_size: int = 1024,
-        pre_cache: bool = True,
     ):
         """Build the executable workflow graph from the original composition.
 
@@ -439,12 +434,7 @@ class NodeComposeRendered:
         else:
             self._process_nodes(self.__original_tmp, current_path, top)
         if im_top:
-            self._calc = AddressCalculator(self, cache_size)
-            if pre_cache:
-                ptr = PointerVector()
-                for _ in range(int(cache_size * 0.6)):
-                    if not self._calc.advance(ptr):
-                        break
+            self._calc = AddressCalculator(self)
             if self._collected_hooks:
                 logger.debug("Running post-compile hooks...")
                 for fn in self._collected_hooks:

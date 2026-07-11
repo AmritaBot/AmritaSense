@@ -54,9 +54,12 @@ BATCH_RUN_PERFORK_NODES = 100
 # Set env vars
 os.environ["LOG_LEVEL"] = "WARNING"
 
+# Flags
+# _unsafe.__flags__.NO_ADDRESSING_CACHE = True
+# _unsafe.__flags__.WORKFLOW_DI_NO_CACHE = True
+
+
 #  Result type
-
-
 @dataclass
 class Result:
     label: str
@@ -355,7 +358,7 @@ def bench_compile_only() -> Result:
 
 @benchmark
 def bench_batch_run() -> Result:
-    """Batch run"""
+    """Batch run nodes"""
     batch = BATCH_RUN(*([NOP] * BATCH_RUN_NODES)).as_compose()
     rendered, time = _sense_compile(batch)
     called = _sense_exec(rendered)
@@ -369,7 +372,7 @@ def bench_batch_run() -> Result:
 
 @benchmark
 def bench_batch_run_forks() -> Result:
-    """Batch run"""
+    """Batch run forks"""
     fork = NOP
     for i in range(BATCH_RUN_PERFORK_NODES - 1):
         fork >>= NOP
