@@ -751,7 +751,7 @@ class WorkflowInterpreter(Generic[io_T]):
                     yield (
                         await self._middleware(self)
                         if self._middleware
-                        else await self._call()
+                        else await self._call(no_cace=True)
                     )
                     if self._jump_marked:
                         self._jump_marked = False
@@ -1012,6 +1012,7 @@ class WorkflowInterpreter(Generic[io_T]):
         addr_getter: Callable[[list[int]], BaseNode | NodeComposeRendered]
         | None = None,
         *extra_args: Any,
+        no_cache: bool = False,
         **extra_kwargs: Any,
     ) -> Any:
         """Execute a single node at the current pointer position.
@@ -1065,7 +1066,7 @@ class WorkflowInterpreter(Generic[io_T]):
         if not isabstractmethod(node._pre_check):
             node._pre_check(self)
         if (
-            __flags__.WORKFLOW_DI_NO_CACHE
+            (__flags__.WORKFLOW_DI_NO_CACHE or no_cache)
             or not self._di_cache.hash_trustable
             or (
                 kw_rsved := self._di_cache.payload.get(
@@ -1075,7 +1076,7 @@ class WorkflowInterpreter(Generic[io_T]):
             is None
         ):
             kw_rsved = await self._rslv_node(node, ava_args, ava_kwargs)
-            if not __flags__.WORKFLOW_DI_NO_CACHE:
+            if not __flags__.WORKFLOW_DI_NO_CACHE and not no_cache:
                 self._di_cache.payload[hash((hash(self._pointer), code))] = kw_rsved
         if iscoroutinefunction(fun):
             return await fun(**kw_rsved)
