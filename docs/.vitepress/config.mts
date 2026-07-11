@@ -193,6 +193,10 @@ export default withMermaid({
                 link: "/guide/practice/subgraph-isolation",
               },
               {
+                text: "Batch Concurrent Invocation",
+                link: "/guide/practice/batch-run",
+              },
+              {
                 text: "CLCA Design Pattern",
                 link: "/guide/practice/clca-design-pattern",
               },
@@ -361,6 +365,10 @@ export default withMermaid({
               {
                 text: "子图隔离调用",
                 link: "/zh/guide/practice/subgraph-isolation",
+              },
+              {
+                text: "节点与分支并发调用",
+                link: "/zh/guide/practice/batch-run",
               },
               {
                 text: "CLCA 设计模式",

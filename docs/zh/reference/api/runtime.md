@@ -21,7 +21,7 @@ class WorkflowInterpreter(Generic[io_T]):
 
 **泛型参数**
 
-- `io_T`：协变的 `SuspendObjectStream` 子类型。当 `io_T = SuspendObjectStream` 时，解释器编排纯异步任务；当 `io_T = ChatObject` 时，节点获得 LLM 对话能力。同一套指令集和解释器逻辑，通过类型参数实现能力替换。
+- `io_T`：协变的 `SuspendObjectStream` 子类型。同一套指令集和解释器逻辑，通过类型参数实现能力替换。
 
 ### 构造参数
 
@@ -41,7 +41,7 @@ def __init__(
 ```
 
 - `node_compose`：编译后的工作流图，或一个 `SelfCompileInstruction`（会自动调用 `extract().render()` 编译）
-- `object_io`：可选的外部 I/O 接口。若不传，解释器内部创建一个最基础的 `SuspendObjectStream`。传入 `ChatObject` 等子类时，节点可通过 `pc.object_io` 访问流式能力
+- `object_io`：可选的外部 I/O 接口。若不传，解释器内部创建一个最基础的 `SuspendObjectStream`。节点可通过 `pc.object_io` 访问流式能力
 - `exception_ignored`：声明为不可捕获的异常类型元组。`InterruptNotice` 和 `BreakLoop` 会被自动加入此元组
 - `extra_args` / `extra_kwargs`：传递给每个节点的额外参数，供依赖注入使用
 - `addr_stack`：可选的外部调用栈。若不传，解释器内部创建一个新的 `Stack[PointerVector]`
@@ -74,7 +74,6 @@ def __init__(
 - `_interpret_lock: aiologic.Lock`：解释锁。每次迭代获取一次，保证单个节点的执行原子性。同时也是外部安全调用的互斥锁
 - `_if_flag: bool`（v0.4.x+）：标记解释器是否处于中断上下文的布尔标志
 - `_context_stack: Stack[InterpreterContext]`（v0.4.x+）：`InterpreterContext` 快照的后进先出栈，用于 PUSH_CONTEXT/POP_CONTEXT 和 INTERRUPT_INTO/INTERRUPT_RET
-- `_ptr_cache`（v0.4.3+）：内部 `LRUCache[int, list[int]]`，缓存指针推进结果。以 `hash(pointer)` 为键，存储已解析的 `base_addr`，避免 `advance_pointer()` 中的 O(D²) 回溯遍历。通过 `NO_ADDRESSING_CACHE` unsafe 标志控制。
 - `_ava_args / _ava_kwargs`：执行期可用参数池，供依赖注入系统从中匹配节点的参数签名
 - `_exc_ignored: tuple[type[BaseException], ...]`：运行时自动包含 `InterruptNotice` 和 `BreakLoop`。这些异常不会被任何 `CATCH` 块捕获，直接穿透到顶层。**v0.3.0+**：可通过 `__flags__.DISABLE_EXC_IGNORED = True` 禁用此自动加入行为
 - `object_io: io_T`：泛型的外部 I/O 接口。节点可通过 `pc.object_io` 进行流式产出、挂起控制
@@ -184,17 +183,25 @@ def __init__(
 
 #### 地址解析
 
+**`get_graph() -> NodeComposeRendered`**（v0.4.4+）
+
+返回当前工作流的编译产物。编译图的 `calc` 属性提供 `AddressCalculator`，包含 `resolve_alias()`、`find_addr()`、`find_addr_safe()`、`advance()` 方法。
+
 **`find_addr_alias(alias: str) -> list[int]`**
+
+::: warning 已废弃
+此方法自 v0.4.4 起废弃。请改用 `get_graph().calc.resolve_alias(alias)`。
+:::
 
 在 `alias2vector_map` 中查找别名并返回其指针向量地址。若别名不存在，抛出 `NullPointerException`。
 
 **`find_addr(addr: list[int]) -> BaseNode | NodeComposeRendered`**
 
+::: warning 已废弃
+此方法自 v0.4.4 起废弃。请改用 `get_graph().calc.find_addr(addr)`。
+:::
+
 通过绝对地址查找节点或子容器。地址无效时抛出 `NullPointerException`。
-
-**`get_graph() -> NodeComposeRendered`**
-
-返回当前工作流的编译产物。调试节点常通过此方法读取工作流结构。
 
 #### 跳转操作
 
@@ -352,23 +359,12 @@ pc = WorkflowInterpreter(rendered)
 await pc.run()
 ```
 
-**注入 ChatObject 获得 LLM 能力**
-
-```python
-chat = ChatObject(train=..., user_input=..., ...)
-pc = WorkflowInterpreter[ChatObject](
-    rendered,
-    object_io=chat,
-)
-# 节点内可通过 pc.object_io 访问 LLM 流
-```
-
 **节点内调用子程序**
 
 ```python
 @Node()
 async def caller(pc: WorkflowInterpreter):
-    addr = pc.find_addr_alias("sub_routine")
+    addr = pc.get_graph().calc.resolve_alias("sub_routine")
     result = await pc.call_sub(addr, extra_param=42)
 ```
 
@@ -377,7 +373,7 @@ async def caller(pc: WorkflowInterpreter):
 ```python
 # 在另一个协程中，工作流挂起时
 await pc.call_sub(
-    pc.find_addr_alias("__inspector__"),
+    pc.get_graph().calc.resolve_alias("__inspector__"),
     interrupt=True,
 )
 ```

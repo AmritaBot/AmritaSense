@@ -99,18 +99,6 @@ SQUASHED_LOOP: bool = False
 
 **适用场景**：热循环场景（具有大量迭代的紧内层循环），迭代间开销可测量且不需要在外层中断单个循环子步骤。注意在压扁模式下，`BreakLoop` 和 `jump_marked` 仍然被正确处理——不支持跳转到循环结构之外的地址。
 
-### `NO_ADDRESSING_CACHE`（v0.4.3+）
-
-```python
-NO_ADDRESSING_CACHE: bool = False
-```
-
-禁用 `advance_pointer()` 中的 `_ptr_cache`。默认 `False` 时，解释器缓存指针推进的结果——若同一指针位置被再次访问，直接复用缓存的 `base_addr`，避免嵌套工作流中 O(D²) 的回溯遍历。
-
-设为 `True` 后，强制解释器每次从头在图中计算下一指针位置，完全绕过缓存。
-
-**适用场景**：调试期间，或工作流图结构在运行时动态变化导致缓存结果可能过时。禁用缓存也会减少内存使用，但以性能为代价。
-
 ### `WORKFLOW_DI_NO_CACHE`（v0.4.2+）
 
 ```python
@@ -170,7 +158,6 @@ WORKFLOW_DI_PRELOAD_BATCH: int = 10
 | `FORCE_NOT_WRAP_TO_ASYNC`   | `WorkflowInterpreter._call()`                                                    |
 | `NO_SHARED_MIDDLEWARE`      | `WorkflowInterpreter.fork_interpreter()`                                         |
 | `SQUASHED_LOOP`             | `WhileNode._while_worker()`、`DONode._do_worker()`                               |
-| `NO_ADDRESSING_CACHE`       | `WorkflowInterpreter.advance_pointer()`                                          |
 | `WORKFLOW_DI_NO_CACHE`      | `WorkflowInterpreter._call()`                                                    |
 | `WORKFLOW_DI_PRELOAD_CACHE` | `WorkflowInterpreter.run()`、`WorkflowInterpreter._call()`                       |
 | `WORKFLOW_DI_PRELOAD_BATCH` | `WorkflowInterpreter._refresh_di_cache_full()`                                   |
@@ -185,7 +172,6 @@ WORKFLOW_DI_PRELOAD_BATCH: int = 10
 | `NO_DEPENDENCY_META_CACHE`  | `False` | 每次调用重新解析依赖元数据       |
 | `NO_SHARED_MIDDLEWARE`      | `False` | fork 时不继承父中间件            |
 | `SQUASHED_LOOP`             | `False` | 将 while/do-while 压扁为原生循环 |
-| `NO_ADDRESSING_CACHE`       | `False` | 禁用指针推进缓存                 |
 | `WORKFLOW_DI_NO_CACHE`      | `False` | 禁用 DI 结果缓存（可重复写入）   |
 | `WORKFLOW_DI_PRELOAD_CACHE` | `False` | 启动时预解析所有节点的 DI        |
 | `WORKFLOW_DI_PRELOAD_BATCH` | `10`    | DI 预加载批量大小（可重复写入）  |

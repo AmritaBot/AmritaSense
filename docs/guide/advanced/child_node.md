@@ -40,7 +40,7 @@ When developers write subroutine calls inside a custom node, they can pass opera
 @Node()
 async def caller_node(pc: WorkflowInterpreter):
     result = await pc.call_sub(
-        pc.find_addr_alias("target_sub"),
+        pc.get_graph().calc.resolve_alias("target_sub"),
         "positional_arg",
         custom_kw="value"
     )

@@ -66,6 +66,7 @@ class _FakeInterpreter:
         self._ret_addr_stack = c.stack or self._ret_addr_stack
         self._panic_exc = c.exception
 
+
 if not TYPE_CHECKING:
 
     class _FakeRendered:

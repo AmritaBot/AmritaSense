@@ -37,7 +37,7 @@ Base exception for all dependency injection failures.
 
 ## AliasNotFoundError (v0.4.x+)
 
-Raised when a GOTO or CALL instruction references an alias that does not exist in the workflow graph's alias registry. This replaces the generic `RuntimeError` / `ValueError` that were previously used for alias resolution failures.
+Raised when a GOTO or CALL instruction references an alias that does not exist in the workflow graph's alias registry. This is detected at compile time during `_post_compile`. Replaces the generic `RuntimeError` / `ValueError` that were previously used for alias resolution failures.
 
 ## DependsResolveFailed
 

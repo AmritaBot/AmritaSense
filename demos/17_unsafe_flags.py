@@ -15,6 +15,7 @@ import asyncio
 # __flags__.DISABLE_EXC_IGNORED = True
 # __flags__.NO_DEPENDENCY_META_CACHE = True
 # __flags__.NO_SHARED_MIDDLEWARE = True
+# __flags__.SQUASHED_LOOP = True
 from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
 
 # ✅ Correct: configure flags at the very top of the entry point

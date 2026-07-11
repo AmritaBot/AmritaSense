@@ -58,14 +58,15 @@ def __init__(
     exception_ignored: tuple[type[BaseException], ...] = (),
     extra_args: tuple = (),
     extra_kwargs: dict[str, Any] | None = None,
-    addr_stack: Stack[PointerVector] | None = None,
+    context_stack: Stack[InterpreterContext] | None = None,
+    middleware: Callable[['WorkflowInterpreter'], Awaitable[Any]] | None = None,
 ):...
 ```
 
 ### `'*'`前参数
 
 - `node_compose`: 节点组合，可以是 `NodeComposeRendered` 或 `SelfCompileInstruction`(你在现在不需要了解到自编译指令是什么，我们在后面高级教程中会介绍，只需要知道`IF()`,`WHILE`这些控制流指令都是`SelfCompileInstruction`，它会自动展开为节点组合)。
-- `object_io`: 对象输入输出流，用于处理对象输入，见[AmritaCore-IOStream](https://core.amritabot.com/zh/guide/api-reference/classes/SuspendObjectStream.html)。
+- `object_io`: 对象输入输出流，用于处理对象 I/O。它为节点提供协作式挂起/恢复和流式输出能力。
 
 ### `'*'`后参数
 

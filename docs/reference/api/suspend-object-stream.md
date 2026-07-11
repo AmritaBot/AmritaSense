@@ -1,6 +1,6 @@
 # SuspendObjectStream
 
-`SuspendObjectStream` is a generic asynchronous duplex stream utility that provides the complete infrastructure for cooperative suspend/resume control flow. It serves as both the underlying response stream implementation for AmritaCore `ChatObject` and the `object_io` core component for AmritaSense `WorkflowInterpreter`.
+`SuspendObjectStream` is a generic asynchronous duplex stream utility that provides the complete infrastructure for cooperative suspend/resume control flow. It serves as the `object_io` core component for AmritaSense `WorkflowInterpreter`.
 
 ## Overview
 

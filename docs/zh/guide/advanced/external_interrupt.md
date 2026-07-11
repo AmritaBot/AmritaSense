@@ -24,7 +24,7 @@ AmritaSense 提供了一套安全的外部调用机制，允许**外部系统在
 ```python
 # 假设 interpreter 是 WorkflowInterpreter 实例
 await interpreter.call_sub(
-    interpreter.find_addr_alias("my_handler"),
+    interpreter.get_graph().calc.resolve_alias("my_handler"),
     interrupt=True,
     some_arg="value"
 )
@@ -121,7 +121,7 @@ async def health_check(pc: WorkflowInterpreter):
 # 先确保工作流挂起在某个检查点或节点边界
 await pc.object_io.wait_to_suspend(PC_CHECKPOINT)
 # 现在锁空闲，安全注入
-await pc.call_sub(pc.find_addr_alias("health_check"), interrupt=True)
+await pc.call_sub(pc.get_graph().calc.resolve_alias("health_check"), interrupt=True)
 # 注入完成后，恢复工作流
 pc.object_io.resume()
 ```

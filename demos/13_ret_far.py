@@ -9,8 +9,8 @@ instruction that combines PUSH_STACK + GOTO into a single node.
 
 import asyncio
 
-from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
-from amrita_sense.instructions import GOTO, PUSH_STACK, RET_FAR
+from amrita_sense import ALIAS, GOTO, NOP, Node, WorkflowInterpreter
+from amrita_sense.instructions import PUSH_STACK, RET_FAR
 
 
 @Node()

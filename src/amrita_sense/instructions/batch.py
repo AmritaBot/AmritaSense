@@ -111,10 +111,19 @@ class BatchRun(BaseNode):
 
     async def __call__(self, intp: WorkflowInterpreter) -> Any:
         try:
-            await asyncio.gather(
-                *[i.run() for i in self._interpreters],
-                return_exceptions=not self._fail_fast,
-            )
+            if exc := [
+                i
+                for i in (
+                    await asyncio.gather(
+                        *[i.run() for i in self._interpreters],
+                        return_exceptions=not self._fail_fast,
+                    )
+                )
+                if i is not None
+            ]:
+                raise BaseExceptionGroup(
+                    "Some exceptions were detected when running nodes", exc
+                )
         finally:
             exc: list[BaseException] = [
                 i

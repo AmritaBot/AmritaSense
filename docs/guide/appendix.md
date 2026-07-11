@@ -49,7 +49,7 @@ A sequence of nodes defined by the `ARCHIVED_NODES` instruction, skipped by `Sub
 - **Exception Penetration**: Exceptions marked via `exception_ignored` cannot be caught by any `CATCH` block and propagate directly to the top-level handler.
 - **Call Stack**: `Stack[PointerVector]`, managing return addresses for subroutine calls.
 - **DI Cache** (v0.4.2+): `DICache` — an LRU-based cache inside `WorkflowInterpreter` that stores resolved dependency injection kwargs. Keyed by `hash((hash(pointer), args_hash))`, it avoids redundant DI resolution when the same node is revisited with the same argument types. The payload is an `LRUCache` with max 2048 entries. Controlled via unsafe flags `WORKFLOW_DI_NO_CACHE`, `WORKFLOW_DI_PRELOAD_CACHE`, and `WORKFLOW_DI_PRELOAD_BATCH`.
-- **Pointer Cache** (v0.4.3+): `_ptr_cache` — an `LRUCache[int, list[int]]` inside `WorkflowInterpreter` that caches pointer advancement results. Keyed by `hash(pointer)`, it stores the resolved `base_addr` to avoid O(D²) backtracking traversal in `advance_pointer()`. Disabled via `NO_ADDRESSING_CACHE`.
+- **Address Calculator** (v0.4.4+): `AddressCalculator` — a stateless address computation utility exposed via `NodeComposeRendered.calc`. Provides `advance()`, `resolve_alias()`, `find_addr()`, and `find_addr_safe()` methods. Encapsulates pointer advancement logic previously held in the interpreter's `_ptr_cache`.
 
 ### 9.1.12 Abbreviations
 
@@ -77,15 +77,13 @@ The core value of primitives lies in the **unity of simplicity and completeness*
 ### 9.2.1 GitHub Repositories
 
 - **AmritaSense Repository**: [https://github.com/AmritaBot/AmritaSense](https://github.com/AmritaBot/AmritaSense)
-- **AmritaCore Repository**: [https://github.com/AmritaBot/AmritaCore](https://github.com/AmritaBot/AmritaCore)
-- **Issue Reports**: Submit bug reports and feature requests in the corresponding repository
+- **Issue Reports**: Submit bug reports and feature requests in the repository
 - **Pull Requests**: Code contributions via PR are welcome
 
 ### 9.2.2 Official Websites
 
 - **AmritaSense Documentation**: [https://sense.amritabot.com](https://sense.amritabot.com) (this page)
-- **AmritaCore Documentation**: [https://core.amritabot.com](https://core.amritabot.com)
-- **Comprehensive Guides and Tutorials**: Both documentation sites provide complete guides and API references
+- **Comprehensive Guides and Tutorials**: This documentation site provides complete guides and API references
 
 ### 9.2.3 Contribution Guide
 
@@ -110,9 +108,8 @@ For more information, refer to the `CONTRIBUTING.md` file in each project reposi
 ### 9.2.4 License
 
 - **AmritaSense**: Released under the **Apache 2.0** license
-- **AmritaCore**: Released under the **MIT** license (will be changed to Apache 2.0 in the future)
 
-For the complete license text, refer to the `LICENSE` file in each repository.
+For the complete license text, refer to the `LICENSE` file in the repository.
 
 ## 9.3 Community and Support
 
@@ -152,7 +149,6 @@ The Amrita community follows the Contributor Covenant Code of Conduct:
 
 - **Python Official Documentation**: [https://docs.python.org/3/](https://docs.python.org/3/)
 - **Python asyncio Documentation**: [https://docs.python.org/3/library/asyncio.html](https://docs.python.org/3/library/asyncio.html)
-- **AmritaCore Documentation**: [https://core.amritabot.com](https://core.amritabot.com) (The upper-layer infrastructure of the Amrita ecosystem)
 - **VitePress Documentation**: [https://vitepress.dev/](https://vitepress.dev/) (The tool used to build this site)
 
 ### 9.4.3 Recommended Reading
