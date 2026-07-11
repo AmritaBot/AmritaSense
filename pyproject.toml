@@ -1,6 +1,6 @@
 [project]
 name = "amrita-sense"
-version = "0.4.3"
+version = "0.4.4"
 description = "Next-Gen event stream and workflow engine."
 readme = "README.md"
 requires-python = ">=3.10, <3.16"
@@ -24,6 +24,7 @@ dev-dependencies = [
     "pyright>=1.1.407",
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.0.0",
+    "snakeviz>=2.2.2",
 ]
 package = true
 

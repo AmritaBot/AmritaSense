@@ -66,7 +66,7 @@ class LoguruHandler(logging.Handler):
 
 def default_filter(record: Record):
     """Default filter for logging, change level from Environment"""
-    log_level = os.environ.get("LOG_LEVEL", "INFO")
+    log_level: str = os.environ.get("LOG_LEVEL", "INFO")
     levelno = logger.level(log_level).no if isinstance(log_level, str) else log_level
     return record["level"].no >= levelno
 

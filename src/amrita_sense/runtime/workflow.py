@@ -17,7 +17,7 @@ from typing import (
 from uuid import uuid4
 
 import aiologic
-from cachetools import LRUCache
+from typing_extensions import deprecated
 
 from amrita_sense._unsafe import __flags__
 from amrita_sense.exceptions import (
@@ -30,24 +30,19 @@ from amrita_sense.exceptions import (
     NullPointerException,
 )
 from amrita_sense.hook.matcher import DependsFactory, MatcherFactory, sign_func
-from amrita_sense.logging import debug_log, logger
+from amrita_sense.logging import logger
 from amrita_sense.node.core import BaseNode, NodeComposeRendered
-from amrita_sense.node.core import Node as _Node
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.runtime.types import InterpreterContext
 from amrita_sense.streaming import SuspendObjectStream
 from amrita_sense.types import DICache, PointerVector, Stack
-from amrita_sense.utils import TimeInsighter, _fingerprint_args
+from amrita_sense.utils import TimeInsighter, _fingerprint_args, isabstractmethod
 
 PC_CHECKPOINT = "WorkflowInterpreter::each_node"
 NULL_CTX = nullcontext()
 io_T = TypeVar("io_T", bound=SuspendObjectStream, covariant=True)
 fun_T = TypeVar("fun_T", bound=Callable[..., Any], covariant=True)
 UNSET = object()
-if not TYPE_CHECKING:
-    nop: _Node[None] | None = None
-else:
-    pass
 
 
 class WorkflowInterpreter(Generic[io_T]):
@@ -68,7 +63,6 @@ class WorkflowInterpreter(Generic[io_T]):
     _exc_ignored: tuple[type[BaseException], ...]
 
     _di_cache: DICache
-    _ptr_cache: LRUCache[int, list[int]]
 
     _ret_addr_stack: Stack[PointerVector]
 
@@ -107,7 +101,6 @@ class WorkflowInterpreter(Generic[io_T]):
         "_parent_interpreter",
         "_pending_stop",
         "_pointer",
-        "_ptr_cache",
         "_ret_addr_stack",
         "_sub_interpreters",
         "_sub_interpreters_all",
@@ -128,7 +121,6 @@ class WorkflowInterpreter(Generic[io_T]):
         context_stack: Stack[InterpreterContext] | None = None,
         middleware: Callable[[WorkflowInterpreter], Awaitable[Any]] | None = None,
         parent_interpreter: WorkflowInterpreter | None = None,
-        ptr_cache_size: int = 1024,
     ):
         """Initialize the workflow interpreter with a compiled workflow graph.
 
@@ -142,7 +134,6 @@ class WorkflowInterpreter(Generic[io_T]):
             context_stack: Optional pre-initialized interpreter context stack.
             middleware: Optional middleware function to execute before each node.
             parent_interpreter: Optional parent interpreter for sub-interpreter relationship.
-            ptr_cache_size: Size of the addressing cache.
         """
         # Kernel initialization
         self._interpreter_id = uuid4().hex
@@ -165,8 +156,6 @@ class WorkflowInterpreter(Generic[io_T]):
             args_hash=_fingerprint_args(self.__ava_args, self.__ava_kwargs),
             hash_trustable=True,
         )
-        self._ptr_cache = LRUCache(maxsize=ptr_cache_size)
-
         # Runtime attrs
         object_io = object_io or SuspendObjectStream()
         self.object_io = cast(io_T, object_io)
@@ -469,9 +458,8 @@ class WorkflowInterpreter(Generic[io_T]):
         Raises:
             NullPointerException: If the target address does not exist.
         """
-        if (self._find_addr_or_none(addr)) is None:
+        if (self.get_graph()) is None:
             raise NullPointerException(f"{addr} is not a valid address")
-        debug_log(f"Jumping to address {addr}")
         self._pointer.far_to(addr)
 
     @markup
@@ -481,7 +469,6 @@ class WorkflowInterpreter(Generic[io_T]):
         Args:
             addr: Relative address offset within the current container.
         """
-        debug_log(f"Jumping near to address {addr}")
         self._pointer.near_to(addr)
 
     @markup
@@ -491,7 +478,6 @@ class WorkflowInterpreter(Generic[io_T]):
         Args:
             offset: Integer offset to apply to the current pointer position.
         """
-        debug_log(f"Jumping with offset {offset}")
         self._pointer.offset(offset)
 
     @markup
@@ -501,7 +487,6 @@ class WorkflowInterpreter(Generic[io_T]):
         Args:
             offset: Multi-dimensional offset vector to apply to the current pointer.
         """
-        debug_log(f"Jumping far to pointer {offset}")
         self._pointer.far_to(offset)
 
     @markup
@@ -511,7 +496,6 @@ class WorkflowInterpreter(Generic[io_T]):
         Args:
             offset: Multi-dimensional offset vector to apply to the current pointer.
         """
-        debug_log(f"Jumping far with offset {offset}")
         self._pointer.offset_far(offset)
 
     @markup
@@ -521,7 +505,6 @@ class WorkflowInterpreter(Generic[io_T]):
         Args:
             addr: Address index at the top level to jump to.
         """
-        debug_log(f"Jumping far to top at {addr}")
         self._pointer.far_to([addr])
 
     @markup
@@ -531,7 +514,6 @@ class WorkflowInterpreter(Generic[io_T]):
         Args:
             offset: Offset to apply when jumping to the top level.
         """
-        debug_log(f"Jumping to top with offset {offset}")
         self._pointer.offset_far(
             [offset, -((self._pointer[1] if len(self._pointer) > 1 else 0) + 1)]
         )
@@ -549,7 +531,6 @@ class WorkflowInterpreter(Generic[io_T]):
             The result of executing the subroutine.
         """
         ptr: PointerVector = self._pointer.copy().offset(offset)
-        debug_log(f"Calling with offset {offset} at pointer {ptr}")
 
         return await self.call_sub(ptr, *ag, interrupt=interrupt, **kw)
 
@@ -568,7 +549,6 @@ class WorkflowInterpreter(Generic[io_T]):
             The result of the subroutine call.
         """
         ptr: PointerVector = self._pointer.copy().offset_far(offset)
-        debug_log(f"Calling with far offset {offset} at pointer {ptr}")
         return await self.call_sub(ptr, *ag, interrupt=interrupt, **kw)
 
     async def call_near(self, addr: int, *ag, interrupt: bool = False, **kw) -> Any:
@@ -584,7 +564,6 @@ class WorkflowInterpreter(Generic[io_T]):
             The result of executing the subroutine.
         """
         ptr: PointerVector = self._pointer.copy().near_to(addr)
-        debug_log(f"Calling near address {addr} at pointer {ptr}")
         return await self.call_sub(ptr, *ag, interrupt=interrupt, **kw)
 
     async def call_sub(
@@ -612,7 +591,6 @@ class WorkflowInterpreter(Generic[io_T]):
         pev: PointerVector = self._pointer
         self._ret_addr_stack.push(pev)
         self._pointer = addr if isinstance(addr, PointerVector) else PointerVector(addr)
-        debug_log(f"Calling subroutine at {addr}")
         try:
             if not interrupt and not self._interpret_lock.async_owned():
                 raise RuntimeError(
@@ -623,7 +601,9 @@ class WorkflowInterpreter(Generic[io_T]):
                 return await (
                     self._middleware(self)
                     if self._middleware
-                    else self._call(self.find_addr, *extra_arg, **extra_kwargs)
+                    else self._call(
+                        self.get_graph().calc.find_addr, *extra_arg, **extra_kwargs
+                    )
                 )
         finally:
             ptr = self._ret_addr_stack.pop()
@@ -784,7 +764,6 @@ class WorkflowInterpreter(Generic[io_T]):
                     "*** workflow exception detected ***: "
                     f"`{e}@{e.__class__.__name__}` at ptr {self._pointer}"
                 )
-                debug_log(f"Interpreter: {self.id} at {hex(id(self))}")
             exc_val = e
             raise
         finally:
@@ -825,7 +804,7 @@ class WorkflowInterpreter(Generic[io_T]):
             while True:
                 if self._di_cache.payload.currsize >= self._di_cache.payload.maxsize:
                     break
-                node = self.find_addr(ptr.base_addr)
+                node = self.get_graph().calc.find_addr(ptr.base_addr)
                 assert isinstance(node, BaseNode)
                 coro.append(_worker(node, hash((hash(ptr), self._di_cache.args_hash))))
                 if len(coro) > __flags__.WORKFLOW_DI_PRELOAD_BATCH:
@@ -936,103 +915,7 @@ class WorkflowInterpreter(Generic[io_T]):
             bool: True if the pointer was successfully advanced, False if at the end of workflow.
         """
 
-        pointer: PointerVector = ptr if ptr is not None else self._pointer
-        ptr_hash = hash(pointer)
-        if (
-            not __flags__.NO_ADDRESSING_CACHE
-            and ptr is None
-            and (rst := self._ptr_cache.get(ptr_hash)) is not None
-            and rst != pointer.base_addr
-        ):
-            self._pointer.base_addr = rst.copy()
-            return True
-
-        if not pointer:
-            logger.debug("Pointer is empty, cannot advance")
-            return False
-        graph: NodeComposeRendered = self.get_graph()
-        current_container: BaseNode | NodeComposeRendered = graph
-        for idx in pointer.base_addr[:-1]:
-            if isinstance(current_container, NodeComposeRendered):
-                current_container = current_container[idx]
-            else:
-                return False
-
-        end_idx = pointer[-1]
-        if not isinstance(current_container, NodeComposeRendered):
-            return False
-
-        current_node: BaseNode | NodeComposeRendered = current_container[end_idx]
-        if isinstance(current_node, NodeComposeRendered) and current_node:
-            pointer.append(0)
-            debug_log(f"Entered nested container, new pointer: {pointer}")
-            self._ptr_cache[ptr_hash] = pointer.base_addr.copy()
-            return True
-
-        next_idx = end_idx + 1
-        if next_idx < len(current_container):
-            # Check if the next node is a NodeComposeRendered that should be entered immediately
-            next_node = current_container[next_idx]
-            if isinstance(next_node, NodeComposeRendered) and next_node:
-                pointer[-1] = next_idx
-                pointer.append(0)
-                debug_log(
-                    f"Advanced to and entered nested container, new pointer: {pointer}"
-                )
-            else:
-                pointer[-1] = next_idx
-                debug_log(f"Advanced to next sibling node, new pointer: {pointer}")
-            self._ptr_cache[ptr_hash] = pointer.base_addr.copy()
-            return True
-
-        while pointer:
-            pointer.pop()
-            if not pointer:
-                logger.debug("Reached end of workflow, no more nodes to process")
-                return False
-
-            parent_path: list[int] = pointer.base_addr[:-1]
-            parent_container: BaseNode | NodeComposeRendered = graph
-            for idx in parent_path:
-                if isinstance(parent_container, NodeComposeRendered):
-                    parent_container = parent_container[idx]
-                else:
-                    debug_log(f"Failed to traverse to parent container at index {idx}")
-                    return False
-
-            if isinstance(parent_container, NodeComposeRendered):
-                current_parent_idx = pointer[-1]
-                if current_parent_idx + 1 < len(parent_container):
-                    next_parent_node = parent_container[current_parent_idx + 1]
-                    if (
-                        isinstance(next_parent_node, NodeComposeRendered)
-                        and next_parent_node
-                    ):
-                        pointer[-1] = current_parent_idx + 1
-                        pointer.append(0)
-                    else:
-                        pointer[-1] = current_parent_idx + 1
-                    self._ptr_cache[ptr_hash] = pointer.base_addr.copy()
-                    return True
-
-        logger.debug("Failed to advance pointer through any path")
-        return False
-
-    def find_addr_alias(self, alias: str) -> list[int]:
-        """Find the address vector for a node by its alias.
-
-        Args:
-            alias: The alias name of the target node.
-
-        Returns:
-            The address vector (list of indices) pointing to the node.
-
-        Raises:
-            NullPointerException: If the alias does not exist in the graph.
-        """
-        if alias not in self.get_graph().alias2vector_map:
-            raise NullPointerException(f"{alias} is not a valid alias")
-        return self.get_graph().alias2vector_map[alias]
+        return self.get_graph().calc.advance(ptr if ptr is not None else self._pointer)
 
     def find_node_alias(self, alias: str) -> BaseNode | NodeComposeRendered:
         """Find a node by its alias and return the node object.
@@ -1043,35 +926,13 @@ class WorkflowInterpreter(Generic[io_T]):
         Returns:
             The node object corresponding to the alias.
         """
-        return self.find_addr(self.find_addr_alias(alias))
+        return self.get_graph().calc.find_addr(
+            self.get_graph().calc.resolve_alias(alias)
+        )
 
-    def _find_addr_or_none(
-        self, addr: list[int]
-    ) -> BaseNode | NodeComposeRendered | None:
-        """Find a node at the specified address, returning None if not found.
-
-        Args:
-            addr: Address vector to look up.
-
-        Returns:
-            The node at the specified address, or None if it doesn't exist.
-        """
-        graph: NodeComposeRendered = self.get_graph()
-        current_chunk: NodeComposeRendered | BaseNode = graph
-
-        for i, chunk in enumerate(addr):
-            if isinstance(current_chunk, NodeComposeRendered):
-                if chunk >= len(current_chunk):
-                    return None
-                current_chunk = current_chunk[chunk]
-            else:
-                # If we reach a BaseNode before consuming all address components, it's invalid
-                if i < len(addr) - 1:
-                    return None
-                break
-
-        return current_chunk
-
+    @deprecated(
+        "This method is no longer used, please use '.calc.find_addr(addr)' instead!"
+    )
     def find_addr(self, addr: list[int]) -> BaseNode | NodeComposeRendered:
         """Find a node at the specified address.
 
@@ -1084,10 +945,24 @@ class WorkflowInterpreter(Generic[io_T]):
         Raises:
             NullPointerException: If the address does not exist in the graph.
         """
-        if (node := self._find_addr_or_none(addr)) is not None:
-            return node
-        else:
-            raise NullPointerException(f"Node at {addr} does not exist")
+        return self.get_graph().calc.find_addr(addr)
+
+    @deprecated(
+        "This method is no longer used, please use '.calc.resolve_alias(addr)' instead!"
+    )
+    def find_addr_alias(self, alias: str) -> list[int]:
+        """Find the address vector for a node by its alias.
+
+        Args:
+            alias: The alias name of the target node.
+
+        Returns:
+            The address vector (list of indices) pointing to the node.
+
+        Raises:
+            NullPointerException: If the alias does not exist in the graph.
+        """
+        return self.get_graph().calc.resolve_alias(alias)
 
     async def _rslv_node(
         self, node: BaseNode, ava_args: tuple, ava_kwargs: dict[str, Any]
@@ -1145,8 +1020,7 @@ class WorkflowInterpreter(Generic[io_T]):
             DependsInjectFailed: If dependency injection fails at runtime.
             RuntimeError: If attempting to call a NodeCompose directly.
         """
-        global nop
-        addr_getter = addr_getter or self.find_addr
+        addr_getter = addr_getter or self.get_graph().calc.find_addr
         node: BaseNode | NodeComposeRendered = addr_getter(self._pointer.base_addr)
         if isinstance(node, NodeComposeRendered):
             if __flags__.ALLOW_CALL_NODECOMPOSE:
@@ -1155,8 +1029,6 @@ class WorkflowInterpreter(Generic[io_T]):
                 f"Cannot call a NodeCompose in addr {self._pointer.base_addr}."
             )
         await self.object_io._wait_for_continue(node.tag)
-
-        node._pre_check(self)
 
         ava_args = self.__ava_args
         if extra_args:
@@ -1178,6 +1050,8 @@ class WorkflowInterpreter(Generic[io_T]):
             code = self._di_cache.args_hash
 
         fun = node.func
+        if not isabstractmethod(node._pre_check):
+            node._pre_check(self)
         if (
             not __flags__.WORKFLOW_DI_NO_CACHE
             or not self._di_cache.hash_trustable
@@ -1191,10 +1065,6 @@ class WorkflowInterpreter(Generic[io_T]):
             kw_rsved = await self._rslv_node(node, ava_args, ava_kwargs)
             if not __flags__.WORKFLOW_DI_NO_CACHE:
                 self._di_cache.payload[hash((hash(self._pointer), code))] = kw_rsved
-        logger.debug(f"Running node {node.tag}:{node.func.__name__}")
-        debug_log(
-            f"Address is {self._pointer}, Type of node is {node.__class__.__name__}"
-        )
         if iscoroutinefunction(fun):
             return await fun(**kw_rsved)
         elif node.wrap_to_async and not __flags__.FORCE_NOT_WRAP_TO_ASYNC:

@@ -11,8 +11,11 @@ from typing_extensions import Self
 from amrita_sense.exceptions import GraphBuildError, NullPointerException
 from amrita_sense.hook.fun_typing import DependencyMeta, sign_func
 from amrita_sense.logging import debug_log, logger
+from amrita_sense.node import addressing
+from amrita_sense.node.addressing import AddressCalculator
 from amrita_sense.node.self_compile import SelfCompileInstruction
-from amrita_sense.utils import TimeInsighter
+from amrita_sense.types import PointerVector
+from amrita_sense.utils import TimeInsighter, isabstractmethod
 
 from . import self_compile
 
@@ -94,6 +97,7 @@ class BaseNode:
         """
         return self.tag
 
+    @abstractmethod
     def _pre_check(self, pointer: WorkflowInterpreter) -> None:
         """Perform pre-execution checks on the node.
 
@@ -102,6 +106,18 @@ class BaseNode:
 
         Args:
             pointer: The current workflow interpreter instance.
+        """
+        ...
+
+    @abstractmethod
+    def _post_compile(self, compose: NodeComposeRendered) -> None:
+        """Perform post-compile checks on the node.
+
+        This method is called after compose construction and can be overridden by
+        subclasses to perform validation or setup tasks.
+
+        Args:
+            compose: The compiled node-compose
         """
         ...
 
@@ -134,6 +150,9 @@ class BaseNode:
             A new NodeCompose containing this node and the other element.
         """
         return NodeCompose(self, other)
+
+    def as_compose(self) -> NodeCompose:
+        return NodeCompose(self)
 
 
 class Node(BaseNode, Generic[NODE_T]):
@@ -279,11 +298,17 @@ class NodeCompose:
         self._graph.append(other)
         return self
 
-    def render(self) -> NodeComposeRendered:
+    def render(
+        self, cache_size: int = 1024, pre_cache: bool = True
+    ) -> NodeComposeRendered:
         """Compile this composition into an executable workflow graph.
 
         This method processes all nodes in the composition, resolves aliases,
         expands self-compiling instructions, and builds the final execution graph.
+
+        Args:
+            cache_size: Maximum size of the cache for resolved nodes. Set to -1 to disable addressing caching.
+            pre_cache: Preload addressing cache in compiling.
 
         Returns:
             A NodeComposeRendered instance representing the compiled workflow.
@@ -291,7 +316,7 @@ class NodeCompose:
         debug_log(f"Size of the main graph is : {len(self._graph)}")
         with TimeInsighter() as tm:
             r = NodeComposeRendered(self)
-            r._build()
+            r._build(cache_size=cache_size, pre_cache=pre_cache)
         time_end = tm.t_diff
         logger.info(f"node compose rendered, cost: {(time_end.total_seconds())}s")
         return r
@@ -312,8 +337,32 @@ class NodeComposeRendered:
     _graph: list[BaseNode | NodeComposeRendered]
     __original_tmp: (
         NodeCompose | list[BaseNode | NodeCompose | SelfCompileInstruction] | None
-    ) = None
+    )
     alias2vector_map: dict[str, list[int]]
+    """Mark for AliasNodes"""
+    _collected_hooks: list[Callable[[NodeComposeRendered], Any]] | None
+    _calc: AddressCalculator
+    """Address calculator, only be set when compiled, in the top level of the workflow"""
+
+    __slots__ = [
+        "__original_tmp",
+        "_calc",
+        "_collected_hooks",
+        "_graph",
+        "alias2vector_map",
+    ]
+
+    @property
+    def calc(self) -> AddressCalculator:
+        """Get the address calculator for this rendered composition.
+
+        Returns:
+            The address calculator instance.
+
+        Raises:
+            AttributeError: If the address calculator is not set or this NodeComposeRendered instance is not the top level of the workflow.
+        """
+        return self._calc
 
     def __init__(
         self,
@@ -327,6 +376,7 @@ class NodeComposeRendered:
         """
         self.__original_tmp = original_graph
         self.alias2vector_map = {}
+        self._collected_hooks = None
 
     def __bool__(self) -> bool:
         """Return True if the rendered graph exists and is non-empty.
@@ -348,6 +398,8 @@ class NodeComposeRendered:
         self,
         current_path: list[int] | None = None,
         top: NodeComposeRendered | None = None,
+        cache_size: int = 1024,
+        pre_cache: bool = True,
     ):
         """Build the executable workflow graph from the original composition.
 
@@ -358,6 +410,8 @@ class NodeComposeRendered:
         Args:
             current_path: Current address path during recursive processing.
             top: Reference to the top-level rendered composition for alias registration.
+            cache_size: Cache size for address calculation.
+            pre_cache: Pre-calculated address cache in %40 of cache_size.
 
         Raises:
             GraphBuildError: If the composition is already built or has no original graph.
@@ -365,8 +419,10 @@ class NodeComposeRendered:
 
         if current_path is None:
             current_path = []
+        im_top: bool = False
         if top is None:
             top = self
+            im_top = True
 
         if hasattr(self, "_graph"):
             raise GraphBuildError("NodeComposeRendered is already built")
@@ -375,10 +431,25 @@ class NodeComposeRendered:
 
         self._graph = []
 
+        if im_top:
+            top._collected_hooks = []
+
         if isinstance(self.__original_tmp, NodeCompose):
             self._process_nodes(self.__original_tmp._graph, current_path, top)
         else:
             self._process_nodes(self.__original_tmp, current_path, top)
+        if im_top:
+            self._calc = AddressCalculator(self, cache_size)
+            if pre_cache:
+                ptr = PointerVector()
+                for _ in range(int(cache_size * 0.6)):
+                    if not self._calc.advance(ptr):
+                        break
+            if self._collected_hooks:
+                logger.debug("Running post-compile hooks...")
+                for fn in self._collected_hooks:
+                    fn(self)
+
         self.__original_tmp = None
 
     def _process_nodes(
@@ -409,10 +480,8 @@ class NodeComposeRendered:
 
             elif isinstance(node, SelfCompileInstruction):
                 extracted_compose = node.extract()
-                rendered_compose = (
-                    self._render_compose(extracted_compose, node_path, top)
-                    if isinstance(extracted_compose, NodeCompose)
-                    else extracted_compose
+                rendered_compose = self._render_compose(
+                    extracted_compose, node_path, top
                 )
                 self._graph.append(rendered_compose)
 
@@ -429,6 +498,12 @@ class NodeComposeRendered:
                 self._graph.append(node)
 
             else:
+                if not isabstractmethod(node._post_compile):
+                    if top._collected_hooks is None:
+                        raise GraphBuildError(
+                            "Top level compose's hooks collection is None!"
+                        )
+                    top._collected_hooks.append(node._post_compile)
                 self._graph.append(node)
 
     def _render_compose(
@@ -479,3 +554,4 @@ class NodeComposeRendered:
 
 
 self_compile.NodeCompose = NodeCompose  # For import.
+addressing.NodeComposeRendered = NodeComposeRendered
