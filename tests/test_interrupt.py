@@ -1,5 +1,7 @@
 """Tests for interrupt.py — PUSH_CONTEXT, POP_CONTEXT, INTERRUPT_INTO, INTERRUPT_RET."""
 
+from typing import TYPE_CHECKING
+
 import pytest
 
 from amrita_sense import ALIAS, ARCHIVED_NODES, NOP, Node
@@ -11,6 +13,7 @@ from amrita_sense.instructions.interrupt import (
     POP_CONTEXT,
     PUSH_CONTEXT,
 )
+from amrita_sense.node.core import NodeComposeRendered
 from amrita_sense.runtime.types import InterpreterContext
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 from amrita_sense.types import PointerVector, Stack
@@ -63,6 +66,27 @@ class _FakeInterpreter:
         self._ret_addr_stack = c.stack or self._ret_addr_stack
         self._panic_exc = c.exception
 
+if not TYPE_CHECKING:
+
+    class _FakeRendered:
+        """Minimal NodeComposeRendered-like object that exposes .calc.resolve_alias()."""
+
+        _alias_map: dict = {}  # noqa: RUF012
+
+        def __init__(self, alias_map: dict):
+            # Store on the class so the nested calc staticmethod can reach it
+            _FakeRendered._alias_map = alias_map
+
+        class calc:
+            """Fake AddressCalculator with resolve_alias."""
+
+            @staticmethod
+            def resolve_alias(alias: str) -> list[int]:
+                return _FakeRendered._alias_map[alias].copy()
+else:
+
+    class _FakeRendered(NodeComposeRendered):
+        def __init__(*args, **kwargs): ...
 
 # ---- node type ----
 
@@ -102,7 +126,9 @@ def test_interrupt_ret_returns_node():
 
 def test_push_context_jumps():
     pc = _FakeInterpreter({"sub": [5, 0]}, [2, 3])
-    PUSH_CONTEXT("sub")(pc)
+    n = PUSH_CONTEXT("sub")
+    n._post_compile(_FakeRendered({"sub": [5, 0]}))
+    n(pc)
     assert len(pc.context_stack) == 1
     assert pc.context_stack.stack[0].ptr.base_addr == [2, 3]
     assert pc._pointer.base_addr == [5, 0]
@@ -111,7 +137,9 @@ def test_push_context_jumps():
 
 def test_push_context_list_target():
     pc = _FakeInterpreter(ptr=[0, 0])
-    PUSH_CONTEXT([7, 2])(pc)
+    n = PUSH_CONTEXT([7, 2])
+    n._post_compile(_FakeRendered({}))
+    n(pc)
     assert pc.context_stack.stack[0].ptr.base_addr == [0, 0]
     assert pc._pointer.base_addr == [7, 2]
 
@@ -120,7 +148,9 @@ def test_push_context_exclude_deps():
     pc = _FakeInterpreter({"sub": [1]}, [0])
     pc._ava_args = (42,)
     pc._ava_kwargs = {"g": "hi"}
-    PUSH_CONTEXT("sub", exclude_deps=False)(pc)
+    n = PUSH_CONTEXT("sub", exclude_deps=False)
+    n._post_compile(_FakeRendered({"sub": [1]}))
+    n(pc)
     c = pc.context_stack.stack[0]
     assert c.s_args == (42,)
     assert c.s_kwargs == {"g": "hi"}
@@ -129,17 +159,23 @@ def test_push_context_exclude_deps():
 def test_push_context_exclude_stack():
     pc = _FakeInterpreter({"sub": [1]}, [0])
     pc._ret_addr_stack.push(PointerVector([9]))
-    PUSH_CONTEXT("sub", exclude_stack=False)(pc)
+    n = PUSH_CONTEXT("sub", exclude_stack=False)
+    n._post_compile(_FakeRendered({"sub": [1]}))
+    n(pc)
     assert pc.context_stack.stack[0].stack is not None
     assert pc.context_stack.stack[0].stack.stack[-1].base_addr == [9]
 
 
 def test_push_context_multiple():
     pc = _FakeInterpreter({"s1": [1], "s2": [2]}, [0])
-    PUSH_CONTEXT("s1")(pc)
+    n1 = PUSH_CONTEXT("s1")
+    n1._post_compile(_FakeRendered({"s1": [1]}))
+    n1(pc)
     pc._pointer.far_to([1])
     pc._jump_marked = False
-    PUSH_CONTEXT("s2")(pc)
+    n2 = PUSH_CONTEXT("s2")
+    n2._post_compile(_FakeRendered({"s2": [2]}))
+    n2(pc)
     assert pc.context_stack.stack[0].ptr.base_addr == [0]
     assert pc.context_stack.stack[1].ptr.base_addr == [1]
     assert pc._pointer.base_addr == [2]
@@ -150,7 +186,9 @@ def test_push_context_multiple():
 
 def test_pop_context_returns():
     pc = _FakeInterpreter({"s": [99]}, [2, 8])
-    PUSH_CONTEXT("s")(pc)
+    n = PUSH_CONTEXT("s")
+    n._post_compile(_FakeRendered({"s": [99]}))
+    n(pc)
     r = POP_CONTEXT()(pc)
     assert isinstance(r, InterpreterContext)
     assert r.ptr.base_addr == [2, 8]
@@ -159,10 +197,14 @@ def test_pop_context_returns():
 
 def test_pop_context_lifo():
     pc = _FakeInterpreter({"a": [10], "b": [20]}, [0])
-    PUSH_CONTEXT("a")(pc)
+    n1 = PUSH_CONTEXT("a")
+    n1._post_compile(_FakeRendered({"a": [10]}))
+    n1(pc)
     pc._pointer.far_to([10])
     pc._jump_marked = False
-    PUSH_CONTEXT("b")(pc)
+    n2 = PUSH_CONTEXT("b")
+    n2._post_compile(_FakeRendered({"b": [20]}))
+    n2(pc)
     c2 = POP_CONTEXT()(pc)
     c1 = POP_CONTEXT()(pc)
     assert c2.ptr.base_addr == [10]
@@ -174,7 +216,9 @@ def test_pop_context_lifo():
 
 def test_interrupt_into_saves_and_jumps():
     pc = _FakeInterpreter({"h": [5, 0], "r": [99]}, [0, 0])
-    INTERRUPT_INTO("h", "r")(pc)
+    n = INTERRUPT_INTO("h", "r")
+    n._post_compile(_FakeRendered({"h": [5, 0], "r": [99]}))
+    n(pc)
     assert len(pc.context_stack) == 1
     assert pc.context_stack.stack[0].ptr.base_addr == [99]
     assert pc._pointer.base_addr == [5, 0]
@@ -182,19 +226,25 @@ def test_interrupt_into_saves_and_jumps():
 
 def test_interrupt_into_sets_if_flag():
     pc = _FakeInterpreter({"h": [1], "r": [2]}, [0])
-    INTERRUPT_INTO("h", "r", if_state=True)(pc)
+    n = INTERRUPT_INTO("h", "r", if_state=True)
+    n._post_compile(_FakeRendered({"h": [1], "r": [2]}))
+    n(pc)
     assert pc.if_flag is True
 
 
 def test_interrupt_into_default_if_flag():
     pc = _FakeInterpreter({"h": [1], "r": [2]}, [0])
-    INTERRUPT_INTO("h", "r")(pc)
+    n = INTERRUPT_INTO("h", "r")
+    n._post_compile(_FakeRendered({"h": [1], "r": [2]}))
+    n(pc)
     assert pc.if_flag is False
 
 
 def test_interrupt_into_list_addrs():
     pc = _FakeInterpreter(ptr=[0])
-    INTERRUPT_INTO([3, 7], [9, 2])(pc)
+    n = INTERRUPT_INTO([3, 7], [9, 2])
+    n._post_compile(_FakeRendered({}))
+    n(pc)
     assert pc._pointer.base_addr == [3, 7]
     assert pc.context_stack.stack[0].ptr.base_addr == [9, 2]
 
@@ -212,7 +262,9 @@ def test_interrupt_into_raises_when_if_flag_true():
 
 def test_interrupt_ret_restores():
     pc = _FakeInterpreter({"h": [2, 0], "r": [99]}, [0, 0])
-    INTERRUPT_INTO("h", "r")(pc)
+    n = INTERRUPT_INTO("h", "r")
+    n._post_compile(_FakeRendered({"h": [2, 0], "r": [99]}))
+    n(pc)
     pc._pointer.far_to([2, 0])
     pc.if_flag = True
     INTERRUPT_RET()(pc)
@@ -223,7 +275,9 @@ def test_interrupt_ret_restores():
 
 def test_interrupt_ret_clears_if_flag():
     pc = _FakeInterpreter({"h": [1], "r": [5]}, [0])
-    INTERRUPT_INTO("h", "r", if_state=True)(pc)
+    n = INTERRUPT_INTO("h", "r", if_state=True)
+    n._post_compile(_FakeRendered({"h": [1], "r": [5]}))
+    n(pc)
     INTERRUPT_RET()(pc)
     assert pc.if_flag is False
 
