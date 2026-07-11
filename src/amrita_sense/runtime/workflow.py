@@ -460,6 +460,8 @@ class WorkflowInterpreter(Generic[io_T]):
         """
         if (self.get_graph()) is None:
             raise NullPointerException(f"{addr} is not a valid address")
+        if self.get_graph().calc.find_addr_safe(addr) is None:
+            raise NullPointerException(f"{addr} is not a valid address")
         self._pointer.far_to(addr)
 
     @markup
@@ -964,6 +966,11 @@ class WorkflowInterpreter(Generic[io_T]):
         """
         return self.get_graph().calc.resolve_alias(alias)
 
+    def _find_addr_or_none(
+        self, addr: list[int]
+    ) -> BaseNode | NodeComposeRendered | None:
+        return self.get_graph().calc.find_addr_safe(addr)
+
     async def _rslv_node(
         self, node: BaseNode, ava_args: tuple, ava_kwargs: dict[str, Any]
     ) -> dict[str, Any]:
@@ -1053,7 +1060,7 @@ class WorkflowInterpreter(Generic[io_T]):
         if not isabstractmethod(node._pre_check):
             node._pre_check(self)
         if (
-            not __flags__.WORKFLOW_DI_NO_CACHE
+            __flags__.WORKFLOW_DI_NO_CACHE
             or not self._di_cache.hash_trustable
             or (
                 kw_rsved := self._di_cache.payload.get(
