@@ -4,21 +4,22 @@
 
 ## 概述
 
-`SuspendObjectStream[ObjectTypeT]` 在内部组合了三层机制：
+`SuspendObjectStream[ObjectTypeT]` 在内部组合了四层机制：
 
-| 层级       | 组件                                       | 作用                                         |
-| ---------- | ------------------------------------------ | -------------------------------------------- |
-| **传输层** | `anyio` 内存对象流（发送/接收双通道）      | 数据在生产者和消费者之间双向流动             |
-| **控制层** | 挂起信号 + 恢复信号（`asyncio.Future` 对） | 外部操作者与内部执行流之间的协作式暂停/继续  |
-| **拦截层** | 回调函数（双重锁保护）                     | 在数据路径上插入自定义处理逻辑，不影响控制流 |
+| 层级       | 组件                                       | 作用                                            |
+| ---------- | ------------------------------------------ | ----------------------------------------------- |
+| **传输层** | `anyio` 内存对象流（两对独立单向通道）     | 生产者→消费者 和 消费者→生产者 双向独立数据传输 |
+| **控制层** | 挂起信号 + 恢复信号（`asyncio.Future` 对） | 外部操作者与内部执行流之间的协作式暂停/继续     |
+| **拦截层** | 回调函数（双重锁保护）                     | 在数据路径上插入自定义处理逻辑，不影响控制流    |
+| **反向流** | 反向发送/接收通道 + 完成标记               | 消费者可主动向生产者回传数据，形成完整双向对话  |
 
 核心能力：
 
 - **协作式挂起**：通过 `wait_to_suspend()` / `_wait_for_continue()` 在可配置标签（Tag）处让执行流主动交出控制权
 - **精确恢复**：使用 `resume()` 解除内部阻塞，执行流从挂起点精确继续
-- **双工数据传输**：`yield_response()` / `push_object()` 发送对象，`get_response_generator()` 消费对象
+- **双向数据传输**：`yield_response()` / `push_object()` 生产者→消费者，`send_to_producer()` 消费者→生产者
 - **Tag 断点过滤**：支持多标签匹配，实现细粒度的断点选择
-- **回调拦截**：可在数据路径上注入异步回调，实时处理每条产出
+- **回调拦截**：可在两条数据路径上分别注入异步回调，实时处理每条产出
 
 ### 两层中断架构
 
@@ -149,12 +150,12 @@ sequenceDiagram
 
 创建一个新的 `SuspendObjectStream` 实例。
 
-| 参数               | 类型                    | 默认值 | 说明                                               |
-| ------------------ | ----------------------- | ------ | -------------------------------------------------- |
-| `queue_size`       | `int`                   | `45`   | 内部内存对象流的最大缓冲区大小                     |
-| `queue_timeout`    | `float \| None`         | `10.0` | 队列放入操作的超时时间（秒），`None` 表示无限等待  |
-| `callback`         | `CALLBACK_TYPE \| None` | `None` | 生产端响应回调函数，每次 `yield_response()` 时调用 |
-| `receive_callback` | `CALLBACK_TYPE \| None` | `None` | 发送端响应回调函数（用于 `push_object()` 路径）    |
+| 参数               | 类型                    | 默认值 | 说明                                                                |
+| ------------------ | ----------------------- | ------ | ------------------------------------------------------------------- |
+| `queue_size`       | `int`                   | `45`   | 内部内存对象流的最大缓冲区大小                                      |
+| `queue_timeout`    | `float \| None`         | `10.0` | 队列放入操作的超时时间（秒），`None` 表示无限等待                   |
+| `callback`         | `CALLBACK_TYPE \| None` | `None` | 生产端响应回调函数，每次 `yield_response()` 时调用                  |
+| `receive_callback` | `CALLBACK_TYPE \| None` | `None` | 发送端响应回调函数，每次 `push_object()` 时调用（设置后对象不入队） |
 
 ```python
 from amrita_sense.streaming import SuspendObjectStream
@@ -318,19 +319,32 @@ async def custom_step(self, stream: SuspendObjectStream):
 
 ### `async push_object(obj)`
 
-将对象推入流的发送队列。此方法会先经过 `SUSPEND_ON_YIELD` 标签的挂起点检查，然后放入队列。
+将对象推入流的发送队列，或通过回调直接处理。此方法会先经过 `SUSPEND_ON_PUSH` 标签的挂起点检查。
+
+**执行路径**：
+
+1. 先经过 `_wait_for_continue(SUSPEND_ON_PUSH)` 检查（外断点）
+2. 如果已配置 `receive_callback` → 在 `_callback_sending_lock` 保护下执行回调，**不入队**
+3. 如果未配置 `receive_callback` → 将对象放入内部发送队列
 
 | 参数  | 类型          | 说明             |
 | ----- | ------------- | ---------------- |
 | `obj` | `ObjectTypeT` | 要推入队列的对象 |
 
-| 异常               | 触发条件                                |
-| ------------------ | --------------------------------------- |
-| `StreamStateError` | 队列已关闭（`queue_closed() == True`）  |
-| `TimeoutError`     | 队列满且在 `queue_timeout` 秒内无法放入 |
+| 异常               | 触发条件                                           |
+| ------------------ | -------------------------------------------------- |
+| `StreamStateError` | 未配置回调且队列已关闭（`queue_closed() == True`） |
+| `TimeoutError`     | 队列满且在 `queue_timeout` 秒内无法放入            |
 
 ```python
+# 默认模式——推入队列
 await stream.push_object("用户输入数据")
+
+# 回调模式——对象由回调直接处理
+async def handle_input(obj: str):
+    print(f"收到输入: {obj}")
+stream.set_callback_fun_sending(handle_input)
+await stream.push_object("这条不会进入队列")
 ```
 
 ### `async yield_response(response)`
@@ -433,15 +447,15 @@ stream.set_callback_func(monitor)
 | ----------------------------------- | ---------------------------- |
 | `AsyncGenerator[ObjectTypeT, None]` | 迭代产出响应对象的异步生成器 |
 
-| 异常               | 触发条件                                                        |
-| ------------------ | --------------------------------------------------------------- |
-| `StreamStateError` | 已有消费者在迭代（`_has_consumer == True`）**或**已设置回调函数 |
+| 异常               | 触发条件                                                           |
+| ------------------ | ------------------------------------------------------------------ |
+| `StreamStateError` | 已有消费者在迭代（`_has_consumer == True`）**或**已设置 `callback` |
 
 **生成器生命周期**：
 
 - 迭代过程中持续从内部接收流读取对象
-- 遇到内部完成标记（`__done_marker`）时生成器自然终止
-- 生成器终止时自动关闭发送和接收流
+- 遇到内部完成标记（EOF marker）时生成器自然终止
+- 生成器终止时自动关闭接收流（`_receive_stream.aclose()`）
 
 ```python
 async for response in stream.get_response_generator():
@@ -455,6 +469,71 @@ async for response in stream.get_response_generator():
 :::
 
 ---
+
+## 反向数据流（消费者→生产者）
+
+`SuspendObjectStream` 内置第二对独立通道，支持消费者主动向生产者回传数据，实现真正的双向对话。
+
+### `async send_to_producer(obj)`
+
+消费者向生产者回传对象。通过反向通道（consumer→producer）发送，不受主流方向的挂起信号影响。
+
+| 参数  | 类型          | 说明                 |
+| ----- | ------------- | -------------------- |
+| `obj` | `ObjectTypeT` | 要回传给生产者的对象 |
+
+| 异常               | 触发条件                       |
+| ------------------ | ------------------------------ |
+| `StreamStateError` | 反向通道已关闭（`_peer_done`） |
+
+```python
+# 消费者在处理响应时回传数据
+async def consumer(stream: SuspendObjectStream[str]):
+    async for response in stream.get_response_generator():
+        print(response, end="")
+        if "需要更多信息" in response:
+            await stream.send_to_producer("补充数据：...")
+```
+
+### `async send_done_to_producer()`
+
+消费者向生产者发送流结束标记，通知反向通道不再有新数据。
+
+- 幂等操作：重复调用不产生副作用
+- 调用后生产者的 `get_producer_input_generator()` 将停止产出
+
+```python
+# 消费者完成所有回传后
+await stream.send_done_to_producer()
+```
+
+### `get_producer_input_generator()`
+
+返回一个异步生成器，迭代消费消费者回传给生产者的所有对象。
+
+| 返回值                              | 说明                               |
+| ----------------------------------- | ---------------------------------- |
+| `AsyncGenerator[ObjectTypeT, None]` | 迭代产出消费者回传对象的异步生成器 |
+
+| 异常               | 触发条件                   |
+| ------------------ | -------------------------- |
+| `StreamStateError` | 已有其他生成器在消费反向流 |
+
+```python
+# 生产者在发送数据的同时，轮询消费者回传
+async def producer(stream: SuspendObjectStream[str]):
+    # 启动反向流消费者
+    async def listen_input():
+        async for msg in stream.get_producer_input_generator():
+            print(f"消费者回传: {msg}")
+
+    asyncio.create_task(listen_input())
+
+    # 继续正常发送数据
+    for i in range(10):
+        await stream.yield_response(f"数据 {i}\n")
+    await stream.set_queue_done()
+```
 
 ## 队列状态方法
 
@@ -562,6 +641,45 @@ asyncio.create_task(controller())
 # 生产者会通过 callback 输出，外断点独立工作
 ```
 
+### 模式四：双向对话（反向流）
+
+利用第二对独立通道，消费者在处理响应时可主动回传数据给生产者。
+
+```python
+import asyncio
+from amrita_sense.streaming import SuspendObjectStream
+
+async def producer(stream: SuspendObjectStream[str]):
+    # 启动反向流监听
+    async def handle_input():
+        async for msg in stream.get_producer_input_generator():
+            print(f"[生产者收到] {msg}")
+            await stream.yield_response(f"已处理: {msg}\n")
+
+    asyncio.create_task(handle_input())
+
+    for i in range(5):
+        await stream.yield_response(f"数据 {i}\n")
+        await asyncio.sleep(0.3)
+    await stream.set_queue_done()
+
+async def consumer(stream: SuspendObjectStream[str]):
+    async for response in stream.get_response_generator():
+        print(response, end="")
+        if "数据 2" in response:
+            # 在处理到特定响应时回传
+            await stream.send_to_producer("需要更多上下文")
+    await stream.send_done_to_producer()
+
+async def main():
+    stream = SuspendObjectStream[str]()
+    prod = asyncio.create_task(producer(stream))
+    await consumer(stream)
+    await prod
+
+asyncio.run(main())
+```
+
 ---
 
 ## 内部常量
@@ -569,13 +687,21 @@ asyncio.create_task(controller())
 ### `SUSPEND_ON_YIELD`
 
 - **值**：`"SuspendObjectStream::yield_response"`
-- **用途**：`yield_response()` 和 `push_object()` 内部使用的特殊挂起标签。当外部通过 `wait_to_suspend(SUSPEND_ON_YIELD)` 监听时，每次数据发送前都会触发挂起。
+- **用途**：`yield_response()` 内部使用的挂起标签。当外部通过 `wait_to_suspend(SUSPEND_ON_YIELD)` 监听时，每次 `yield_response()` 调用前都会触发挂起检查。
+
+### `SUSPEND_ON_PUSH`
+
+- **值**：`"SuspendObjectStream::push_response"`
+- **用途**：`push_object()` 内部使用的挂起标签。当外部通过 `wait_to_suspend(SUSPEND_ON_PUSH)` 监听时，每次 `push_object()` 调用前都会触发挂起检查。
 
 ```python
-from amrita_sense.streaming import SUSPEND_ON_YIELD
+from amrita_sense.streaming import SUSPEND_ON_YIELD, SUSPEND_ON_PUSH
 
 # 在每次 yield_response 前挂起
 await stream.wait_to_suspend(SUSPEND_ON_YIELD)
+
+# 在每次 push_object 前挂起
+await stream.wait_to_suspend(SUSPEND_ON_PUSH)
 ```
 
 ---
@@ -585,14 +711,19 @@ await stream.wait_to_suspend(SUSPEND_ON_YIELD)
 ### 生命周期管理
 
 - 生产者在完成所有数据发送后**必须**调用 `set_queue_done()`，否则消费者将永远阻塞
-- `get_response_generator()` 生成的异步生成器在遇到 done marker 时自动终止并清理资源
-- 同一实例只能有一个活跃的消费者生成器
+- 消费者完成回传后**应该**调用 `send_done_to_producer()`，通知生产者反向流已结束
+- `get_response_generator()` / `get_producer_input_generator()` 在遇到各自通道的 EOF marker 时自动终止并清理资源
+- 同一实例的每个通道方向只能有一个活跃的生成器
 
 ### 回调与迭代器互斥
 
 ::: danger
-不要同时设置回调函数并调用 `get_response_generator()`。这会导致 `RuntimeError: "Response is already being consumed."`
-:::
+每个通道方向只能选一种消费方式：**回调** 或 **迭代器**，不可同时使用。
+
+- 主流方向：`callback` 与 `get_response_generator()` 互斥
+- 反向通道：`receive_callback` 与 `get_producer_input_generator()` 互斥
+- 混用将导致 `StreamStateError`
+  :::
 
 ### 线程/协程安全
 
@@ -611,5 +742,5 @@ await stream.wait_to_suspend(SUSPEND_ON_YIELD)
 ## 相关文档
 
 - [执行与中断](/zh/guide/concepts/exec_and_interrupt) — AmritaSense 中基于 `SuspendObjectStream` 的流程中断体系
+- [外部中断](/zh/guide/advanced/external_interrupt) — 外部调用方如何与解释器交互
 - [CLCA 设计模式](/zh/guide/practice/clca-design-pattern) — 并发安全性的底层设计原理
-- [事件系统](/zh/guide/advanced/event_system) — 运行时事件与自定义钩子

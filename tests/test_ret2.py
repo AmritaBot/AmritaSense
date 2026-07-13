@@ -1,11 +1,62 @@
 """Tests for ret2.py — PUSH_STACK, RET_FAR, PUSH_AND_GOTO instructions."""
 
+from typing import TYPE_CHECKING
+
 import pytest
 
 from amrita_sense.instructions.ret2 import PUSH_AND_GOTO, PUSH_STACK, RET_FAR
+from amrita_sense.node.core import NodeComposeRendered
 from amrita_sense.node.wrapper import Node
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 from amrita_sense.types import PointerVector, Stack
+
+# ---------------------------------------------------------------------------
+# Fake rendered object for post_compile hooks (mirrors interrupt test pattern)
+# ---------------------------------------------------------------------------
+
+if not TYPE_CHECKING:
+
+    class _FakeRendered:
+        """Minimal NodeComposeRendered-like object that exposes .calc.resolve_alias()."""
+
+        _alias_map: dict = {}  # noqa: RUF012
+
+        def __init__(self, alias_map: dict):
+            _FakeRendered._alias_map = alias_map
+
+        class calc:
+            """Fake AddressCalculator with resolve_alias."""
+
+            @staticmethod
+            def resolve_alias(alias: str) -> list[int]:
+                return _FakeRendered._alias_map[alias].copy()
+else:
+
+    class _FakeRendered(NodeComposeRendered):
+        def __init__(*args, **kwargs): ...
+
+
+# ---------------------------------------------------------------------------
+# Fake interpreter (minimal — no alias resolution needed at runtime)
+# ---------------------------------------------------------------------------
+
+
+class _FakeInterpreter:
+    """Minimal fake to exercise ret2 instruction internals.
+
+    Alias resolution is done at compile time via _post_compile, so the
+    interpreter does NOT need find_addr_alias / get_graph."""
+
+    def __init__(self) -> None:
+        self._ret_addr_stack: Stack[PointerVector] = Stack()
+        self._pointer = PointerVector()
+
+    def jump_to(self, addr: list[int]) -> None:
+        self._pointer.far_to(addr)
+
+    def jump_far_ptr(self, addr: list[int]) -> None:
+        self._pointer.far_to(addr)
+
 
 # ---------------------------------------------------------------------------
 # Unit tests — return values and types
@@ -31,53 +82,39 @@ def test_push_and_goto_returns_node():
 
 
 # ---------------------------------------------------------------------------
-# Unit tests — PUSH_STACK logic (using fake pointer)
+# Unit tests — PUSH_STACK logic
 # ---------------------------------------------------------------------------
 
 
-class _FakeGraph:
-    def __init__(self, alias_map: dict[str, list[int]]) -> None:
-        self.alias2vector_map = alias_map
-
-
-class _FakeInterpreter:
-    """Minimal fake to exercise PUSH_STACK internals."""
-
-    def __init__(self, alias_map: dict[str, list[int]]) -> None:
-        self._graph = _FakeGraph(alias_map)
-        self._ret_addr_stack: Stack[PointerVector] = Stack()
-        self._jump_marked = False
-        self._pointer = PointerVector()
-
-    def get_graph(self) -> _FakeGraph:
-        return self._graph
-
-    def find_addr_alias(self, alias: str) -> list[int]:
-        return self._graph.alias2vector_map[alias]
-
-    def jump_to(self, addr: list[int]) -> None:
-        self._pointer.far_to(addr)
-
-    def jump_far_ptr(self, addr: list[int]) -> None:
-        self._pointer.far_to(addr)
-
-
 def test_push_stack_with_alias_pushes_resolved_address():
-    pc = _FakeInterpreter({"after": [3, 1]})
+    pc = _FakeInterpreter()
     node = PUSH_STACK("after")
-    node._pre_check(pc)  # type: ignore[arg-type]
+    node._post_compile(_FakeRendered({"after": [3, 1]}))
     node(pc)  # type: ignore[arg-type]
     assert len(pc._ret_addr_stack) == 1
     assert pc._ret_addr_stack.stack[-1].base_addr == [3, 1]
 
 
 def test_push_stack_with_list_pushes_raw_address():
-    pc = _FakeInterpreter({})
+    pc = _FakeInterpreter()
     node = PUSH_STACK([7, 2])
-    node._pre_check(pc)  # type: ignore[arg-type]
+    node._post_compile(_FakeRendered({}))
     node(pc)  # type: ignore[arg-type]
     assert len(pc._ret_addr_stack) == 1
     assert pc._ret_addr_stack.stack[-1].base_addr == [7, 2]
+
+
+def test_push_stack_multiple():
+    pc = _FakeInterpreter()
+    n1 = PUSH_STACK("s1")
+    n1._post_compile(_FakeRendered({"s1": [1]}))
+    n1(pc)  # type: ignore[arg-type]
+    n2 = PUSH_STACK("s2")
+    n2._post_compile(_FakeRendered({"s2": [2]}))
+    n2(pc)  # type: ignore[arg-type]
+    assert len(pc._ret_addr_stack) == 2
+    assert pc._ret_addr_stack.stack[0].base_addr == [1]
+    assert pc._ret_addr_stack.stack[1].base_addr == [2]
 
 
 # ---------------------------------------------------------------------------
@@ -86,13 +123,23 @@ def test_push_stack_with_list_pushes_raw_address():
 
 
 def test_ret_far_pops_and_jumps():
-    pc = _FakeInterpreter({})
+    pc = _FakeInterpreter()
     pc._ret_addr_stack.push(PointerVector([5, 0]))
     node = RET_FAR()
-    node._pre_check(pc)  # type: ignore[arg-type]
     node(pc)  # type: ignore[arg-type]
     assert len(pc._ret_addr_stack) == 0
     assert pc._pointer.base_addr == [5, 0]
+
+
+def test_ret_far_lifo_order():
+    pc = _FakeInterpreter()
+    pc._ret_addr_stack.push(PointerVector([1]))
+    pc._ret_addr_stack.push(PointerVector([2]))
+    RET_FAR()(pc)  # type: ignore[arg-type]
+    assert pc._pointer.base_addr == [2]
+    RET_FAR()(pc)  # type: ignore[arg-type]
+    assert pc._pointer.base_addr == [1]
+    assert len(pc._ret_addr_stack) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -101,9 +148,9 @@ def test_ret_far_pops_and_jumps():
 
 
 def test_push_and_goto_alias_alias():
-    pc = _FakeInterpreter({"from_addr": [1], "to_addr": [2]})
+    pc = _FakeInterpreter()
     node = PUSH_AND_GOTO("from_addr", "to_addr")
-    node._pre_check(pc)  # type: ignore[arg-type]
+    node._post_compile(_FakeRendered({"from_addr": [1], "to_addr": [2]}))
     node(pc)  # type: ignore[arg-type]
     assert len(pc._ret_addr_stack) == 1
     assert pc._ret_addr_stack.stack[-1].base_addr == [1]
@@ -111,21 +158,30 @@ def test_push_and_goto_alias_alias():
 
 
 def test_push_and_goto_list_alias():
-    pc = _FakeInterpreter({"to_addr": [2]})
+    pc = _FakeInterpreter()
     node = PUSH_AND_GOTO([1, 0], "to_addr")
-    node._pre_check(pc)  # type: ignore[arg-type]
+    node._post_compile(_FakeRendered({"to_addr": [2]}))
     node(pc)  # type: ignore[arg-type]
     assert pc._ret_addr_stack.stack[-1].base_addr == [1, 0]
     assert pc._pointer.base_addr == [2]
 
 
 def test_push_and_goto_alias_list():
-    pc = _FakeInterpreter({"from_addr": [1]})
+    pc = _FakeInterpreter()
     node = PUSH_AND_GOTO("from_addr", [2, 0])
-    node._pre_check(pc)  # type: ignore[arg-type]
+    node._post_compile(_FakeRendered({"from_addr": [1]}))
     node(pc)  # type: ignore[arg-type]
     assert pc._ret_addr_stack.stack[-1].base_addr == [1]
     assert pc._pointer.base_addr == [2, 0]
+
+
+def test_push_and_goto_list_list():
+    pc = _FakeInterpreter()
+    node = PUSH_AND_GOTO([3], [4])
+    node._post_compile(_FakeRendered({}))
+    node(pc)  # type: ignore[arg-type]
+    assert pc._ret_addr_stack.stack[-1].base_addr == [3]
+    assert pc._pointer.base_addr == [4]
 
 
 # ---------------------------------------------------------------------------
