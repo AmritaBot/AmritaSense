@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from functools import wraps
 from typing import Any, Generic, TypeAlias, TypeVar
@@ -293,10 +294,10 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
             if self._queue_done:
                 return
             self._queue_done = True
-        try:
+        if self._callback_fun is not None:
+            return
+        with contextlib.suppress(anyio.BrokenResourceError):
             await self._put_to_queue(self.__eof_marker)
-        except anyio.BrokenResourceError:
-            pass  # The consumer already closed its end.
 
     # Consumer -> Producer direction (reverse stream)
 
@@ -323,10 +324,10 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
             if self._peer_done:
                 return
             self._peer_done = True
-        try:
+        if self._callback_fun_sending is not None:
+            return
+        with contextlib.suppress(anyio.BrokenResourceError):
             await self._peer_put_to_queue(self.__eof_marker)
-        except anyio.BrokenResourceError:
-            pass
 
     def get_producer_input_generator(self) -> AsyncGenerator[ObjectTypeT, None]:
         """
