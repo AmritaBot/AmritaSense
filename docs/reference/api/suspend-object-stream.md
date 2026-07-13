@@ -4,21 +4,22 @@
 
 ## Overview
 
-`SuspendObjectStream[ObjectTypeT]` internally combines three layers of mechanism:
+`SuspendObjectStream[ObjectTypeT]` internally combines four layers of mechanism:
 
-| Layer         | Component                                                   | Purpose                                                                          |
-| ------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| **Transport** | `anyio` in-memory object stream (send/receive dual channel) | Bidirectional data flow between producer and consumer                            |
-| **Control**   | Suspend signal + resume signal (`asyncio.Future` pair)      | Cooperative pause/continue between external operator and internal execution flow |
-| **Intercept** | Callback functions (dual-lock protected)                    | Inject custom processing logic into the data path without affecting control flow |
+| Layer            | Component                                                       | Purpose                                                                          |
+| ---------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **Transport**    | `anyio` in-memory object stream (two independent channel pairs) | Independent bidirectional data flow: producer→consumer and consumer→producer     |
+| **Control**      | Suspend signal + resume signal (`asyncio.Future` pair)          | Cooperative pause/continue between external operator and internal execution flow |
+| **Intercept**    | Callback functions (dual-lock protected)                        | Inject custom processing logic into the data path without affecting control flow |
+| **Reverse flow** | Reverse send/receive channels + EOF marker                      | Consumer can actively send data back to producer for true bidirectional dialogue |
 
 Key capabilities:
 
 - **Cooperative suspension**: Use `wait_to_suspend()` / `_wait_for_continue()` to voluntarily yield control at configurable tags
 - **Precise resumption**: Use `resume()` to unblock internal execution, continuing exactly from the suspend point
-- **Duplex data transport**: `yield_response()` / `push_object()` to send objects, `get_response_generator()` to consume
+- **Bidirectional data transport**: `yield_response()` / `push_object()` producer→consumer, `send_to_producer()` consumer→producer
 - **Tag-based breakpoint filtering**: Multi-tag matching for fine-grained breakpoint selection
-- **Callback interception**: Inject async callbacks into the data path for real-time per-item processing
+- **Callback interception**: Inject async callbacks into either data path for real-time per-item processing
 
 ### Two-Layer Interrupt Architecture
 
@@ -149,12 +150,12 @@ sequenceDiagram
 
 Create a new `SuspendObjectStream` instance.
 
-| Parameter          | Type                    | Default | Description                                                                 |
-| ------------------ | ----------------------- | ------- | --------------------------------------------------------------------------- |
-| `queue_size`       | `int`                   | `45`    | Maximum buffer size of the internal memory object stream                    |
-| `queue_timeout`    | `float \| None`         | `10.0`  | Timeout in seconds for queue put operations; `None` means wait indefinitely |
-| `callback`         | `CALLBACK_TYPE \| None` | `None`  | Producer-side response callback, invoked on every `yield_response()`        |
-| `receive_callback` | `CALLBACK_TYPE \| None` | `None`  | Sender-side response callback (for the `push_object()` path)                |
+| Parameter          | Type                    | Default | Description                                                                                          |
+| ------------------ | ----------------------- | ------- | ---------------------------------------------------------------------------------------------------- |
+| `queue_size`       | `int`                   | `45`    | Maximum buffer size of the internal memory object stream                                             |
+| `queue_timeout`    | `float \| None`         | `10.0`  | Timeout in seconds for queue put operations; `None` means wait indefinitely                          |
+| `callback`         | `CALLBACK_TYPE \| None` | `None`  | Producer-side response callback, invoked on every `yield_response()`                                 |
+| `receive_callback` | `CALLBACK_TYPE \| None` | `None`  | Sender-side response callback, invoked on every `push_object()` (when set, objects bypass the queue) |
 
 ```python
 from amrita_sense.streaming import SuspendObjectStream
@@ -318,19 +319,32 @@ All methods decorated with `@SuspendObjectStream.suspend` automatically call `_w
 
 ### `async push_object(obj)`
 
-Pushes an object into the stream's send queue. This method first passes through the `SUSPEND_ON_YIELD` tag suspend point check, then places the object into the queue.
+Pushes an object into the stream's send queue, or handles it directly via callback. This method first passes through the `SUSPEND_ON_PUSH` tag suspend point check.
+
+**Execution path**:
+
+1. First passes `_wait_for_continue(SUSPEND_ON_PUSH)` check (outer suspend)
+2. If `receive_callback` is configured → executes callback under `_callback_sending_lock`, **does not enqueue**
+3. If no `receive_callback` → places object into internal send queue
 
 | Parameter | Type          | Description                       |
 | --------- | ------------- | --------------------------------- |
 | `obj`     | `ObjectTypeT` | The object to push into the queue |
 
-| Raises             | Condition                                                   |
-| ------------------ | ----------------------------------------------------------- |
-| `StreamStateError` | Queue is closed (`queue_closed() == True`)                  |
-| `TimeoutError`     | Queue is full and cannot put within `queue_timeout` seconds |
+| Raises             | Condition                                                             |
+| ------------------ | --------------------------------------------------------------------- |
+| `StreamStateError` | No callback configured and queue is closed (`queue_closed() == True`) |
+| `TimeoutError`     | Queue is full and cannot put within `queue_timeout` seconds           |
 
 ```python
+# Default mode — pushes to queue
 await stream.push_object("User input data")
+
+# Callback mode — object handled directly by callback
+async def handle_input(obj: str):
+    print(f"Received input: {obj}")
+stream.set_callback_fun_sending(handle_input)
+await stream.push_object("This won't enter the queue")
 ```
 
 ### `async yield_response(response)`
@@ -411,7 +425,7 @@ stream.set_callback_func(monitor)
 
 ### `set_callback_fun_sending(func)`
 
-Sets the sender-side response callback (for intercepting the `push_object()` path).
+Sets the sender-side response callback. Once set, all `push_object()` calls will invoke this callback directly **without going through the queue**.
 
 | Parameter | Type            | Description                                                      |
 | --------- | --------------- | ---------------------------------------------------------------- |
@@ -440,19 +454,86 @@ Returns an async generator that iterates over response objects until the done ma
 **Generator lifecycle**:
 
 - Continuously reads objects from the internal receive stream during iteration
-- Naturally terminates when the internal done marker (`__done_marker`) is encountered
-- Automatically closes both send and receive streams upon generator termination
+- Naturally terminates when the internal EOF marker is encountered
+- Automatically closes the receive stream upon generator termination
 
 ```python
 async for response in stream.get_response_generator():
     content = response if isinstance(response, str) else response.get_content()
     print(content, end="", flush=True)
-# After iteration is naturally exhausted, streams are automatically closed
+# After iteration is naturally exhausted, stream is automatically closed
 ```
 
 ::: warning
 `get_response_generator()` may only be called **once**. Multiple concurrent consumers or mixing with callback will raise `StreamStateError`.
 :::
+
+---
+
+## Reverse Data Flow (Consumer → Producer)
+
+`SuspendObjectStream` includes a second independent channel pair, allowing the consumer to actively send data back to the producer for true bidirectional dialogue.
+
+### `async send_to_producer(obj)`
+
+Consumer sends an object back to the producer over the reverse channel. Not affected by suspend signals on the main direction.
+
+| Parameter | Type          | Description                             |
+| --------- | ------------- | --------------------------------------- |
+| `obj`     | `ObjectTypeT` | The object to send back to the producer |
+
+| Raises             | Condition                                |
+| ------------------ | ---------------------------------------- |
+| `StreamStateError` | Reverse channel is closed (`_peer_done`) |
+
+```python
+# Consumer sends data back while processing responses
+async def consumer(stream: SuspendObjectStream[str]):
+    async for response in stream.get_response_generator():
+        print(response, end="")
+        if "need more info" in response:
+            await stream.send_to_producer("Supplementary data: ...")
+```
+
+### `async send_done_to_producer()`
+
+Consumer sends the end-of-stream marker to the producer, signaling no more data on the reverse channel.
+
+- Idempotent: repeated calls have no side effect
+- After calling, the producer's `get_producer_input_generator()` will stop yielding
+
+```python
+# Consumer finishes all back-transmission
+await stream.send_done_to_producer()
+```
+
+### `get_producer_input_generator()`
+
+Returns an async generator that yields every object sent by the consumer over the reverse channel.
+
+| Returns                             | Description                                                   |
+| ----------------------------------- | ------------------------------------------------------------- |
+| `AsyncGenerator[ObjectTypeT, None]` | An async generator yielding consumer-back-transmitted objects |
+
+| Raises             | Condition                                                 |
+| ------------------ | --------------------------------------------------------- |
+| `StreamStateError` | Another generator is already consuming the reverse stream |
+
+```python
+# Producer polls consumer back-transmissions while sending data
+async def producer(stream: SuspendObjectStream[str]):
+    # Start reverse stream consumer
+    async def listen_input():
+        async for msg in stream.get_producer_input_generator():
+            print(f"Consumer sent back: {msg}")
+
+    asyncio.create_task(listen_input())
+
+    # Continue normal data sending
+    for i in range(10):
+        await stream.yield_response(f"Data {i}\n")
+    await stream.set_queue_done()
+```
 
 ---
 
@@ -562,6 +643,45 @@ asyncio.create_task(controller())
 # Producer outputs via callback; outer suspend works independently
 ```
 
+### Pattern 4: Bidirectional Dialogue (Reverse Stream)
+
+Using the second independent channel pair, the consumer can actively send data back to the producer while processing responses.
+
+```python
+import asyncio
+from amrita_sense.streaming import SuspendObjectStream
+
+async def producer(stream: SuspendObjectStream[str]):
+    # Start reverse stream listener
+    async def handle_input():
+        async for msg in stream.get_producer_input_generator():
+            print(f"[Producer received] {msg}")
+            await stream.yield_response(f"Processed: {msg}\n")
+
+    asyncio.create_task(handle_input())
+
+    for i in range(5):
+        await stream.yield_response(f"Data {i}\n")
+        await asyncio.sleep(0.3)
+    await stream.set_queue_done()
+
+async def consumer(stream: SuspendObjectStream[str]):
+    async for response in stream.get_response_generator():
+        print(response, end="")
+        if "Data 2" in response:
+            # Send back when processing a specific response
+            await stream.send_to_producer("Need more context")
+    await stream.send_done_to_producer()
+
+async def main():
+    stream = SuspendObjectStream[str]()
+    prod = asyncio.create_task(producer(stream))
+    await consumer(stream)
+    await prod
+
+asyncio.run(main())
+```
+
 ---
 
 ## Internal Constants
@@ -569,13 +689,21 @@ asyncio.create_task(controller())
 ### `SUSPEND_ON_YIELD`
 
 - **Value**: `"SuspendObjectStream::yield_response"`
-- **Purpose**: A special suspend tag used internally by `yield_response()` and `push_object()`. When external monitors via `wait_to_suspend(SUSPEND_ON_YIELD)`, each data send operation triggers a suspend.
+- **Purpose**: A suspend tag used internally by `yield_response()`. When external monitors via `wait_to_suspend(SUSPEND_ON_YIELD)`, each `yield_response()` call triggers a suspend check.
+
+### `SUSPEND_ON_PUSH`
+
+- **Value**: `"SuspendObjectStream::push_response"`
+- **Purpose**: A suspend tag used internally by `push_object()`. When external monitors via `wait_to_suspend(SUSPEND_ON_PUSH)`, each `push_object()` call triggers a suspend check.
 
 ```python
-from amrita_sense.streaming import SUSPEND_ON_YIELD
+from amrita_sense.streaming import SUSPEND_ON_YIELD, SUSPEND_ON_PUSH
 
 # Suspend before every yield_response
 await stream.wait_to_suspend(SUSPEND_ON_YIELD)
+
+# Suspend before every push_object
+await stream.wait_to_suspend(SUSPEND_ON_PUSH)
 ```
 
 ---
@@ -585,14 +713,19 @@ await stream.wait_to_suspend(SUSPEND_ON_YIELD)
 ### Lifecycle Management
 
 - The producer **must** call `set_queue_done()` after finishing all data sends, otherwise the consumer will block forever
-- The async generator returned by `get_response_generator()` automatically terminates and cleans up resources upon encountering the done marker
-- Only one active consumer generator may exist per instance
+- The consumer **should** call `send_done_to_producer()` when finished with back-transmission, notifying the producer the reverse stream has ended
+- `get_response_generator()` / `get_producer_input_generator()` automatically terminate and clean up upon encountering their respective channel's EOF marker
+- Only one active generator may exist per channel direction per instance
 
 ### Callback and Iterator Are Mutually Exclusive
 
 ::: danger
-Do not set a callback function and call `get_response_generator()` simultaneously. This will raise `RuntimeError: "Response is already being consumed."`
-:::
+Each channel direction supports only one consumption method: **callback** or **iterator**. They cannot be used simultaneously.
+
+- Main direction: `callback` and `get_response_generator()` are mutually exclusive
+- Reverse channel: `receive_callback` and `get_producer_input_generator()` are mutually exclusive
+- Mixing will raise `StreamStateError`
+  :::
 
 ### Thread/Coroutine Safety
 
@@ -611,5 +744,5 @@ Do not set a callback function and call `get_response_generator()` simultaneousl
 ## See Also
 
 - [Execution and Interrupt](/guide/concepts/exec_and_interrupt) — Flow interrupt architecture based on `SuspendObjectStream` in AmritaSense
+- [External Interrupt](/guide/advanced/external_interrupt) — How external callers interact with the interpreter
 - [CLCA Design Pattern](/guide/practice/clca-design-pattern) — Underlying design principles for concurrency safety
-- [Event System](/guide/advanced/event_system) — Runtime events and custom hooks

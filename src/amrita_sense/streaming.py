@@ -13,6 +13,7 @@ from amrita_sense.exceptions import StreamStateError
 ObjectTypeT = TypeVar("ObjectTypeT")
 CALLBACK_TYPE: TypeAlias = Callable[[ObjectTypeT], Awaitable[Any]]
 SUSPEND_ON_YIELD: LiteralString = "SuspendObjectStream::yield_response"
+SUSPEND_ON_PUSH: LiteralString = "SuspendObjectStream::push_response"
 
 
 class SuspendObjectStream(Generic[ObjectTypeT]):
@@ -213,9 +214,9 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         Producer sends an object (e.g. a prompt) to the consumer.
 
         This uses the primary producer->consumer channel and is subject to
-        suspension via the ``SUSPEND_ON_YIELD`` tag.
+        suspension via the ``SUSPEND_ON_PUSH`` tag.
         """
-        await self._wait_for_continue(SUSPEND_ON_YIELD)
+        await self._wait_for_continue(SUSPEND_ON_PUSH)
         async with self._state_lock:
             cb = self._callback_fun_sending
             if cb is None and self._queue_done:
