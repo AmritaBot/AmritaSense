@@ -1,6 +1,6 @@
 import asyncio
-from collections.abc import AsyncGenerator, Awaitable, Callable
 import contextlib
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from functools import wraps
 from typing import Any, Generic, TypeAlias, TypeVar
 
