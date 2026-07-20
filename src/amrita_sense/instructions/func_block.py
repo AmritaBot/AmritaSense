@@ -7,7 +7,6 @@ from typing_extensions import override
 
 from amrita_sense.exceptions import IllegalState
 from amrita_sense.hook.fun_typing import DependencyMeta
-from amrita_sense.logging import logger
 from amrita_sense.node.core import BaseNode, NodeComposeRendered
 from amrita_sense.runtime.workflow import UNSET, WorkflowInterpreter
 from amrita_sense.streaming import SuspendObjectStream
@@ -57,14 +56,13 @@ class FuncBlock(BaseNode):
     def _pre_check(self, pointer: WorkflowInterpreter) -> None:
         if not self._interpreter:
             self._interpreter = pointer.fork_interpreter(
-                self._comp_rendered,
+                compose=self._comp_rendered,
                 middleware=self._mdw,
                 object_io=self._io,
             )
 
     async def __call__(self):
         assert self._interpreter
-        logger.debug("Calling sub-workflow...")
         try:
             await self._interpreter.run()
         finally:
@@ -73,10 +71,7 @@ class FuncBlock(BaseNode):
             if self._onetime:
                 self._interpreter = None
             else:
-                self._interpreter._ret_addr_stack.clear()
-                self._interpreter._jump_marked = False
-                self._interpreter._pointer.far_to([0])
-                self._interpreter._pending_stop = False
+                self._interpreter.reset()
 
 
 def FUN_BLOCK(

@@ -2,18 +2,38 @@ import inspect
 from abc import ABC
 from collections.abc import Callable
 from types import FrameType
-from typing import Any, TypeVar
+from typing import Any, TypeVar, overload
 
-from typing_extensions import Self
+from typing_extensions import Never, Self
 
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.workfl_ctrl import NOP
-from amrita_sense.node.core import BaseNode, Node, NodeCompose
+from amrita_sense.node.core import BaseNode, Node, NodeCompose, NodeComposeRendered
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 
 T_cod = TypeVar("T_cod", bound=Node[bool], covariant=True)
 T_ret = TypeVar("T_ret", bound=BaseNode, covariant=True)
+
+
+@overload
+def _check_do(pl: BaseNode) -> None: ...
+
+
+@overload
+def _check_do(
+    pl: NodeComposeRendered | SelfCompileInstruction | NodeCompose,
+) -> Never: ...
+
+
+def _check_do(
+    pl: BaseNode | NodeCompose | NodeComposeRendered | SelfCompileInstruction,
+):
+    if isinstance(pl, NodeCompose | NodeComposeRendered | SelfCompileInstruction):
+        raise TypeError(
+            "DO cannot be a NodeCompose, NodeComposeRendered or SelfCompileInstruction,"
+            + " please use FUN_BLOCK to wrap the sub component."
+        )
 
 
 class ConditionJumpNode(BaseNode):
@@ -89,6 +109,7 @@ class ConditionJumpNode(BaseNode):
     def make_chunk(
         cls, condition: T_cod, do: T_ret, then: int, false: int
     ) -> tuple[Self, T_cod, T_ret]:
+        _check_do(do)
         return (cls(1, 2, false, then), condition, do)
 
 
@@ -109,6 +130,7 @@ class IFClause(SelfCompileInstruction, Condition):
     """
 
     def __init__(self, condition: Node[bool], do: BaseNode):
+        _check_do(do)
         self.condition = condition
         self.do = do
 
@@ -130,7 +152,8 @@ class IFClause(SelfCompileInstruction, Condition):
 class NestedELIFClause(Condition):
     parent: "ELIFClause"
 
-    def __init__(self, if_clause: "ELIFClause", condition: Node[bool], do: Node):
+    def __init__(self, if_clause: "ELIFClause", condition: Node[bool], do: BaseNode):
+        _check_do(do)
         self.condition = condition
         self.do = do
         self.parent = if_clause
@@ -140,7 +163,8 @@ class ELIFClause(SelfCompileInstruction, Condition):
     parent: IFClause
     _elif_compose: list[NestedELIFClause]
 
-    def __init__(self, if_clause: IFClause, condition: Node[bool], do: Node):
+    def __init__(self, if_clause: IFClause, condition: Node[bool], do: BaseNode):
+        _check_do(do)
         self.condition = condition
         self.do = do
         self.parent = if_clause
@@ -233,7 +257,8 @@ class ELSEClause(SelfCompileInstruction, Condition):
     top: IFClause
     parent: ELIFClause | IFClause
 
-    def __init__(self, parent: ELIFClause | IFClause, do: Node):
+    def __init__(self, parent: ELIFClause | IFClause, do: BaseNode):
+        _check_do(do)
         self.do = do
         self.parent = parent
         self.top = parent if isinstance(parent, IFClause) else parent.parent
