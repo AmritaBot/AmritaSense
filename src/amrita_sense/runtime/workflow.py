@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine, Sequence
 from contextlib import nullcontext
 from functools import wraps
 from inspect import iscoroutinefunction
+from io import StringIO
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -17,7 +19,7 @@ from typing import (
 from uuid import uuid4
 
 import aiologic
-from typing_extensions import deprecated
+from typing_extensions import LiteralString, deprecated
 
 from amrita_sense._unsafe import __flags__
 from amrita_sense.exceptions import (
@@ -768,8 +770,12 @@ class WorkflowInterpreter(Generic[io_T]):
         except BaseException as e:
             if isinstance(e, Exception):
                 logger.warning(
-                    "*** workflow exception detected ***: "
-                    f"`{e}@{e.__class__.__name__}` at ptr {self._pointer}"
+                    f"*** workflow exception detected ***: `{e}@{e.__class__.__name__}` at ptr {self._pointer}"
+                    + (
+                        ""
+                        if os.environ.get("LOG_LEVEL", "INFO").upper() != "DEBUG"
+                        else f"\n{self._make_traceback()}"
+                    )
                 )
             exc_val = e
             raise
@@ -786,6 +792,59 @@ class WorkflowInterpreter(Generic[io_T]):
                 else:
                     self._waiter_fut.set_result(None)
             self._waiter_fut = None
+
+    def _make_traceback(self) -> str:
+        """Make a traceback string for the current workflow."""
+        PADDING: LiteralString = "    "
+        text = StringIO()
+        text.seek(0)
+        text.write("Interpreter-level Traceback (most recent call last):\n")
+        intp_chain: Stack[str] = Stack()
+
+        def search_chain(intp: WorkflowInterpreter) -> None:
+            # Push current interpreter first, then walk parents so that popping prints
+            # from root to current (root ends up on top of the stack).
+            label = intp.id
+            if intp is self:
+                label += " (Current)"
+            intp_chain.push(label)
+            if (it := intp.parent) is not None:
+                search_chain(it)
+
+        # Build full interpreter chain from current to root.
+        search_chain(self)
+
+        ### Sub-Interpreter relationships ###
+        while intp_chain:
+            intp_id = intp_chain.pop()
+            text.write(f"Interpreter -> {intp_id}\n")
+        text.write("\n")
+
+        ### Addressing stack relationships: from current to returning ###
+        text.write("Returning Chain:\n")
+        if chain := self._ret_addr_stack.copy():
+            while chain:
+                text.write(f"{PADDING}{chain.pop()!s}<<\n")
+        else:
+            text.write(f"{PADDING}(EMPTY_STACK)\n\n")
+        text.write(f"{PADDING}{self._pointer!s} (Current)")
+        text.write("\n\n")
+
+        ## Context stack relationships ###
+        text.write("Context Stack:\n")
+        if self.context_stack:
+            for i, ctx in enumerate(self._context_stack.stack):
+                text.write(f"{PADDING}{i}. {ctx.ptr}\n")
+        else:
+            text.write("(EMPTY_STACK)")
+
+        text.write("\n\n")
+        ### Node details ###
+        t = self.get_graph().calc.find_addr_safe(self._pointer.base_addr)
+        text.write(
+            f"Failed at node: {f'{t.tag}->{t.func.__name__}' if isinstance(t, BaseNode) else '<INVALID>'}"
+        )
+        return text.getvalue()
 
     async def _refresh_di_cache_full(self):
         """Fully refresh DI cache of nodes.

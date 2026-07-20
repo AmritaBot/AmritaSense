@@ -116,6 +116,16 @@ class Stack(Generic[T]):
         """
         self.ovf = size
 
+    def copy(self) -> Stack[T]:
+        """Return a shallow copy of the current stack.
+
+        Returns:
+            A shallow copy of the current stack.
+        """
+        tmp: Stack[T] = Stack(self.ovf)
+        tmp.stack = self.stack.copy()
+        return tmp
+
 
 class PointerVector:
     """Thread-safe multi-dimensional pointer vector for workflow navigation.
