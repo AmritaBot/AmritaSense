@@ -770,9 +770,9 @@ class WorkflowInterpreter(Generic[io_T]):
         except BaseException as e:
             if isinstance(e, Exception):
                 logger.warning(
-                    "*** workflow exception detected ***"
+                    f"*** workflow exception detected ***: `{e}@{e.__class__.__name__}` at ptr {self._pointer}"
                     + (
-                        f": `{e}@{e.__class__.__name__}` at ptr {self._pointer}"
+                        ""
                         if os.environ.get("LOG_LEVEL", "INFO").upper() != "DEBUG"
                         else f"\n{self._make_traceback()}"
                     )
@@ -842,7 +842,7 @@ class WorkflowInterpreter(Generic[io_T]):
         ### Node details ###
         t = self.get_graph().calc.find_addr_safe(self._pointer.base_addr)
         text.write(
-            f"Failed at node: {f'{t.tag}->{t.func.__name__}' if isinstance(t, BaseNode) else '<INVALID>'} because of {self._panic_exc.__class__.__name__}:{self._panic_exc!s}"
+            f"Failed at node: {f'{t.tag}->{t.func.__name__}' if isinstance(t, BaseNode) else '<INVALID>'}"
         )
         return text.getvalue()
 
