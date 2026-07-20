@@ -800,12 +800,19 @@ class WorkflowInterpreter(Generic[io_T]):
         text.seek(0)
         text.write("Interpreter-level Traceback (most recent call last):\n")
         intp_chain: Stack[str] = Stack()
-        intp_chain.push(self.id + " (Current)")
 
-        def search_chain(intp: WorkflowInterpreter = self):
-
+        def search_chain(intp: WorkflowInterpreter) -> None:
+            # Push current interpreter first, then walk parents so that popping prints
+            # from root to current (root ends up on top of the stack).
+            label = intp.id
+            if intp is self:
+                label += " (Current)"
+            intp_chain.push(label)
             if (it := intp.parent) is not None:
                 search_chain(it)
+
+        # Build full interpreter chain from current to root.
+        search_chain(self)
 
         ### Sub-Interpreter relationships ###
         while intp_chain:
