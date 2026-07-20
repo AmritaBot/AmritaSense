@@ -842,7 +842,7 @@ class WorkflowInterpreter(Generic[io_T]):
         ### Node details ###
         t = self.get_graph().calc.find_addr_safe(self._pointer.base_addr)
         text.write(
-            f"Failed at node: {t if isinstance(t, BaseNode) else '<INVALID>'} because of {self._panic_exc.__class__.__name__}:{self._panic_exc!s}"
+            f"Failed at node: {f'{t.tag}->{t.func.__name__}' if isinstance(t, BaseNode) else '<INVALID>'} because of {self._panic_exc.__class__.__name__}:{self._panic_exc!s}"
         )
         return text.getvalue()
 
