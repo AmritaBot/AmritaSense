@@ -29,7 +29,7 @@ def _check_do(
 def _check_do(
     pl: BaseNode | NodeCompose | NodeComposeRendered | SelfCompileInstruction,
 ):
-    if isinstance(pl, NodeCompose | NodeComposeRendered | SelfCompileInstruction):
+    if isinstance(pl, (NodeCompose, NodeComposeRendered, SelfCompileInstruction)):
         raise TypeError(
             "DO cannot be a NodeCompose, NodeComposeRendered or SelfCompileInstruction,"
             + " please use FUN_BLOCK to wrap the sub component."
