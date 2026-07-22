@@ -26,4 +26,5 @@
 - **声明式依赖注入**：节点和事件处理器通过函数签名声明所需参数，框架自动完成关键词匹配与类型解析。
 - **异步优先，可挂起恢复**：原生 `async/await` 支持，内建全双工流控基座（`SuspendObjectStream`），可在节点之间精确挂起与恢复。
 - **解释器树与子图隔离**：`fork_interpreter()` 创建子解释器并行执行；`wait_all` / `terminate_all` 管理整棵解释器树；`FUN_BLOCK` 实现独立中间件和错误边界的子工作流隔离调用。
+- **原生 REPL 调试器**：`amrita_sense.debugger` 提供纯函数式调试工具包——`step()`、`cont()`、`break_at_tag()`、`inspect()` 可同步调用（REPL 友好），同时提供 `step_async()`、`cont_async()` 等异步变体用于调试脚本。
 - **自包含运行时**：内建日志系统、事件总线与依赖注入，零外部强制依赖，可嵌入任何 Python 项目。

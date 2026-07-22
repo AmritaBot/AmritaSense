@@ -1,4 +1,4 @@
-"""AmritaSense Debugger ― REPL-first inspection & step-by-step control.
+"""AmritaSense Debugger (SenseDBG - SDB) ― REPL-first inspection & step-by-step control.
 
 Import everything with::
 

@@ -26,4 +26,5 @@ We believe that **workflows should be designed for the work, not limited by the 
 - **Declarative dependency injection** – Nodes and event handlers declare required parameters through function signatures; the framework automatically performs keyword matching and type resolution.
 - **Async-first, suspendable & resumable** – Native `async/await` support, built-in full-duplex streaming primitive (`SuspendObjectStream`), allowing precise suspension and resumption between nodes.
 - **Interpreter tree & subgraph isolation** – Fork sub-interpreters for parallel execution; manage entire interpreter trees with `wait_all` / `terminate_all`; use `FUN_BLOCK` for isolated sub-workflow calls with independent middleware and error boundaries.
+- **Native REPL debugger** – `amrita_sense.debugger` provides a pure-function debugging toolkit. Sync API (`step`, `cont`, `break_at_tag`, `inspect`) for interactive REPL use; async API (`step_async`, `cont_async`) for scripted debugging.
 - **Self-contained runtime** – Built-in logging system, event bus, and dependency injection; zero mandatory external dependencies; embeddable into any Python project.

@@ -53,3 +53,15 @@ All control flow instructions are expanded into low-level node compositions at c
 - **Parallel execution** – Run multiple child interpreters concurrently via `asyncio.gather` or `wait_all`.
 - **Lifecycle management** – `terminate()` / `terminate_all()` for graceful shutdown; `is_running` / `pending_stop` for status queries.
 - **Unsafe configuration flags** – `_unsafe.__flags__` provides switches (`FORCE_NOT_WRAP_TO_ASYNC`, `DISABLE_EXC_IGNORED`, etc.) for tuning internal engine behavior in rare edge cases.
+
+## 1.2.8 Native Debugger Implementation
+
+AmritaSense v0.5.0 ships with a complete REPL debugger built in — no extra plugins or tools required. It leverages the interpreter's native Panic/Recover mechanism and middleware injection to deliver breakpoints, stepping, and state inspection directly in the Python REPL.
+
+Key capabilities:
+
+- **Dual API design** — sync API (`step`, `cont`) for interactive REPL use; async API (`step_async`, `cont_async`) for scripted debugging and programs with existing event loops
+- **Breakpoint system** — set breakpoints by tag (`break_at_tag`) or address (`break_at_addr`), with conditional expressions
+- **Step control** — `step()`, `step_over()`, `step_out()`, `cont()`, with both sync and async API flavors
+- **Crash recovery** — after a node exception, the panic state is fully preserved; use `inspect()` to examine the crash site, `advance_pointer()` to skip the failing node, then `cont()` to resume
+- **Security guard** — set `REMOVE_DEBUGGER=true` to physically destroy the debugger module, preventing SSTI leakage in production
