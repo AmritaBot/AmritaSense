@@ -38,7 +38,7 @@ If interruption or suspension behavior is needed inside an event handler, **it m
 
 Event handlers **fully reuse** AmritaSense's dependency injection system. Handlers can declare arbitrary dependencies via `Depends(...)` — including `POINTER_DEPENDS` to obtain the current `WorkflowInterpreter` instance — and the runtime will automatically resolve and inject them before invocation. This means event handlers enjoy the same DI capabilities as `@Node()` functions: type safety, concurrent resolution, and termination when a `Depends` factory returns `None`.
 
-> **Relationship with Core's Event System**: AmritaSense's event system is an independent mirror of Core's event system. Both share identical API design and DI contracts, yet operate independently. Core event handlers do not need to be aware of Sense, and Sense nodes do not need to depend on Core — they collaborate solely through the `DependencyMeta` data structure.
+> **Relationship with Core's Event System**: AmritaSense is the runtime foundation of Core. Sense's event system serves as the underlying execution engine for Core's event system. Both share identical API design and DI contracts — Core's `@on_event()` handlers are directly dispatched by Sense's `MatcherFactory`.
 
 ## Custom Event Example
 
