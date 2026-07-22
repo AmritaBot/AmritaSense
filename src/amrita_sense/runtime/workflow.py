@@ -817,7 +817,7 @@ class WorkflowInterpreter(Generic[io_T]):
 
         ### Sub-Interpreter relationships ###
         for intp_id, ident in reversed(intp_chain.stack):
-            text.write(f"Interpreter -> {intp_id} at 0x{format(ident, '0x')}\n")
+            text.write(f"Interpreter -> {intp_id} at {format(ident, '#x')}\n")
         text.write("\n")
 
         ### Addressing stack relationships: from current to returning ###
