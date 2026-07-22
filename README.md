@@ -35,6 +35,7 @@ Most workflow engines force you into a graph mindset: define nodes, connect edge
 
 - **Complete Instruction Set**—`IF/ELIF/ELSE`, `WHILE/DO-WHILE`, `GOTO`/`CALL`, `TRY/CATCH/THEN/FIN`, `NOP`, `INTERRUPT`. All control flow is first-class, not simulated through graph routing.
 - **VM-Style Execution**—A program counter (`PointerVector`) and call stack drive execution. Jumps are integer operations, not graph traversals.
+- **Native REPL Debugger**—`from amrita_sense.debugger import *` gives you breakpoints, stepping, and state inspection. Sync API for interactive REPL use (`step`, `cont`); async API (`step_async`, `cont_async`) for scripted debugging. Built atop the engine's Panic/Recover mechanism and composite middleware injection.
 - **Async-Native Suspend/Resume**—Two `Future` callbacks enable full workflow interruption at any node boundary. Built for debuggers and human-in-the-loop systems.
 - **Declarative Dependency Injection**—Nodes declare dependencies via function signatures. The engine resolves them at runtime with type matching and concurrent resolution.
 - **Ultra Lightweight**— Compiles 100,000 nodes in ~200ms. Runs anywhere from Raspberry Pi to cloud.

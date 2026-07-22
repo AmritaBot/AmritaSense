@@ -23,7 +23,9 @@ from amrita_sense.streaming import SuspendObjectStream
 def _batch_call(nodes: Iterable[BaseNode], fail_fast: bool = True) -> NodeType[None]:
     @Node("__BATCH_CALLER__")
     async def caller(intp: WorkflowInterpreter):
-        callers = [intp._call(lambda _, node=node: node) for node in nodes]
+        callers = [
+            intp._call(lambda _, node=node: node, no_cache=True) for node in nodes
+        ]
         exc = [
             i
             for i in (await asyncio.gather(*callers, return_exceptions=not fail_fast))

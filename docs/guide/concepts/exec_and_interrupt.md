@@ -351,3 +351,7 @@ The core value of this system is:
 - **Safety**: `InterruptNotice` terminates workflows unconditionally; the external interrupt lock mechanism guarantees state consistency.
 
 In the advanced chapters, we will explore how to combine this interruption mechanism with interpreter locks and external calls to build a full debugger or external monitoring system.
+
+::: tip REPL Debugger
+Building on this interrupt infrastructure, v0.5.0 provides a dedicated `amrita_sense.debugger` module with breakpoints, stepping, and state inspection — a complete REPL debugging experience. Import everything with `from amrita_sense.debugger import *`; all functions are callable synchronously. See [REPL Debugging](/guide/practice/repl-debugging) for details.
+:::

@@ -151,3 +151,7 @@ This is useful for:
 **External vs Internal**: `call_sub(interrupt=True)` is externally driven (debugger, HTTP endpoint); `INTERRUPT_INTO`/`INTERRUPT_RET` are internally orchestrated in the `>>` chain. Both mechanisms are complementary and can be composed.
 
 For complete examples and patterns, see [Interrupt Routine & Return](/guide/practice/interrupt-routine).
+
+::: tip REPL Debugger
+Building on the external invocation mechanism and interrupt infrastructure, AmritaSense v0.5.0 provides a complete REPL debugger module `amrita_sense.debugger`, wrapping step execution, breakpoint management, and state inspection into synchronous functions — no manual `run_step_by()` loops required. See [REPL Debugging](/guide/practice/repl-debugging) for details.
+:::

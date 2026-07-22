@@ -386,3 +386,7 @@ async for _ in pc.run_step_by():
     if should_pause:
         break  # 暂停，稍后可从同一个 run_step_by 继续
 ```
+
+::: tip REPL 调试器
+AmritaSense v0.5.0 提供了专门的 `amrita_sense.debugger` 模块，封装了上述步进执行、状态检查和断点管理等完整调试体验，无需手写 `run_step_by()` 循环。支持 `from amrita_sense.debugger import *` 一键导入，所有函数均可直接在 REPL 中同步调用（无需 `await`）。详情请参见 [REPL 调试](/zh/guide/practice/repl-debugging)。
+:::

@@ -753,7 +753,7 @@ class WorkflowInterpreter(Generic[io_T]):
                     yield (
                         await self._middleware(self)
                         if self._middleware
-                        else await self._call(no_cace=True)
+                        else await self._call()
                     )
                     if self._jump_marked:
                         self._jump_marked = False
@@ -798,16 +798,17 @@ class WorkflowInterpreter(Generic[io_T]):
         PADDING: LiteralString = "    "
         text = StringIO()
         text.seek(0)
-        text.write("Interpreter-level Traceback (most recent call last):\n")
-        intp_chain: Stack[str] = Stack()
+        text.write("Sense Runtime Traceback (most recent call last):\n")
+        intp_chain: Stack[tuple[str, int]] = Stack()
 
         def search_chain(intp: WorkflowInterpreter) -> None:
-            # Push current interpreter first, then walk parents so that popping prints
-            # from root to current (root ends up on top of the stack).
-            label = intp.id
+            label: str = intp.id
+            ident: int = id(intp)
             if intp is self:
-                label += " (Current)"
-            intp_chain.push(label)
+                label += " [Current]"
+            if intp.top_interpreter is intp:
+                label += " [Root]"
+            intp_chain.push((label, ident))
             if (it := intp.parent) is not None:
                 search_chain(it)
 
@@ -815,19 +816,20 @@ class WorkflowInterpreter(Generic[io_T]):
         search_chain(self)
 
         ### Sub-Interpreter relationships ###
-        while intp_chain:
-            intp_id = intp_chain.pop()
-            text.write(f"Interpreter -> {intp_id}\n")
+        for intp_id, ident in reversed(intp_chain.stack):
+            text.write(f"Interpreter -> {intp_id} at {format(ident, '#x')}\n")
         text.write("\n")
 
         ### Addressing stack relationships: from current to returning ###
-        text.write("Returning Chain:\n")
+        text.write("Returning Stack:\n")
+        i = 0
         if chain := self._ret_addr_stack.copy():
             while chain:
-                text.write(f"{PADDING}{chain.pop()!s}<<\n")
+                text.write(f"{PADDING}{i}. {chain.pop()!s}\n")
+                i += 1
         else:
             text.write(f"{PADDING}(EMPTY_STACK)\n\n")
-        text.write(f"{PADDING}{self._pointer!s} (Current)")
+        text.write(f"{PADDING}{i}. {self._pointer!s} (Current)")
         text.write("\n\n")
 
         ## Context stack relationships ###
@@ -836,9 +838,9 @@ class WorkflowInterpreter(Generic[io_T]):
             for i, ctx in enumerate(self._context_stack.stack):
                 text.write(f"{PADDING}{i}. {ctx.ptr}\n")
         else:
-            text.write("(EMPTY_STACK)")
+            text.write(f"{PADDING}(EMPTY_STACK)")
 
-        text.write("\n\n")
+        text.write("\n")
         ### Node details ###
         t = self.get_graph().calc.find_addr_safe(self._pointer.base_addr)
         text.write(
