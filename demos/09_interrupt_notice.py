@@ -24,9 +24,7 @@ from amrita_sense import (
 from amrita_sense.exceptions import InterruptKeepContext
 from amrita_sense.instructions.workfl_ctrl import INTERRUPT_KEEP_CTX
 
-# ---------------------------------------------------------------------------
 # shared nodes
-# ---------------------------------------------------------------------------
 
 
 @Node()
@@ -44,9 +42,7 @@ async def this_wont_run() -> None:
     print("  [!] This line should NEVER appear (workflow already stopped)")
 
 
-# ---------------------------------------------------------------------------
 # Demo 1: INTERRUPT — emergency stop, state cleared
-# ---------------------------------------------------------------------------
 
 
 async def demo_interrupt() -> None:
@@ -61,9 +57,7 @@ async def demo_interrupt() -> None:
     print("  ✓ Workflow exited cleanly (state cleared, irrecoverable)\n")
 
 
-# ---------------------------------------------------------------------------
 # Demo 2: INTERRUPT_KEEP_CTX — context-preserving pause
-# ---------------------------------------------------------------------------
 
 
 async def demo_keep_context() -> None:
@@ -80,9 +74,7 @@ async def demo_keep_context() -> None:
     print("  ✓ State preserved — call run() again to resume\n")
 
 
-# ---------------------------------------------------------------------------
 # Demo 3: raise InterruptKeepContext from node code
-# ---------------------------------------------------------------------------
 
 
 @Node()
@@ -108,9 +100,7 @@ async def demo_raise_keep_context() -> None:
     print("  ✓ State preserved from node-level raise\n")
 
 
-# ---------------------------------------------------------------------------
 # main
-# ---------------------------------------------------------------------------
 
 
 async def main() -> None:

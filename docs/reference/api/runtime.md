@@ -309,3 +309,7 @@ rendered = compose.render()
 pc = WorkflowInterpreter(rendered)
 await pc.run()
 ```
+
+::: tip REPL Debugger
+AmritaSense v0.5.0 ships a dedicated `amrita_sense.debugger` module that wraps step-by-step execution, state inspection, and breakpoint management into a complete debugging experience — no manual `run_step_by()` loops required. Import everything with `from amrita_sense.debugger import *`; all functions are callable synchronously in a REPL (no `await` needed). See [REPL Debugging](/guide/practice/repl-debugging) for details.
+:::

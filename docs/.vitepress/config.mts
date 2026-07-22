@@ -204,6 +204,10 @@ export default withMermaid({
                 text: "Interrupt Routine & Return",
                 link: "/guide/practice/interrupt-routine",
               },
+              {
+                text: "REPL Debugging",
+                link: "/guide/practice/repl-debugging",
+              },
               { text: "Under Construction..." },
             ],
           },
@@ -377,6 +381,10 @@ export default withMermaid({
               {
                 text: "中断例程与中断返回",
                 link: "/zh/guide/practice/interrupt-routine",
+              },
+              {
+                text: "REPL 调试",
+                link: "/zh/guide/practice/repl-debugging",
               },
               { text: "正在施工中......" },
             ],
