@@ -4,6 +4,21 @@ import { withMermaid } from "vitepress-plugin-mermaid";
 export default withMermaid({
   lastUpdated: true,
   ignoreDeadLinks: true,
+  vite: {
+    optimizeDeps: {
+      exclude: [
+        "@nolebase/vitepress-plugin-enhanced-readabilities/client",
+        "vitepress",
+        "@nolebase/ui",
+      ],
+    },
+    ssr: {
+      noExternal: [
+        "@nolebase/vitepress-plugin-enhanced-readabilities",
+        "@nolebase/ui",
+      ],
+    },
+  },
   sitemap: {
     hostname: "https://sense.amritabot.com",
   },
