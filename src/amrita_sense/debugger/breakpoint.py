@@ -104,7 +104,7 @@ def _create_debug_middleware(
         #  call user middleware or direct
         if user_mw is not None:
             return await user_mw(pc)
-        return await pc._call(no_cace=True)
+        return await pc._call(no_cache=True)
 
     return debug_mw
 

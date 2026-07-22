@@ -51,7 +51,7 @@ async def _step_one(inter: WorkflowInterpreter[SuspendObjectStream]) -> None:
             if inter._middleware is not None:
                 await inter._middleware(inter)
             else:
-                await inter._call(no_cace=True)
+                await inter._call(no_cache=True)
 
             # advance pointer (unless a jump was performed)
             if inter._jump_marked:

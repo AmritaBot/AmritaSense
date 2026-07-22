@@ -753,7 +753,7 @@ class WorkflowInterpreter(Generic[io_T]):
                     yield (
                         await self._middleware(self)
                         if self._middleware
-                        else await self._call(no_cace=True)
+                        else await self._call(no_cache=True)
                     )
                     if self._jump_marked:
                         self._jump_marked = False
