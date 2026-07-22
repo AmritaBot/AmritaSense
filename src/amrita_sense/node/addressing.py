@@ -13,14 +13,13 @@ else:
 
 
 class AddressCalculator:
-    """A stateless (but cached) address computation utility."""
+    """A stateless address computation utility."""
 
-    def __init__(self, graph: NodeComposeRendered, cache_size: int = 1024):
+    def __init__(self, graph: NodeComposeRendered):
         """Constructor
 
         Args:
             graph (NodeComposeRendered): Rendered workflow.
-            cache_size (int, optional): Cache size. Defaults to 1024, set to -1 to disable cache.
         """
         self._graph: NodeComposeRendered = graph
 
