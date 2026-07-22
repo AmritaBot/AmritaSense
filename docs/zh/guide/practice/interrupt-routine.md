@@ -117,8 +117,9 @@ async def handle_auth_failure() -> None:
 
 handler_library = ARCHIVED_NODES(
     ALIAS(handle_timeout, "timeout"),
+    INTERRUPT_RET(),
     ALIAS(handle_auth_failure, "auth"),
-    INTERRUPT_RET(),  # 共享返回
+    INTERRUPT_RET(),
 )
 
 comp = (
