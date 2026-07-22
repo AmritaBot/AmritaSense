@@ -245,3 +245,20 @@ def list_breaks(inter: WorkflowInterpreter) -> None:
         )
         status = "" if bp.enabled else " [DISABLED]"
         print(f"  {i}. {kind}  {bp.target!r}  hits={bp.hit_count}{cond}{status}")
+
+
+def cleanup(inter: WorkflowInterpreter) -> None:
+    """Release all debug state for *inter* and restore its original middleware.
+
+    Call this when you no longer need to debug *inter* (e.g. after
+    ``terminate()`` or when the interpreter instance is about to be
+    garbage-collected).  Without it, ``_debug_state`` grows unboundedly
+    in long-lived processes that create many short-lived interpreters.
+    """
+    state = _debug_state.pop(inter.id, None)
+    if state is None:
+        return
+    # Restore the user's original middleware (if we replaced it)
+    saved = state.get("saved_user_mw")
+    if saved is not None:
+        inter._middleware = saved
