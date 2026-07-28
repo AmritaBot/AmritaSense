@@ -1,6 +1,6 @@
 [project]
 name = "amrita-sense"
-version = "0.5.0"
+version = "0.5.1"
 description = "Next-Gen event stream and workflow engine."
 readme = "README.md"
 requires-python = ">=3.10, <3.16"
@@ -53,6 +53,7 @@ ignore = [
     "RUF001", # ambiguous-unicode-character-string
     "RUF002", # ambiguous-unicode-character-docstring
     "RUF003", # ambiguous-unicode-character-comment
+    "RUF036", # none-at-the-end-of-type-union
 ]
 [tool.ruff.lint.per-file-ignores]
 "demos/*.py" = ["ASYNC250"]

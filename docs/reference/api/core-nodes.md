@@ -1,71 +1,129 @@
 # Core Node Classes
 
-AmritaSense represents workflow logic as node objects. The core node classes are `BaseNode`, `Node`, `NodeCompose`, and `NodeComposeRendered`.
+AmritaSense's node system is the foundation of the entire workflow engine. All workflow elements -- whether business functions, control flow instructions, or composition containers -- are ultimately instances or compositions of nodes.
 
 ## BaseNode
 
-`BaseNode` is the abstract base class for all workflow nodes. It provides shared metadata, a tag, the underlying callable, and a dependency signature.
+`BaseNode` is the abstract base class for all workflow nodes. It defines the common interface and minimum metadata set for nodes in the AmritaSense runtime. Developers typically do not subclass `BaseNode` directly, instead using the `@Node()` decorator or subclassing `Node`, though it may be needed when implementing low-level jump nodes for custom instructions.
 
-Key attributes:
+```python
+class BaseNode:
+    func: Callable[..., Any]
+    tag: str
+    wrap_to_async: bool
+    address_able: bool
+    fun_frame: FrameType
+    fun_sign: inspect.Signature
+```
 
-- `tag`: Human-readable node identifier.
-- `func`: Underlying callable function or coroutine.
-- `wrap_to_async`: Whether sync functions should be executed in an async-friendly way.
-- `address_able`: Whether the node can be referenced by alias.
-- `fun_sign`: Dependency injection metadata extracted from the callable’s signature.
+### Attributes
 
-`BaseNode` also exposes two lifecycle hooks that subclasses can override:
+- `func`: The underlying callable. This is what the interpreter ultimately calls when executing the node.
+- `tag`: The node's string identifier. Also serves as the breakpoint name for flow suspension -- external callers can suspend before this node executes via `wait_to_suspend(tag)`. Defaults to `NodeSuspend::{function_name}` if not specified at creation time.
+- `wrap_to_async`: If `True` and `func` is synchronous, the interpreter automatically uses `asyncio.to_thread` to execute it in a thread pool, preventing event-loop blockage.
+- `address_able`: If `True`, the node can be referenced by `ALIAS`. Only addressable nodes can become targets for jump instructions like `GOTO` and `CALL`.
+- `fun_sign`: The function signature extracted by `inspect.signature(func)`, used by the dependency injection system for parameter resolution at runtime.
+- `fun_frame`: The stack frame object at node creation time, primarily used for debugging and log location.
 
-- `_post_compile(compose: NodeComposeRendered) -> None`: Called after the workflow graph is fully compiled. Subclasses use this to resolve aliases and validate addresses at compile time (e.g., `JumpNode`, `CallNode`, `PUSH_CONTEXT`, `INTERRUPT_INTO`).
-- `_pre_check(pointer: WorkflowInterpreter) -> None`: Called before each execution. Used for runtime checks that depend on the interpreter state (e.g., `BatchRun` forks child interpreters here).
-- `as_compose() -> NodeCompose`: Convenience method to wrap this node in a `NodeCompose`, enabling `node.as_compose().render()` as a one-liner.
+### Methods
+
+- `_post_compile(compose: NodeComposeRendered) -> None`: Post-compilation hook, called after the workflow graph is fully compiled. Subclasses resolve aliases and validate addresses here (e.g., `JumpNode`, `CallNode`, `PUSH_CONTEXT`, `INTERRUPT_INTO`), moving runtime overhead to compile time.
+- `_pre_check(pointer: WorkflowInterpreter) -> None`: Pre-execution hook, called by the interpreter before each node execution. Used for runtime checks that depend on interpreter state (e.g., `BatchRun` forks child interpreters here).
+- `as_compose() -> NodeCompose`: Convenience method that wraps the node in a `NodeCompose`, enabling `node.as_compose().render()` as a one-liner.
+- `_init(func, tag, wrap_to_async, address_able, frame)`: Internal construction method that uniformly sets the node's metadata.
+- `__call__(*args, **kwargs)`: Abstract method that subclasses must implement. Defines the node's execution behavior.
+
+**Important**: `BaseNode` and its subclasses use `__slots__` for attribute definitions, avoiding the default `__dict__` overhead and making each node instance as compact as possible. The memory advantage is significant for workflows that may contain hundreds or thousands of nodes.
 
 ## Node
 
-`Node` is the concrete wrapper around a Python callable. It is created by the `@Node()` decorator and is the most common executable unit in AmritaSense.
-
-A `Node` preserves the original function signature and adds workflow metadata. Sync functions can be automatically wrapped to async if `wrap_to_async=True`.
-
-Example:
+`Node` is the generic concrete implementation of `BaseNode` and the node type developers interact with most frequently. Nodes created with the `@Node()` decorator are `Node` instances. It wraps an ordinary Python function or coroutine into a basic workflow execution unit.
 
 ```python
-@Node()
-def my_node(value: int):
-    print(value)
+class Node(BaseNode, Generic[NODE_T]):
+    ...
 ```
 
-Because `Node` implements `__rshift__`, nodes can be composed using `>>`.
+### Creation
+
+```python
+@Node(tag="custom_tag", wrap_to_async=True, address_able=True)
+def my_function(arg1: str) -> str:
+    return arg1.upper()
+```
+
+### Construction parameters
+
+- `tag: str | None`: The node's breakpoint label. Auto-generated by default.
+- `wrap_to_async: bool`: If `True` and the function is synchronous, executes in a thread pool. Defaults to `True`.
+- `address_able: bool`: Whether the node can be bound by `ALIAS`. Defaults to `True`.
+
+### Features
+
+- The generic parameter `NODE_T` preserves the original function's return type for type checker tracking.
+- Can be chained with any `BaseNode`, `NodeCompose`, or `SelfCompileInstruction` in `>>` composition.
+- If the node's function signature declares a parameter of type `WorkflowInterpreter` (injected via `POINTER_DEPENDS`), the node receives full access to the current interpreter instance at execution time.
+- The node's `__call__` attribute directly returns the original function object, so `node(...)` is equivalent to `func(...)`.
 
 ## NodeCompose
 
-`NodeCompose` is a container for a sequence of nodes or nested compositions. It is built using the `>>` operator and represents a workflow before rendering.
-
-Example:
+`NodeCompose` is a container for node composition. It maintains an ordered list of nodes and supports `>>` chain appending via `__rshift__`. `NodeCompose` is also the standard return type of `SelfCompileInstruction.extract()` -- self-compile instructions ultimately expand their semantics into a `NodeCompose`.
 
 ```python
-a = NodeType(lambda: 1, wrap_to_async=False, address_able=False, tag=None)
-b = NodeType(lambda x: x + 1, wrap_to_async=False, address_able=False, tag=None)
-workflow = a >> b
+class NodeCompose:
+    _graph: list[BaseNode | NodeCompose | SelfCompileInstruction]
 ```
 
-`NodeCompose.render()` compiles the composition into a `NodeComposeRendered` instance.
+### Features
+
+- **Chain appending**: `compose >> new_node` is equivalent to `compose._graph.append(new_node)`.
+- **Nesting capability**: Elements in `_graph` can themselves be `NodeCompose` instances -- this is the data foundation of Bubble scoping.
+- **Compilation entry point**: Calling the `render()` method triggers the compilation pipeline and produces a `NodeComposeRendered`.
+
+### Methods
+
+- `__rshift__(other)`: Implements the `>>` operator. Appends `other` to the internal list and returns `self`.
+- `render() -> NodeComposeRendered`: Compiles the current composition structure. All `SelfCompileInstruction` instances are expanded during this phase, recursive `NodeCompose` instances are resolved into nested `NodeComposeRendered`, and the final executable graph with address mappings is produced.
+
+### Usage example
+
+```python
+workflow = NodeCompose(node_a, node_b)
+# Or more concisely:
+workflow = node_a >> node_b >> node_c
+```
 
 ## NodeComposeRendered
 
-`NodeComposeRendered` is the compiled, executable workflow graph. It converts nested compositions, alias declarations, and self-compile instructions into a final node structure.
+`NodeComposeRendered` is the final compilation product -- a fully resolved, optimized, address-mapped executable workflow graph. This is the type accepted by `WorkflowInterpreter`.
 
-Important features:
+```python
+class NodeComposeRendered:
+    _graph: list[BaseNode | NodeComposeRendered]
+    alias2vector_map: dict[str, list[int]]
+```
 
-- `alias2vector_map`: maps alias names to absolute `PointerVector` addresses. Jump instructions resolve aliases at compile time via `_post_compile`.
-- `calc: AddressCalculator`: the compiled graph's address calculator, providing `resolve_alias()`, `find_addr()`, `find_addr_safe()`, and `advance()` methods. Available only on the top-level `NodeComposeRendered`.
-- `__getitem__`: access nodes by index in the rendered graph.
-- `__iter__`: iterate over compiled nodes.
+### Compilation process
 
-Example:
+`render()` triggers `_build()` to recursively traverse the original `NodeCompose` structure:
+
+1. Expands all `SelfCompileInstruction` instances (calling their `extract()` method).
+2. Recursively renders nested `NodeCompose` instances into `NodeComposeRendered`.
+3. Assigns a `PointerVector` address to each node.
+4. Collects all `AliasNode` instances, storing alias-to-address mappings into `alias2vector_map`.
+
+### Key attributes
+
+- `_graph: list[BaseNode | NodeComposeRendered]`: The compiled node sequence. Elements may be concrete nodes or sub-containers.
+- `alias2vector_map: dict[str, list[int]]`: The alias-to-pointer-vector mapping table. Jump instructions like GOTO and CALL look up addresses from this table at compile time via `_post_compile`.
+- `calc: AddressCalculator`: The compiled graph's address calculator, providing `resolve_alias()`, `find_addr()`, `find_addr_safe()`, and `advance()` methods. Available only on the top-level `NodeComposeRendered`.
+- `__bool__()`: Checks whether `_graph` has been built, used to determine whether compilation has completed.
+
+### Obtaining an instance
 
 ```python
 rendered = workflow.render()
-node = rendered[0]
+# workflow can be a NodeCompose or any SelfCompileInstruction
 ```
 
-`NodeComposeRendered` is the input expected by `WorkflowInterpreter` for execution.
+**Important**: `NodeComposeRendered` is immutable -- once compilation completes, its structure and address mappings should not be modified. All runtime state is managed by `WorkflowInterpreter`; `NodeComposeRendered` exists only as a read-only "code segment".

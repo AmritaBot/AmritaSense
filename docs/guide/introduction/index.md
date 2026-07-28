@@ -14,7 +14,7 @@ Furthermore, AmritaSense includes a complete **event and dependency injection su
 
 We believe that **workflows should be designed for the work, not limited by the flow**. “Flow” is merely a presentation; it should never become a shackle when you design logic.
 
-- **Natively Turing-complete** – You can implement complete, arbitrary control logic without defining complex boundary conditions inside your program. AmritaSense natively supports conditionals (`IF/ELIF/ELSE`), loops (`WHILE/DO‑WHILE`), unconditional jumps (`GOTO`), subroutine calls (`CALL`), and exception handling (`TRY/CATCH`)—no external graph engine or state machine required.
+- **Natively Turing-complete** – You can implement complete, arbitrary control logic without defining complex boundary conditions inside your program. AmritaSense natively supports conditionals (`IF/ELIF/ELSE`), loops (`WHILE/DO‑WHILE`), unconditional jumps (`GOTO`), subroutine calls (`CALL`), and exception handling (`TRY/CATCH`)—no external graph engine or state machine required. v0.5.1 added native control flow instructions (`NATIVE_IF` / `NATIVE_WHILE` / `NATIVE_DO` / `BREAK_LOOP`) as an orthogonal extension.
 - **Virtual-machine addressing model** – AmritaSense uses a classic computer-style **addressing and execution model** (`PointerVector` + call stack). All high-level control flow is expanded into uniform pointer instructions at compile time. Only integer operations and function calls remain at runtime; scheduling overhead is nearly zero.
 - **Built for AI agents and complex business logic** – Whether it is tool-calling loops, nested sub‑workflows, pausing for user input, or exception recovery and rollback, AmritaSense can express it directly and execute it with extreme efficiency.
 

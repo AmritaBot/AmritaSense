@@ -142,13 +142,27 @@ T = TypeVar("T")
 class DependsFactory(Generic[T]):
     """
     Dependency factory class.
+
+    .. note::
+        ``cacheable`` is reserved for v0.5.2 and currently has no effect.
     """
 
     _depency_func: Callable[..., T | Awaitable[T]]
     _sign: DependencyMeta
+    __cacheable: bool  # reserved for v0.5.2, currently unused
 
-    def __init__(self, depency: Callable[..., T | Awaitable[T]]):
+    __slots__ = ("__cacheable", "_depency_func", "_sign")
+
+    @property
+    def cacheable(self) -> bool:
+        """Reserved for v0.5.2 — currently returns the stored value but has no runtime effect."""
+        return self.__cacheable
+
+    def __init__(
+        self, depency: Callable[..., T | Awaitable[T]], cacheable: bool = False
+    ):
         self._depency_func = depency
+        self.__cacheable = cacheable
         self._sign = sign_func(self._depency_func)
 
     async def resolve(self, *args, **kwargs) -> T | None:
@@ -179,11 +193,21 @@ class DependsFactory(Generic[T]):
         return rs
 
 
-def Depends(dependency: Callable[..., T | Awaitable[T]]) -> Any:
+def Depends(
+    dependency: Callable[..., T | Awaitable[T]], cacheable: bool = False
+) -> Any:
     """Dependency injection decorator.
 
+    .. note::
+        The *cacheable* parameter is **not yet effective** — DI result
+        caching is planned for v0.5.2.
+
+    **IMPORTANT**: For database sessions (or ORM frameworks like SQLAlchemy),
+    DI-caching may cause connection leaks.
+
     Args:
-        dependency: The dependency function to inject
+        dependency: The dependency function to inject.
+        cacheable: Reserved for v0.5.2 DI result caching.  Currently ignored.
 
     Returns:
         DependsFactory: A factory for dependency injection
@@ -198,10 +222,10 @@ def Depends(dependency: Callable[..., T | Awaitable[T]]) -> Any:
             dep: ExampleDependency = Depends(get_example_dependency),
         ):
             ...
-        # If DependendsFactory's return is None, this function won't be called.
+        # If DependsFactory's return is None, this function won't be called.
         ```
     """
-    return DependsFactory[T](dependency)
+    return DependsFactory[T](dependency, cacheable)
 
 
 class FailedEnum(Enum):

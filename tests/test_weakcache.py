@@ -508,3 +508,141 @@ class TestWeakValueLRUCache:
         assert cache.get("key2") is None  # Should be evicted
         assert cache.get("key3") is obj3
         assert cache.get("key4") is obj4
+
+    #  Boundary / edge-case tests for put() eviction
+
+    def test_put_loose_mode_all_alive_no_eviction(self):
+        """loose_mode=True, all refs alive: no eviction, cache exceeds capacity."""
+        cache = WeakValueLRUCache(capacity=2, loose_mode=True)
+        objs = [TestObject(i) for i in range(5)]
+        for i, obj in enumerate(objs):
+            cache.put(f"k{i}", obj)
+        # All alive → none evicted, capacity exceeded
+        assert cache.size() == 5
+        for i, obj in enumerate(objs):
+            assert cache.get(f"k{i}") is obj
+
+    def test_put_loose_mode_expired_evicted_first(self):
+        """loose_mode=True with some expired refs: expired evicted first, then alive kept."""
+        cache = WeakValueLRUCache(capacity=3, loose_mode=True)
+
+        obj1 = TestObject("1")
+        obj2 = TestObject("2")
+        obj3 = TestObject("3")
+        cache.put("k1", obj1)
+        cache.put("k2", obj2)
+        cache.put("k3", obj3)
+
+        # expire obj1 and obj3
+        del obj1, obj3
+        gc.collect()
+
+        obj4 = TestObject("4")
+        cache.put("k4", obj4)
+        # should have evicted k1 and k3 (expired), kept k2 and k4
+        assert cache.get("k1") is None
+        assert cache.get("k3") is None
+        assert cache.get("k2") is obj2
+        assert cache.get("k4") is obj4
+
+    def test_put_loose_mode_no_dead_loop(self):
+        """loose_mode=True with all alive: for-range bounded, never infinite loop."""
+        cache = WeakValueLRUCache(capacity=1, loose_mode=True)
+        objs = [TestObject(i) for i in range(100)]
+        for i, obj in enumerate(objs):
+            cache.put(f"k{i}", obj)
+        # If no dead loop, this finishes. Capacity is exceeded due to loose_mode.
+        assert cache.size() == 100
+
+    def test_put_normal_mode_all_expired_clears_all(self):
+        """Normal mode: when all old refs are expired, they should all be evicted."""
+        cache = WeakValueLRUCache(capacity=2)
+
+        obj1 = TestObject("1")
+        obj2 = TestObject("2")
+        cache.put("k1", obj1)
+        cache.put("k2", obj2)
+
+        del obj1, obj2
+        gc.collect()
+
+        obj3 = TestObject("3")
+        cache.put("k3", obj3)
+        assert cache.get("k1") is None
+        assert cache.get("k2") is None
+        assert cache.get("k3") is obj3
+        assert cache.size() == 1
+
+    def test_put_normal_mode_partial_expired(self):
+        """Normal mode: only expired entries are evicted; alive ones stay and count."""
+        cache = WeakValueLRUCache(capacity=3)
+
+        obj1 = TestObject("1")
+        obj2 = TestObject("2")
+        obj3 = TestObject("3")
+        cache.put("k1", obj1)
+        cache.put("k2", obj2)
+        cache.put("k3", obj3)
+
+        # expire only the oldest (k1)
+        del obj1
+        gc.collect()
+
+        obj4 = TestObject("4")
+        cache.put("k4", obj4)
+        # k1 evicted (expired), k2/k3 alive → need 1 more to reach capacity=3
+        assert cache.get("k1") is None
+        assert cache.get("k2") is obj2
+        assert cache.get("k3") is obj3
+        assert cache.get("k4") is obj4
+        assert cache.size() == 3
+
+    def test_put_zero_capacity_normal_mode(self):
+        """capacity=0 in normal mode: for-loop range(0) skips, items accumulate."""
+        cache = WeakValueLRUCache(capacity=0)
+        obj = TestObject("x")
+        cache.put("k", obj)
+        # range(0) → no eviction on first put, item stays
+        assert cache.get("k") is obj
+        assert cache.size() == 1
+
+    def test_put_zero_capacity_loose_mode(self):
+        """capacity=0 in loose_mode: still keeps items (loose permits overflow)."""
+        cache = WeakValueLRUCache(capacity=0, loose_mode=True)
+        obj = TestObject("x")
+        cache.put("k", obj)
+        assert cache.get("k") is obj
+        assert cache.size() == 1
+
+    def test_put_loose_mode_only_one_alive_rest_expired(self):
+        """loose_mode: only 1 alive among many expired → expired swept, alive kept with new."""
+        cache = WeakValueLRUCache(capacity=2, loose_mode=True)
+
+        alive = TestObject("alive")
+        cache.put("alive", alive)
+
+        # fill with garbage-collectable items
+        for i in range(10):
+            tmp = TestObject(f"tmp{i}")
+            cache.put(f"tmp{i}", tmp)
+        gc.collect()
+
+        new_obj = TestObject("new")
+        cache.put("new", new_obj)
+        # expired tmp* should be cleaned; alive & new should remain
+        assert cache.get("alive") is alive
+        assert cache.get("new") is new_obj
+
+    def test_put_eviction_respects_should_expire_count(self):
+        """When capacity shrinks drastically, eviction removes exactly needed count."""
+        cache = WeakValueLRUCache(capacity=5)
+        objs = [TestObject(i) for i in range(5)]
+        for i, obj in enumerate(objs):
+            cache.put(f"k{i}", obj)
+
+        cache.resize(1)
+        new_obj = TestObject("new")
+        cache.put("new", new_obj)
+        # After resize to 1 and a new put, only 1 item should remain
+        assert cache.size() == 1
+        assert cache.get("new") is new_obj

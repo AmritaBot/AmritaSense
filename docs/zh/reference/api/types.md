@@ -73,6 +73,31 @@ class PointerVector:
 - **相对寻址**: 在同一层级内进行偏移
 - **近寻址**: 修改当前层级索引，保持其他层级不变
 
+## InterpreterContext（v0.4.x+）
+
+`InterpreterContext` 是一个数据类，存储解释器执行状态的完整快照。由 `PUSH_CONTEXT`/`POP_CONTEXT` 和 `INTERRUPT_INTO`/`INTERRUPT_RET` 用于保存/恢复工作流。
+
+```python
+@dataclass
+class InterpreterContext:
+    ptr: PointerVector
+    exception_ignored: tuple[type[BaseException], ...]
+    s_args: tuple | None = None
+    s_kwargs: dict[str, Any] | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
+    stack: Stack[PointerVector] | None = None
+    exception: Exception | None = None
+```
+
+字段说明：
+
+- `ptr`：执行指针（`PointerVector`）的快照。
+- `exception_ignored`：绕过 TRY/CATCH 的异常类型快照。
+- `s_args` / `s_kwargs`：依赖注入参数的快照。若在 `dump_interpreter()` 中排除则为 `None`。
+- `extra`：扩展数据字典，供自定义使用。
+- `stack`：返回地址栈的快照。若排除则为 `None`。
+- `exception`：panic 异常的快照，无 panic 则为 `None`。
+
 ## DICache（v0.4.2+）
 
 `DICache` 是管理 `WorkflowInterpreter` 中依赖注入结果缓存的数据类。它将参数指纹与 LRU 缓存结合，避免重复 DI 解析。
