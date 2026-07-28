@@ -12,7 +12,7 @@ import contextlib
 
 from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
 
-# --- Sub-workflow ---
+### Sub-workflow ###
 
 
 @Node()
@@ -33,7 +33,7 @@ async def sub_step2() -> None:
 sub_comp = sub_start >> sub_step1 >> sub_step2 >> ALIAS(NOP, "done")
 
 
-# --- Main node ---
+### Main node ###
 
 
 @Node()

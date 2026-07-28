@@ -509,7 +509,7 @@ class TestWeakValueLRUCache:
         assert cache.get("key3") is obj3
         assert cache.get("key4") is obj4
 
-    # ── Boundary / edge-case tests for put() eviction ──────────────────
+    #  Boundary / edge-case tests for put() eviction
 
     def test_put_loose_mode_all_alive_no_eviction(self):
         """loose_mode=True, all refs alive: no eviction, cache exceeds capacity."""

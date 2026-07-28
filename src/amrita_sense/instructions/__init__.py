@@ -6,6 +6,7 @@ from .interrupt import INTERRUPT_INTO, INTERRUPT_RET, POP_CONTEXT, PUSH_CONTEXT
 from .jump import GOTO
 from .loop.do_while import DO
 from .loop.while_clause import WHILE
+from .native import NATIVE_DO, NATIVE_IF, NATIVE_WHILE
 from .ret2 import PUSH_AND_GOTO, PUSH_STACK, RET_FAR
 from .subprogram import ARCHIVED_NODES, CALL
 from .trigger_event import TRIGGER_EVENT
@@ -24,6 +25,9 @@ __all__ = (
     "INTERRUPT",
     "INTERRUPT_INTO",
     "INTERRUPT_RET",
+    "NATIVE_DO",
+    "NATIVE_IF",
+    "NATIVE_WHILE",
     "NOP",
     "POP_CONTEXT",
     "PUSH_AND_GOTO",

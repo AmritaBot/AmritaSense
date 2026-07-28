@@ -9,7 +9,7 @@ import asyncio
 from amrita_sense import Node, WorkflowInterpreter
 from amrita_sense.instructions.batch import BATCH_RUN
 
-# --- Parallel bare nodes ---
+### Parallel bare nodes ###
 
 
 @Node()
@@ -30,7 +30,7 @@ async def fetch_products() -> None:
     print("  [products] fetched")
 
 
-# --- Parallel subgraphs ---
+### Parallel subgraphs ###
 
 
 @Node()
@@ -53,7 +53,7 @@ async def transform() -> None:
     print("  [transform] done")
 
 
-# --- fail_fast demo ---
+### fail_fast demo ###
 
 
 @Node()

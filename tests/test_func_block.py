@@ -37,7 +37,7 @@ async def main_end() -> None:
     pass
 
 
-# -- Unit tests ---------------------------------------------------------------
+### Unit tests ###
 
 
 def test_fun_block_returns_funcblock():
@@ -66,7 +66,7 @@ def test_fun_block_node_attrs():
     assert fb.address_able is True
 
 
-# -- Integration tests --------------------------------------------------------
+### Integration tests ###
 
 
 @pytest.mark.asyncio

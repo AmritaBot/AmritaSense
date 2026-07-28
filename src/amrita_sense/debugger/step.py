@@ -32,20 +32,20 @@ if TYPE_CHECKING:
 
 async def _step_one(inter: WorkflowInterpreter[SuspendObjectStream]) -> None:
     """Execute exactly **one** node using direct ``_call()`` + lock."""
-    # --- recover from panic (mimics run_step_by preamble) ---
+    ### recover from panic (mimics run_step_by preamble) ###
     if inter._panic_exc is not None:
         inter._panic_exc = None
 
-    # --- per-node suspension check ---
+    ### per-node suspension check ###
     await inter.object_io._wait_for_continue(PC_CHECKPOINT)
 
-    # --- initialise pointer if empty ---
+    ### initialise pointer if empty ###
     if not inter._pointer:
         if not inter.get_graph():
             return
         inter._pointer.append(0)
 
-    # --- execute ONE node with lock ---
+    ### execute ONE node with lock ###
     try:
         async with inter._interpret_lock:
             if inter._middleware is not None:

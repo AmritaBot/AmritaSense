@@ -239,6 +239,7 @@ class MatcherFactory:
     _lock_pool: ClassVar[WeakValueLRUCache[str, aiologic.Lock]] = WeakValueLRUCache(
         capacity=1024, loose_mode=True
     )
+
     @classmethod
     def _repo_lock(cls, category: str) -> aiologic.Lock:
         if (lock := cls._lock_pool.get(category)) is None:
