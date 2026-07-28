@@ -312,6 +312,8 @@ class WorkflowInterpreter(Generic[io_T]):
         | None
         | object = UNSET,
         object_io: io_T | None = None,
+        ava_args: tuple | None = None,
+        ava_kwargs: dict[str, Any] | None = None,
     ) -> "WorkflowInterpreter[io_T]":
         """Fork a new sub-interpreter.
 
@@ -333,6 +335,10 @@ class WorkflowInterpreter(Generic[io_T]):
                 If None, reuses the parent interpreter's ``object_io`` instance.
                 Safe sharing is guaranteed for ``SuspendObjectStream`` (CLCA-safe since v0.3.2);
                 other ``io_T`` subtypes must ensure their own thread safety if passed explicitly.
+            ava_args (tuple | None): The arguments to be **merge** and passed to the sub-interpreter.
+                If None, it will use the same arguments as the parent.
+            ava_kwargs (dict[str, Any] | None): The keyword arguments to **merge** and be passed to the sub-interpreter.
+                If None, it will use the same keyword arguments as the parent.
 
         Returns:
             A new WorkflowInterpreter instance representing the sub-interpreter.
@@ -349,13 +355,21 @@ class WorkflowInterpreter(Generic[io_T]):
             mdw = middleware
         if compose is None:
             compose = self._graph
+        if ava_args is not None:
+            args = ava_args + self.__ava_args[1:]  # Exclude self from args
+        else:
+            args = self.__ava_args
+        if ava_kwargs is not None:
+            kwargs = self.__ava_kwargs | ava_kwargs
+        else:
+            kwargs = self.__ava_kwargs
         return WorkflowInterpreter[io_T](
             compose,
             object_io=object_io or self.object_io,
             exception_ignored=self._exc_ignored,
             middleware=mdw,
-            extra_args=self.__ava_args[1:],  # Exclude self from args
-            extra_kwargs=self.__ava_kwargs.copy(),
+            extra_args=args,
+            extra_kwargs=kwargs,
             parent_interpreter=self,
         )
 
