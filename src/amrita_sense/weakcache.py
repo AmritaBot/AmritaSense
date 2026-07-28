@@ -14,7 +14,30 @@ T = TypeVar("T")
 class WeakValueLRUCache(Generic[K, V]):
     """Weak reference LRU cache implementation.
 
-    Always used for locks pool.
+    Typical usage as a lock pool::
+
+        pool: WeakValueLRUCache[str, threading.Lock] = WeakValueLRUCache(
+            capacity=64, loose_mode=True
+        )
+
+        def get_lock(key: str) -> threading.Lock:
+            lock: threading.Lock | None = pool.get(key)
+            if lock is None:
+                lock = threading.Lock()
+                pool[key] = lock
+            return lock
+
+    The weak-value semantics ensure that locks are automatically cleaned up
+    when no external strong references remain, avoiding unbounded growth.
+
+    .. warning::
+
+        This cache is **not** suitable for persistent storage — values
+        disappear as soon as the last strong reference is lost.  Likewise,
+        **immutable objects** (strings, integers, tuples, etc.) cannot be
+        meaningfully stored because they are either interned, cached by the
+        interpreter, or lack stable external references, making weak
+        references to them immediately expire.
     """
 
     __marker = object()
@@ -124,6 +147,15 @@ class WeakValueLRUCache(Generic[K, V]):
     def put(self, key: K, value: V) -> None:
         """Put a value into cache.
 
+        LRU eviction with weak-reference awareness:
+        - If the key already exists, remove the old entry first (no eviction).
+        - Otherwise, if adding would exceed `capacity`, scan from oldest to newest
+          up to ``len(self._cache)`` steps:
+            * **loose_mode** + alive → ``move_to_end`` (skip, keep it).
+            * Otherwise → ``pop`` (evict expired or force-evict in normal mode).
+        - Eviction stops once enough slots are freed.  The bounded for-loop
+          prevents infinite looping when loose_mode keeps all entries alive.
+
         Args:
             key (K): Key in this cache.
             value (V): Value in this cache.
@@ -133,40 +165,35 @@ class WeakValueLRUCache(Generic[K, V]):
             raise ValueError("Cannot store None value in WeakValueLRUCache")
         with self._lock:
             weak_ref: weakref.ReferenceType[V] = weakref.ref(value)
-            capa = self._capacity
+            capa: int = self._capacity
 
             if key in self._cache:
                 self._cache.pop(key)
-            else:
-                should_expire_count = max(0, (len(self._cache) + 1) - capa)
-                collected = 0
-                for _ in range(len(self._cache)):
+            elif should_expire_count := max(0, (len(self._cache) + 1) - capa):
+                collected: int = 0
+                for _ in range(len(self._cache)):  # limit max expiring steps
+                    oldest_key: K = next(iter(self._cache))
+                    if self._loose_mode and self._cache[oldest_key]():
+                        self._cache.move_to_end(oldest_key)
+                    else:
+                        self._cache.pop(oldest_key)
+                        collected += 1
                     if collected >= should_expire_count:
                         break
-                    oldest_key: K = next(iter(self._cache))
-                    oldest_ref = self._cache[oldest_key]
-                    if oldest_ref() is None or not self._loose_mode:
-                        collected += 1
-                        self._cache.pop(oldest_key)
-                    elif self._loose_mode:
-                        self._cache.move_to_end(oldest_key)
-
             self._cache[key] = weak_ref
 
     def expire(self, length: int | None = None) -> None:
         """Expire cache of given length
 
         Args:
-            length (int | None, optional): Length. Defaults to None.
+            length (int | None, optional): Length. Defaults to None (20% of cache size).
         """
         with self._lock:
             if length is None:
                 length = int(len(self._cache) * (1 / 5))
-            keys_to_check = list(self._cache.keys())[: min(length, len(self._cache))]
-            expired_keys = [key for key in keys_to_check if self._cache[key]() is None]
-
-            for key in expired_keys:
-                self._cache.pop(key, None)
+            for key in list(self._cache.keys())[: min(length, len(self._cache))]:
+                if self._cache[key]() is None:
+                    self._cache.pop(key, None)
 
     def __getitem__(self, key: K) -> V:
         value = self.get(key)

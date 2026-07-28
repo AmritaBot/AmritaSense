@@ -146,9 +146,19 @@ class DependsFactory(Generic[T]):
 
     _depency_func: Callable[..., T | Awaitable[T]]
     _sign: DependencyMeta
+    __cacheable: bool
 
-    def __init__(self, depency: Callable[..., T | Awaitable[T]]):
+    __slots__ = ("__cacheable", "_depency_func", "_sign")
+
+    @property
+    def cacheable(self) -> bool:
+        return self.__cacheable
+
+    def __init__(
+        self, depency: Callable[..., T | Awaitable[T]], cacheable: bool = False
+    ):
         self._depency_func = depency
+        self.__cacheable = cacheable
         self._sign = sign_func(self._depency_func)
 
     async def resolve(self, *args, **kwargs) -> T | None:
@@ -179,11 +189,18 @@ class DependsFactory(Generic[T]):
         return rs
 
 
-def Depends(dependency: Callable[..., T | Awaitable[T]]) -> Any:
+def Depends(
+    dependency: Callable[..., T | Awaitable[T]], cacheable: bool = False
+) -> Any:
     """Dependency injection decorator.
+
+    *NOTE*: Cacheing is only available for workflows not event matchers.
+
+    **IMPORTANT**: For database sessions(or ORM frameworks like SQLAlchemy), DI-Cache may cause the leaks of database connections.
 
     Args:
         dependency: The dependency function to inject
+        cacheable (bool, optional): Whether to cache the resolved dependency. Defaults to False.
 
     Returns:
         DependsFactory: A factory for dependency injection
@@ -201,7 +218,7 @@ def Depends(dependency: Callable[..., T | Awaitable[T]]) -> Any:
         # If DependendsFactory's return is None, this function won't be called.
         ```
     """
-    return DependsFactory[T](dependency)
+    return DependsFactory[T](dependency, cacheable)
 
 
 class FailedEnum(Enum):
@@ -222,7 +239,6 @@ class MatcherFactory:
     _lock_pool: ClassVar[WeakValueLRUCache[str, aiologic.Lock]] = WeakValueLRUCache(
         capacity=1024, loose_mode=True
     )
-
     @classmethod
     def _repo_lock(cls, category: str) -> aiologic.Lock:
         if (lock := cls._lock_pool.get(category)) is None:

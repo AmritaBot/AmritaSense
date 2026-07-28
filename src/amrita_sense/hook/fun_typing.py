@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import inspect
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -7,8 +9,6 @@ from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 if TYPE_CHECKING:
     from .matcher import DependsFactory, Matcher
-else:
-    DependsFactory = None
 
 
 class _Empty:
@@ -28,7 +28,7 @@ class ParamDescriptor(TypedDict):
 
 class DependencyMeta(TypedDict):
     params: dict[str, ParamDescriptor]  # arg name -> ParamDescriptor
-    factory_map: dict[str, "DependsFactory"]  # Arg name -> DependsFactory
+    factory_map: dict[str, DependsFactory]  # Arg name -> DependsFactory
 
 
 @dataclass
@@ -37,7 +37,7 @@ class FunctionData:
     signature: DependencyMeta = Field()
     frame: FrameType = Field()
     priority: int = Field()
-    matcher: "Matcher" = Field()
+    matcher: Matcher = Field()
 
 
 def sign_func(func: Callable[..., Any]):
@@ -62,8 +62,8 @@ def sign_func(func: Callable[..., Any]):
             if anno is None:
                 raise ValueError(
                     f"Cannot resolve annotation {anno} for parameter {name},"
-                    + " please disable `__future__.annotations` and use a normal type hint instead."
-                    + "Make sure the import is not only in `TYPE_CHECKING` blocks."
+                    + " please disable `__future__.annotations` and use a normal type hint instead.\n"
+                    + "Make sure the import block is in the global scope instead of only in `if TYPE_CHECKING:...` blocks"
                 )
 
         types[name] = ParamDescriptor(type_hint=anno, kind=kind, default=default)
