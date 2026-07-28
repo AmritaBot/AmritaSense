@@ -33,6 +33,7 @@ from amrita_sense import (
 from amrita_sense.instructions.batch import BATCH_RUN
 from amrita_sense.instructions.func_block import FUN_BLOCK
 from amrita_sense.instructions.loop.while_clause import WHILE
+from amrita_sense.instructions.native import NATIVE_DO, NATIVE_IF, NATIVE_WHILE
 from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.utils import TimeInsighter
 
@@ -385,6 +386,92 @@ def bench_batch_run_forks() -> Result:
         sense_compile_s=time,
         sense_exec_s=called,
         extra={"forks": BATCH_RUN_FORKS, "perfork": BATCH_RUN_PERFORK_NODES},
+    )
+
+
+#  Native instruction benchmarks
+
+
+@benchmark
+def bench_native_if_chain() -> Result:
+    """Native-IF chain (100 ELIF)"""
+    depth = 100
+
+    @Node()
+    def _body() -> None:
+        pass
+
+    conds = [
+        NodeType(lambda: False, wrap_to_async=False, address_able=False, tag=None)
+        for _ in range(depth)
+    ]
+    conds[-1] = NodeType(
+        lambda: True, wrap_to_async=False, address_able=False, tag=None
+    )
+
+    chain = NATIVE_IF(conds[0], _body)  # type: ignore[arg-type]
+    for c in conds[1:]:
+        chain = chain.ELIF(c, _body)  # type: ignore[arg-type]
+    chain = chain.ELSE(_body).extract()
+
+    rendered, cs = _sense_compile(chain)
+    es = _sense_exec(rendered)
+
+    return Result(
+        "Native-IF (100 ELIF)",
+        sense_compile_s=cs,
+        sense_exec_s=es,
+        extra={"depth": depth},
+    )
+
+
+@benchmark
+def bench_native_while_tight() -> Result:
+    """Native-WHILE tight loop"""
+    counter = [0]
+
+    @Node()
+    def body() -> None:
+        counter[0] += 1
+
+    @Node()
+    def check() -> bool:
+        return counter[0] < LOOP_ITERS
+
+    wf = NATIVE_WHILE(check).ACTION(body).extract()
+    rendered, cs = _sense_compile(wf)
+    es = _sense_exec(rendered)
+
+    return Result(
+        "Native-WHILE tight",
+        sense_compile_s=cs,
+        sense_exec_s=es,
+        extra={"iters": LOOP_ITERS},
+    )
+
+
+@benchmark
+def bench_native_do_tight() -> Result:
+    """Native-DO tight loop"""
+    counter = [0]
+
+    @Node()
+    def body() -> None:
+        counter[0] += 1
+
+    @Node()
+    def check() -> bool:
+        return counter[0] < LOOP_ITERS
+
+    wf = NATIVE_DO(body).WHILE(check).extract()
+    rendered, cs = _sense_compile(wf)
+    es = _sense_exec(rendered)
+
+    return Result(
+        "Native-DO tight",
+        sense_compile_s=cs,
+        sense_exec_s=es,
+        extra={"iters": LOOP_ITERS},
     )
 
 
