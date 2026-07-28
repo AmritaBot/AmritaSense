@@ -88,7 +88,6 @@ async def main() -> None:
 
     ### NATIVE_IF with NodeCompose body (bubble) ###
     print("\n=== NATIVE_IF bubble body ===")
-    from amrita_sense import NodeCompose
 
     @Node()
     async def bubble_step_a() -> None:
@@ -98,7 +97,7 @@ async def main() -> None:
     async def bubble_step_b() -> None:
         print("  bubble step B")
 
-    comp = NATIVE_IF(cond_true, NodeCompose(bubble_step_a, bubble_step_b))
+    comp = NATIVE_IF(cond_true, bubble_step_a >> bubble_step_b)
     await WorkflowInterpreter(comp.extract().render()).run()
 
     print("\n=== ALL DONE ===")

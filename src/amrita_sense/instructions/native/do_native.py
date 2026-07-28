@@ -1,4 +1,4 @@
-"""Native DO-WHILE — natural-flow fast-path loop.
+"""Native DO-WHILE — jump+RET_FAR fast-path loop.
 
 Usage::
 
@@ -6,10 +6,9 @@ Usage::
 
 ``body`` accepts:
 
-* ``BaseNode`` — single node, reached naturally (no extra hop).
-* ``NodeCompose`` | ``SelfCompileInstruction`` — wrapped with a
-  ``NativeBubbleEnterNode`` so the engine enters the bubble, then
-  exits via the normal ``advance_pointer`` mechanism (no ``RET_FAR``).
+* ``BaseNode`` — single node, ``call_offset`` + ``jump_near`` loop.
+* ``NodeCompose`` | ``SelfCompileInstruction`` — wrapped into a **bubble**
+  with automatic ``RET_FAR`` that jumps back to re‑evaluate the condition.
 """
 
 from __future__ import annotations
@@ -21,6 +20,7 @@ from amrita_sense.instructions.native._core import (
     NativeDoWhileNode,
     _classify_body,
 )
+from amrita_sense.instructions.ret2 import RET_FAR
 from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
@@ -31,7 +31,11 @@ class NativeDoClause(SelfCompileInstruction):
 
     **Single-node layout:** ``[0]`` body, ``[1]`` NativeDoWhileNode, ``[2]`` cond, ``[3]`` NOP exit.
 
-    **Bubble layout:** ``[0]`` NativeBubbleEnterNode, ``[1]`` body bubble, ``[2]`` NativeDoWhileNode, ``[3]`` cond, ``[4]`` NOP exit.
+    **Bubble layout:** ``[0]`` NativeBubbleEnterNode, ``[1]`` body bubble (+RET_FAR),
+    ``[2]`` NativeDoWhileNode, ``[3]`` cond, ``[4]`` NOP exit.
+
+    The bubble variant pushes ``[2]`` so that ``RET_FAR`` returns to the
+    do-while node to re‑evaluate the condition.
     """
 
     _body: BaseNode | NodeCompose | SelfCompileInstruction
@@ -74,11 +78,11 @@ class NativeDoClause(SelfCompileInstruction):
                 NOP,
             )
 
-        # Bubble body: [0]=enter, [1]=flat_bubble, [2]=do_while, [3]=cond, [4]=NOP
+        # Bubble body: [0]=enter(PUSH→[2]), [1]=body+RET_FAR, [2]=do_while, [3]=cond, [4]=NOP
         assert isinstance(body, NodeCompose)
         return NodeCompose(
-            NativeBubbleEnterNode(body_pos=1),
-            NodeCompose(*body._graph),
+            NativeBubbleEnterNode(body_pos=1, ret_pos=2),
+            NodeCompose(*body._graph, RET_FAR()),
             NativeDoWhileNode(
                 condi_offset=1,
                 loop_pos=0,

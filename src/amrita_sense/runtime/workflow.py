@@ -1013,7 +1013,8 @@ class WorkflowInterpreter(Generic[io_T]):
         )
 
     @deprecated(
-        "This method is no longer used, please use '.calc.find_addr(addr)' instead!"
+        "This method is no longer used, please use '.calc.find_addr(addr)' instead!",
+        category=DeprecationWarning,
     )
     def find_addr(self, addr: list[int]) -> BaseNode | NodeComposeRendered:
         """Find a node at the specified address.
@@ -1030,7 +1031,8 @@ class WorkflowInterpreter(Generic[io_T]):
         return self.get_graph().calc.find_addr(addr)
 
     @deprecated(
-        "This method is no longer used, please use '.calc.resolve_alias(addr)' instead!"
+        "This method is no longer used, please use '.calc.resolve_alias(addr)' instead!",
+        category=DeprecationWarning,
     )
     def find_addr_alias(self, alias: str) -> list[int]:
         """Find the address vector for a node by its alias.

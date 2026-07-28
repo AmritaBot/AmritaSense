@@ -216,9 +216,14 @@ class NativeWhileNode(BaseNode):
 
 
 class NativeDoWhileNode(BaseNode):
-    """DO‑WHILE back-edge node.  Body is reached naturally (or via
-    ``NativeDoFastEnterNode`` for bubbles); this node only checks the
-    condition and loops back or falls through.
+    """DO‑WHILE back-edge node with unified PUSH+RET_FAR semantics.
+
+    Single-node path: ``call_offset`` condition → True: ``jump_near(body_pos)``
+    loop back; False: ``jump_near(exit_pos)``.
+
+    Bubble path: condition true → ``jump_near(body_pos)`` which hits
+    ``NativeBubbleEnterNode`` (PUSH+JMP into the body bubble).  The body
+    bubble ends with ``RET_FAR``, returning here to re‑evaluate.
     """
 
     tag: str
@@ -258,7 +263,8 @@ class NativeDoWhileNode(BaseNode):
     async def __call__(self, pc: WorkflowInterpreter) -> None:
         if await pc.call_offset(self._condi_offset):
             pc.jump_near(self._loop_pos)
-        # False: natural advance to exit
+        else:
+            pc.jump_near(self._exit_pos)
 
 
 # NativeBubbleEnterNode  (bubble entry helper for DO / ELSE)
@@ -270,6 +276,10 @@ class NativeBubbleEnterNode(BaseNode):
     Used when a native instruction's body is a ``NodeCompose`` that must be
     reached via a jump (DO-body, ELSE-body).  The single‑node path reaches
     the body naturally without this hop.
+
+    When *ret_pos* is provided (DO loops), a return address is pushed onto
+    ``_ret_addr_stack`` before entering the bubble so that ``RET_FAR`` (or
+    ``BREAK_LOOP``) can return/break to the correct position.
     """
 
     tag: str
@@ -280,9 +290,11 @@ class NativeBubbleEnterNode(BaseNode):
     fun_sign: DependencyMeta
 
     _body_pos: int
+    _ret_pos: int | None
 
     __slots__ = (
         "_body_pos",
+        "_ret_pos",
         "address_able",
         "fun_frame",
         "fun_sign",
@@ -291,7 +303,7 @@ class NativeBubbleEnterNode(BaseNode):
         "wrap_to_async",
     )
 
-    def __init__(self, body_pos: int) -> None:
+    def __init__(self, body_pos: int, ret_pos: int | None = None) -> None:
         frame = inspect.currentframe()
         if not frame:
             raise RuntimeError("No frame found")
@@ -299,7 +311,10 @@ class NativeBubbleEnterNode(BaseNode):
             self.__call__, tag=None, wrap_to_async=False, address_able=True, frame=frame
         )
         self._body_pos = body_pos
+        self._ret_pos = ret_pos
 
     def __call__(self, pc: WorkflowInterpreter) -> None:
         parent = list(pc._pointer.base_addr[:-1])
+        if self._ret_pos is not None:
+            pc._ret_addr_stack.push(PointerVector([*parent, self._ret_pos]))
         pc.jump_far_ptr([*parent, self._body_pos, 0])

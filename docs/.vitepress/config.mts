@@ -156,6 +156,10 @@ export default withMermaid({
                 link: "/guide/advanced/external_interrupt",
               },
               {
+                text: "Native Control Flow",
+                link: "/guide/advanced/native_control_flow",
+              },
+              {
                 text: "Built-in Instruction Set",
                 items: [
                   {
@@ -181,6 +185,10 @@ export default withMermaid({
                   {
                     text: "Context Snapshot & Interrupt Transfer (PUSH_CONTEXT/INTERRUPT_INTO)",
                     link: "/guide/advanced/built-in_instruction_set/context_clause",
+                  },
+                  {
+                    text: "Native Instructions (NATIVE_IF/WHILE/DO/BREAK_LOOP)",
+                    link: "/guide/advanced/built-in_instruction_set/native_instructions",
                   },
                 ],
               },
@@ -223,7 +231,6 @@ export default withMermaid({
                 text: "REPL Debugging",
                 link: "/guide/practice/repl-debugging",
               },
-              { text: "Under Construction..." },
             ],
           },
           {
@@ -334,6 +341,10 @@ export default withMermaid({
                 link: "/zh/guide/advanced/external_interrupt",
               },
               {
+                text: "原生控制流",
+                link: "/zh/guide/advanced/native_control_flow",
+              },
+              {
                 text: "内置指令集",
                 items: [
                   {
@@ -359,6 +370,10 @@ export default withMermaid({
                   {
                     text: "上下文与中断转移 (PUSH_CONTEXT/INTERRUPT_INTO)",
                     link: "/zh/guide/advanced/built-in_instruction_set/context_clause",
+                  },
+                  {
+                    text: "原生特性指令 (NATIVE_IF/WHILE/DO/BREAK_LOOP)",
+                    link: "/zh/guide/advanced/built-in_instruction_set/native_instructions",
                   },
                 ],
               },
@@ -401,7 +416,6 @@ export default withMermaid({
                 text: "REPL 调试",
                 link: "/zh/guide/practice/repl-debugging",
               },
-              { text: "正在施工中......" },
             ],
           },
           {
