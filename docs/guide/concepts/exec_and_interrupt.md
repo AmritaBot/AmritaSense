@@ -153,12 +153,13 @@ Python's `except Exception` does not catch `BaseException` subclasses. Therefore
 
 ```python
 except InterruptNotice as e:
+    logger.info(f"Interrupt notice at {self._pointer} :{e.message}")
     self._ret_addr_stack.clear()   # Clear entire call stack
     self._pointer.clear()          # Reset pointer vector
     self._jump_marked = False
 ```
 
-**This is termination, not suspension**. The call stack and pointer are fully cleared; workflow cannot resume.
+**This is termination, not suspension**. The call stack and pointer are fully cleared; the workflow exits and cannot be resumed from the interruption point. To re-execute, the workflow must be re-rendered and a new interpreter instance created.
 
 ### Internal Interrupt Summary
 

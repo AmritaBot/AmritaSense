@@ -144,6 +144,23 @@ def my_node(pc: WorkflowInterpreter = Depends(POINTER_DEPENDS)):
 
 因此，**只在必要时注入 `POINTER_DEPENDS`**。大多数节点应优先通过节点内部的 Python 逻辑和编排层面的指令（IF、WHILE、CALL）来完成控制流，只在指令无法表达时才直接操作解释器。
 
+## 4.6.5 安全的运行时集成
+
+需要运行时上下文的自定义节点应使用 `POINTER_DEPENDS` 获取 `WorkflowInterpreter`，而非直接操作解释器内部状态。解释器暴露了以下安全 API：
+
+- `jump_to(addr)`
+- `jump_near(addr)`
+- `jump_offset(offset)`
+- `call_sub(addr, *args, interrupt=False)`
+- `get_graph().calc.resolve_alias(alias)`
+- `object_io`
+
+由于 `object_io` 是泛型 `SuspendObjectStream` 子类，自定义节点也可以参与外部的挂起/恢复或流式 I/O 模式，而无需修改核心解释器循环。
+
+::: tip
+如果只需要数据依赖，优先使用 `Depends(...)` 配合提供者函数。仅在工作流控制或底层运行时检查时才使用 `POINTER_DEPENDS`。
+:::
+
 ### 小结
 
 自定义节点是 AmritaSense 的“细胞”。它们保持了最简单本质——一个被薄封装的 Python 函数——同时通过 `Depends` 和 `POINTER_DEPENDS` 获得了对 Amrita 生态完整能力的访问。在下一节中，我们将探讨如何把重复出现的节点组合模式封装为新的自编译指令，进一步扩展工作流的表达能力。

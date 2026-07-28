@@ -48,7 +48,7 @@ class NativeWhileClause(SelfCompileInstruction):
     def ACTION(self, body: BaseNode | NodeCompose | SelfCompileInstruction) -> Self:
         """Set the loop body."""
         if self._body is not None:
-            raise RuntimeError("ACTION already set on NativeWhileClause")
+            raise TypeError("ACTION already set on NativeWhileClause")
         self._body = body
         return self
 

@@ -76,6 +76,8 @@ class NativeIfClause(SelfCompileInstruction):
         body: BaseNode | NodeCompose | SelfCompileInstruction,
     ) -> Self:
         """Append an ELSE branch."""
+        if self._else_body is not None:
+            raise TypeError("ELSE branch already defined")
         self._else_body = body
         return self
 

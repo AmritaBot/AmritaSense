@@ -67,11 +67,11 @@ In addition to `GOTO`'s one-way jump, AmritaSense also provides the `CALL` instr
 
 ### Core differences
 
-| Feature                 | GOTO                                   | CALL                                     |
-| ----------------------- | -------------------------------------- | ---------------------------------------- |
-| Saves return address?   | No                                     | Yes (pushes onto `_ret_addr_stack`)      |
-| After-execution behavior | Continues advancing from the target   | Automatically pops the stack and returns |
-| Use cases               | One-way jumps, branch merging          | Subroutine reuse, interrupt handling     |
+| Feature                  | GOTO                                | CALL                                     |
+| ------------------------ | ----------------------------------- | ---------------------------------------- |
+| Saves return address?    | No                                  | Yes (pushes onto `_ret_addr_stack`)      |
+| After-execution behavior | Continues advancing from the target | Automatically pops the stack and returns |
+| Use cases                | One-way jumps, branch merging       | Subroutine reuse, interrupt handling     |
 
 > **Further reading**
 > The complete `CALL` mechanism — including call stack management, the `ARCHIVED_NODES` storage structure, `SubprogramJumpNode` skip logic, and interrupt vector table implementation — will be covered in detail in [Chapter 4.3: Calling Subroutines](./child_node.md).
@@ -88,11 +88,11 @@ AmritaSense uses `PointerVector` to manage multi-level nested address spaces. Ev
 
 AmritaSense provides three levels of addressing operations:
 
-| Method         | Behavior                                              | Use case                           |
-| -------------- | ----------------------------------------------------- | ---------------------------------- |
-| `near_to(n)`   | Replace the current level's index with `n`            | Jumps within the same Bubble       |
-| `offset(n)`    | Add `n` to the current level's index                  | Relative jumps within a Bubble     |
-| `far_to(addr)` | Replace the entire pointer with a full address vector | Cross-Bubble jumps                 |
+| Method         | Behavior                                              | Use case                       |
+| -------------- | ----------------------------------------------------- | ------------------------------ |
+| `near_to(n)`   | Replace the current level's index with `n`            | Jumps within the same Bubble   |
+| `offset(n)`    | Add `n` to the current level's index                  | Relative jumps within a Bubble |
+| `far_to(addr)` | Replace the entire pointer with a full address vector | Cross-Bubble jumps             |
 
 ### Scope isolation
 

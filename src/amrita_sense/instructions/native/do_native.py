@@ -47,6 +47,8 @@ class NativeDoClause(SelfCompileInstruction):
 
     def WHILE(self, condition: Node[bool]) -> Self:
         """Set the loop condition."""
+        if self._condition is not None:
+            raise TypeError("NATIVE_DO can only have a single .WHILE(condition)")
         self._condition = condition
         return self
 
