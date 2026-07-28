@@ -142,16 +142,20 @@ T = TypeVar("T")
 class DependsFactory(Generic[T]):
     """
     Dependency factory class.
+
+    .. note::
+        ``cacheable`` is reserved for v0.5.2 and currently has no effect.
     """
 
     _depency_func: Callable[..., T | Awaitable[T]]
     _sign: DependencyMeta
-    __cacheable: bool
+    __cacheable: bool  # reserved for v0.5.2, currently unused
 
     __slots__ = ("__cacheable", "_depency_func", "_sign")
 
     @property
     def cacheable(self) -> bool:
+        """Reserved for v0.5.2 — currently returns the stored value but has no runtime effect."""
         return self.__cacheable
 
     def __init__(
@@ -194,13 +198,16 @@ def Depends(
 ) -> Any:
     """Dependency injection decorator.
 
-    *NOTE*: Cacheing is only available for workflows not event matchers.
+    .. note::
+        The *cacheable* parameter is **not yet effective** — DI result
+        caching is planned for v0.5.2.
 
-    **IMPORTANT**: For database sessions(or ORM frameworks like SQLAlchemy), DI-Cache may cause the leaks of database connections.
+    **IMPORTANT**: For database sessions (or ORM frameworks like SQLAlchemy),
+    DI-caching may cause connection leaks.
 
     Args:
-        dependency: The dependency function to inject
-        cacheable (bool, optional): Whether to cache the resolved dependency. Defaults to False.
+        dependency: The dependency function to inject.
+        cacheable: Reserved for v0.5.2 DI result caching.  Currently ignored.
 
     Returns:
         DependsFactory: A factory for dependency injection
@@ -215,7 +222,7 @@ def Depends(
             dep: ExampleDependency = Depends(get_example_dependency),
         ):
             ...
-        # If DependendsFactory's return is None, this function won't be called.
+        # If DependsFactory's return is None, this function won't be called.
         ```
     """
     return DependsFactory[T](dependency, cacheable)
