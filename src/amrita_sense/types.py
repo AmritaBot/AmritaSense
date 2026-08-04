@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar
 
 from cachetools import LRUCache
-from typing_extensions import Self
+from typing_extensions import Never, Self
 
 T = TypeVar("T")
 
@@ -353,7 +353,7 @@ class PointerVector:
         """
         return len(self.base_addr)
 
-    def __delitem__(self, key):
+    def __delitem__(self, key) -> Never:
         """Prevent deletion of individual coordinates from the pointer vector.
 
         Raises:

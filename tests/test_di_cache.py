@@ -78,10 +78,10 @@ class TestDICacheType:
 
     def test_dicache_payload_store_and_retrieve(self):
         c = DICache(args_hash=42, hash_trustable=True)
-        c.payload[1] = {"x": 1}
-        c.payload[2] = {"y": 2}
-        assert c.payload[1] == {"x": 1}
-        assert c.payload[2] == {"y": 2}
+        c.payload[1] = ({"x": 1}, {})
+        c.payload[2] = ({"y": 2}, {})
+        assert c.payload[1] == ({"x": 1}, {})
+        assert c.payload[2] == ({"y": 2}, {})
 
     def test_dicache_hash_trustable_default(self):
         assert DICache(args_hash=0, hash_trustable=False).hash_trustable is False
@@ -89,7 +89,7 @@ class TestDICacheType:
     def test_dicache_payload_is_lru(self):
         c = DICache(args_hash=0, hash_trustable=True)
         for i in range(2048):
-            c.payload[i] = {"data": i}
+            c.payload[i] = ({"data": i}, {})
         assert len(c.payload) <= 2048
 
 
@@ -137,12 +137,12 @@ class TestRehashArgs:
             return 1
 
         pc = WorkflowInterpreter(NodeCompose(n).render(), extra_args=(42,))
-        pc._di_cache.payload[1] = {"data": "cached"}
+        pc._di_cache.payload[1] = ({"data": "cached"}, {})
         pev = pc.args_hash
         pc.rehash_args()
         assert pc.args_hash == pev
         assert pc.args_hash_trustable is True
-        assert pc._di_cache.payload[1] == {"data": "cached"}
+        assert pc._di_cache.payload[1] == ({"data": "cached"}, {})
 
     @pytest.mark.asyncio
     async def test_rehash_args_different_hash_clears_cache(self):
@@ -151,7 +151,7 @@ class TestRehashArgs:
             return 1
 
         pc = WorkflowInterpreter(NodeCompose(n).render(), extra_args=(42,))
-        pc._di_cache.payload[1] = {"data": "cached"}
+        pc._di_cache.payload[1] = ({"data": "cached"}, {})
         pev = pc.args_hash
         pc._ava_args = (pc, "different_type")
         assert pc.args_hash_trustable is False
