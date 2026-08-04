@@ -1,4 +1,4 @@
-"""BREAK_LOOP — pop stack and jump to the sentinel NOP of the current bubble.
+"""BREAK_LOOP — jump to the sentinel NOP of the parent bubble.
 
 Usage::
 
@@ -8,9 +8,9 @@ Usage::
     comp = NATIVE_DO(NodeCompose(step1, BREAK_LOOP, step2)).WHILE(cond)
 
 ``BREAK_LOOP`` only makes sense inside a native loop **bubble** body.
-It pops the return address that was pushed by the loop's enter node and
-jumps to the last sentinel (NOP) of the parent bubble, cleanly exiting
-the loop.
+It jumps to the last sentinel (NOP) of the parent bubble, cleanly exiting
+the loop.  The jump flag is set so ``advance_pointer`` does not re‑enter
+the loop‑back trampoline.
 """
 
 from __future__ import annotations

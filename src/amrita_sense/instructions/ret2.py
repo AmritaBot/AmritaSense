@@ -21,6 +21,9 @@ def RET_FAR() -> NodeType[None]:
        **not** set the jump flag.  Therefore, after the return, the interpreter
        will naturally advance to the next instruction (return-address + 1).
 
+       Callers should push ``target - 1`` so that ``advance_pointer`` lands on
+       the actual target node.
+
     Returns:
         A workflow node that pops the return-address stack and resumes execution.
     """

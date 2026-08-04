@@ -10,9 +10,8 @@ from amrita_sense.node.wrapper import Node
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 from amrita_sense.types import PointerVector, Stack
 
-# ---------------------------------------------------------------------------
 # Fake rendered object for post_compile hooks (mirrors interrupt test pattern)
-# ---------------------------------------------------------------------------
+
 
 if not TYPE_CHECKING:
 
@@ -36,9 +35,7 @@ else:
         def __init__(*args, **kwargs): ...
 
 
-# ---------------------------------------------------------------------------
 # Fake interpreter (minimal — no alias resolution needed at runtime)
-# ---------------------------------------------------------------------------
 
 
 class _FakeInterpreter:
@@ -57,10 +54,13 @@ class _FakeInterpreter:
     def jump_far_ptr(self, addr: list[int]) -> None:
         self._pointer.far_to(addr)
 
+    def rebase_ptr(self, ptr: list[int] | PointerVector) -> None:
+        self._pointer.base_addr = (
+            list(ptr) if isinstance(ptr, list) else ptr.base_addr.copy()
+        )
 
-# ---------------------------------------------------------------------------
+
 # Unit tests — return values and types
-# ---------------------------------------------------------------------------
 
 
 def test_ret_far_returns_node():
@@ -81,9 +81,7 @@ def test_push_and_goto_returns_node():
     assert node.wrap_to_async is False
 
 
-# ---------------------------------------------------------------------------
 # Unit tests — PUSH_STACK logic
-# ---------------------------------------------------------------------------
 
 
 def test_push_stack_with_alias_pushes_resolved_address():
@@ -117,9 +115,7 @@ def test_push_stack_multiple():
     assert pc._ret_addr_stack.stack[1].base_addr == [2]
 
 
-# ---------------------------------------------------------------------------
 # Unit tests — RET_FAR logic
-# ---------------------------------------------------------------------------
 
 
 def test_ret_far_pops_and_jumps():
@@ -142,9 +138,7 @@ def test_ret_far_lifo_order():
     assert len(pc._ret_addr_stack) == 0
 
 
-# ---------------------------------------------------------------------------
 # Unit tests — PUSH_AND_GOTO logic
-# ---------------------------------------------------------------------------
 
 
 def test_push_and_goto_alias_alias():
@@ -184,9 +178,8 @@ def test_push_and_goto_list_list():
     assert pc._pointer.base_addr == [4]
 
 
-# ---------------------------------------------------------------------------
 # Integration tests — real WorkflowInterpreter
-# ---------------------------------------------------------------------------
+
 
 from amrita_sense import ALIAS, NOP  # noqa: E402
 

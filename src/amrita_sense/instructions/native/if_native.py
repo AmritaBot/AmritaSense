@@ -176,7 +176,7 @@ class NativeIfClause(SelfCompileInstruction):
             nodes.append(ec)
             nodes.append(eb)
 
-        # --- ELSE slot ---
+        ### ELSE slot ###
         if has_else and not else_is_single:
             assert isinstance(else_body, NodeCompose)
             else_pos = len(nodes)

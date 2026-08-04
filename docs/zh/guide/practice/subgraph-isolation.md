@@ -129,7 +129,7 @@ import asyncio
 from amrita_sense import ALIAS, NOP, Node, NodeCompose, WorkflowInterpreter
 from amrita_sense.instructions import FUN_BLOCK
 
-# --- 定义子工作流 ---
+### 定义子工作流 ###
 @Node()
 async def sub_start() -> None:
     print("  [子] 开始")
@@ -140,7 +140,7 @@ async def sub_work() -> None:
 
 sub_comp = (sub_start >> sub_work >> ALIAS(NOP, "done")).render()
 
-# --- 定义主工作流 ---
+### 定义主工作流 ###
 @Node()
 async def main_start() -> None:
     print("[主] 开始")
@@ -156,7 +156,7 @@ main_comp = (
     >> ALIAS(NOP, "done")
 )
 
-# --- 执行 ---
+### 执行 ###
 async def main():
     interpreter = WorkflowInterpreter(main_comp.render())
     await interpreter.run()

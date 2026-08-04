@@ -28,10 +28,12 @@ from amrita_sense.node.self_compile import SelfCompileInstruction
 class NativeWhileClause(SelfCompileInstruction):
     """Fast-path WHILE loop.
 
-    Layout: ``[0]`` self, ``[1]`` cond, ``[2]`` body slot, ``[3]`` NOP exit.
+    Bubble layout: ``[0]`` NOP landing, ``[1]`` self, ``[2]`` cond,
+    ``[3]`` body slot (+RET_FAR), ``[4]`` NOP exit.
 
-    The bubble variant pushes ``[0]`` so that ``RET_FAR`` re‑enters the
-    while node, re‑checking the condition.
+    ``RET_FAR`` (CONTINUE) pops ``[0]`` (= self - 1) and rebases to it;
+    ``advance_pointer`` then naturally steps to ``[1]`` self which
+    re-evaluates the condition.
     """
 
     _condition: Node[bool]
@@ -68,14 +70,15 @@ class NativeWhileClause(SelfCompileInstruction):
             assert isinstance(body, NodeCompose)
             body_slot = NodeCompose(*body._graph, RET_FAR())
 
-        # Layout: [0]=while_node, [1]=cond, [2]=body, [3]=exit
+        # Layout: [0]=NOP landing, [1]=while_node, [2]=cond, [3]=body, [4]=NOP exit
         return NodeCompose(
+            NOP,
             NativeWhileNode(
                 condi_offset=1,
                 body_offset=2,
-                body_pos=2,
-                self_pos=0,
-                exit_pos=3,
+                body_pos=3,
+                self_pos=1,
+                exit_pos=4,
                 is_single=is_single,
             ),
             flat_cond,

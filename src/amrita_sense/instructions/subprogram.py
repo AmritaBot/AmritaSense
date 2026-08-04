@@ -104,9 +104,7 @@ class CallNode(BaseNode):
                 "Cannot call a NodeComposeRendered directly! Please use PUSH_AND_GOTO with RET_FAR instead"
             )
         elif nd.address_able is False:
-            raise GraphBuildError(
-                "Cannot call a non-addressable node!"
-            )
+            raise GraphBuildError("Cannot call a non-addressable node!")
         self._addr = addr
 
     async def __call__(self, pc: WorkflowInterpreter) -> Any:

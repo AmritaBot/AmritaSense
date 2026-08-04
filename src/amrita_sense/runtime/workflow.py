@@ -288,6 +288,7 @@ class WorkflowInterpreter(Generic[io_T]):
     @property
     def _ava_kwargs(self) -> dict:
         return self.__ava_kwargs
+
     # hash_trustable=False means "the cached args_hash may not match
     # the current __ava_args/__ava_kwargs".  rehash_args() restores it.
     @_ava_args.setter

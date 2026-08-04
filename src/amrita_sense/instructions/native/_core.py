@@ -142,10 +142,12 @@ class NativeIfJumpNode(BaseNode):
 class NativeWhileNode(BaseNode):
     """WHILE-condition jump node for native fast-path loops.
 
-    Layout: ``[pos]`` self, ``[pos+1]`` cond, ``[pos+2]`` body slot, ``[pos+3]`` NOP exit.
+    Bubble layout: ``[pos-1]`` NOP landing, ``[pos]`` self, ``[pos+1]`` cond,
+    ``[pos+2]`` body (+RET_FAR), ``[pos+3]`` NOP exit.
 
-    The bubble variant pushes ``[pos]`` so that ``RET_FAR`` jumps back
-    to **this node** rather than past it, re‑evaluating the condition.
+    Pushes ``[pos-1]`` so ``RET_FAR`` (CONTINUE) rebases to the NOP landing
+    and ``advance_pointer`` naturally steps to ``[pos]`` self, re-evaluating
+    the condition.
     """
 
     tag: str
@@ -206,7 +208,7 @@ class NativeWhileNode(BaseNode):
                 pc.jump_near(self._self_pos)
             else:
                 parent = list(pc._pointer.base_addr[:-1])
-                pc._ret_addr_stack.push(PointerVector([*parent, self._self_pos]))
+                pc._ret_addr_stack.push(PointerVector([*parent, self._self_pos - 1]))
                 pc.jump_far_ptr([*parent, self._body_pos, 0])
         else:
             pc.jump_near(self._exit_pos)
@@ -216,14 +218,17 @@ class NativeWhileNode(BaseNode):
 
 
 class NativeDoWhileNode(BaseNode):
-    """DO‑WHILE back-edge node with unified PUSH+RET_FAR semantics.
+    """DO‑WHILE back-edge node.
 
-    Single-node path: ``call_offset`` condition → True: ``jump_near(body_pos)``
-    loop back; False: ``jump_near(exit_pos)``.
+    Layout: ``[loop_pos]`` enter → body → ``[pos-1]`` NOP landing,
+    ``[pos]`` self, ``[pos+1]`` cond, ``[pos+2]`` NOP exit.
 
-    Bubble path: condition true → ``jump_near(body_pos)`` which hits
-    ``NativeBubbleEnterNode`` (PUSH+JMP into the body bubble).  The body
-    bubble ends with ``RET_FAR``, returning here to re‑evaluate.
+    Body finishes naturally → ``advance_pointer`` steps to ``[pos-1]`` NOP
+    → ``[pos]`` self re-checks condition.  True: ``jump_near(loop_pos)``
+    re-enters body.
+
+    For CONTINUE (RET_FAR): enter pushes ``[pos-1]`` so RET_FAR rebases
+    to the NOP landing and advance steps to ``[pos]`` self.
     """
 
     tag: str
@@ -277,9 +282,10 @@ class NativeBubbleEnterNode(BaseNode):
     reached via a jump (DO-body, ELSE-body).  The single‑node path reaches
     the body naturally without this hop.
 
-    When *ret_pos* is provided (DO loops), a return address is pushed onto
-    ``_ret_addr_stack`` before entering the bubble so that ``RET_FAR`` (or
-    ``BREAK_LOOP``) can return/break to the correct position.
+    When *ret_pos* is provided, a return address is pushed onto
+    ``_ret_addr_stack`` before entering the bubble so that ``BREAK_LOOP``
+    can pop it and exit cleanly.  For WHILE loops this push is done by
+    ``NativeWhileNode`` instead; for DO loops it is done here.
     """
 
     tag: str

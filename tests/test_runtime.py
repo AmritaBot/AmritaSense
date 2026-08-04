@@ -330,9 +330,7 @@ class TestWorkflowInterpreter:
         assert not interpreter.advance_pointer()
 
 
-# ---------------------------------------------------------------------------
 # Interpreter Tree tests (v0.3.0+)
-# ---------------------------------------------------------------------------
 
 
 import asyncio  # noqa: E402

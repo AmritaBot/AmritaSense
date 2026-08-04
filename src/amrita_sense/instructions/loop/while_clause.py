@@ -124,6 +124,7 @@ class WhileClause(SelfCompileInstruction):  # WHILE >> CONDI >> DO >> CHECKUP >>
 
     def extract(self) -> NodeCompose:
         from amrita_sense.instructions.jump import JumpNode
+
         if isinstance(self._action, JumpNode):
             raise RuntimeError(
                 "Please DO NOT use a GOTO node in a WHILE clause. Which will cause probably problems."

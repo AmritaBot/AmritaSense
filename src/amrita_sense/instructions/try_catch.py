@@ -56,7 +56,10 @@ class TryNode(BaseNode):
         self._else_addr = els_addr
         self._escape_addr = escape_addr
         self._init(
-            self._worker, BuiltinTags.TRY_WORKER, address_able=False, wrap_to_async=False
+            self._worker,
+            BuiltinTags.TRY_WORKER,
+            address_able=False,
+            wrap_to_async=False,
         )
 
     async def _worker(self, pc: WorkflowInterpreter):

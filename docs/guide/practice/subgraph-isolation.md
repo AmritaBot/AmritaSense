@@ -129,7 +129,7 @@ import asyncio
 from amrita_sense import ALIAS, NOP, Node, NodeCompose, WorkflowInterpreter
 from amrita_sense.instructions import FUN_BLOCK
 
-# --- Define a sub-workflow ---
+### Define a sub-workflow ###
 @Node()
 async def sub_start() -> None:
     print("  [sub] start")
@@ -140,7 +140,7 @@ async def sub_work() -> None:
 
 sub_comp = (sub_start >> sub_work >> ALIAS(NOP, "done")).render()
 
-# --- Define the main workflow ---
+### Define the main workflow ###
 @Node()
 async def main_start() -> None:
     print("[main] start")
@@ -156,7 +156,7 @@ main_comp = (
     >> ALIAS(NOP, "done")
 )
 
-# --- Execute ---
+### Execute ###
 async def main():
     interpreter = WorkflowInterpreter(main_comp.render())
     await interpreter.run()
