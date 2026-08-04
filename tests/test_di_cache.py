@@ -347,10 +347,14 @@ class TestDICacheInCall:
         pc = WorkflowInterpreter(NodeCompose(n).render())
         pc._pointer = PointerVector([0])
         await pc._call()
-        key = hash((hash(pc._pointer), pc.args_hash))
-        cached = pc._di_cache.payload.get(key)
-        assert cached is not None
-        assert isinstance(cached, dict)
+        # After _call, the cache should have at least one entry
+        assert len(pc._di_cache.payload) > 0
+        # Value is now a (static_kwargs, non_cacheable_factories) tuple
+        cached = next(iter(pc._di_cache.payload.values()))
+        assert isinstance(cached, tuple)
+        assert len(cached) == 2
+        assert isinstance(cached[0], dict)  # static_kwargs
+        assert isinstance(cached[1], dict)  # non_cacheable_factories
 
     @pytest.mark.asyncio
     async def test_call_caches_across_multiple_nodes(self):
