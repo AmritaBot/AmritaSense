@@ -1,18 +1,16 @@
-"""Native DO-WHILE — fast-path loop.
+"""Native DO-WHILE — jump+CONTINUE fast-path loop.
 
 Usage::
 
     NATIVE_DO(body).WHILE(condition)
 
-``body`` accepts:
-
-* ``BaseNode`` — single node, ``call_offset`` + ``jump_near`` loop.
-* ``NodeCompose`` | ``SelfCompileInstruction`` — body compose finishes
-  naturally; ``advance_pointer`` steps to ``NativeDoWhileNode`` which
-  ``jump_near``'s back to re-enter the body bubble.
+``body`` is always wrapped as ``NodeCompose(body, CONTINUE())`` so that
+the loop can iterate.  Single-node bodies are auto‑wrapped.
 """
 
 from __future__ import annotations
+
+from typing import cast
 
 from typing_extensions import Self, override
 
@@ -20,7 +18,9 @@ from amrita_sense.instructions.native._core import (
     NativeBubbleEnterNode,
     NativeDoWhileNode,
     _classify_body,
+    _configure_loop_control_nodes,
 )
+from amrita_sense.instructions.native.continue_loop import CONTINUE
 from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
@@ -29,16 +29,12 @@ from amrita_sense.node.self_compile import SelfCompileInstruction
 class NativeDoClause(SelfCompileInstruction):
     """Fast-path DO-WHILE loop.
 
-    **Single-node layout:** ``[0]`` body, ``[1]`` NativeDoWhileNode, ``[2]`` cond,
-    ``[3]`` NOP exit.
+    Layout: ``[0]`` enter, ``[1]`` body (+CONTINUE), ``[2]`` do_while,
+    ``[3]`` cond, ``[4]`` NOP exit.
 
-    **Bubble layout:** ``[0]`` enter, ``[1]`` body, ``[2]`` NOP landing,
-    ``[3]`` NativeDoWhileNode, ``[4]`` cond, ``[5]`` NOP exit.
-
-    Body finishes naturally -> advance to ``[2]`` NOP -> ``[3]`` do-while
-    re-checks the condition.  Enter pushes ``[2]`` (= do-while - 1) so a
-    user-placed ``RET_FAR`` (CONTINUE) inside the body rebases to ``[2]``
-    and advances to ``[3]``, re-evaluating the condition.
+    Enter pushes and ``jump_far_ptr``'s into body every iteration.
+    ``CONTINUE()`` pops and jumps to ``[2]`` do_while to re‑check.
+    ``BREAK_LOOP()`` pops and jumps to ``[4]`` NOP exit.
     """
 
     _body: BaseNode | NodeCompose | SelfCompileInstruction
@@ -69,29 +65,24 @@ class NativeDoClause(SelfCompileInstruction):
         flat_cond, _ = _classify_body(self._condition)
         body, is_single = _classify_body(self._body)
 
-        if is_single:
-            return NodeCompose(
-                body,
-                NativeDoWhileNode(
-                    condi_offset=1,
-                    loop_pos=0,
-                    exit_pos=3,
-                ),
-                flat_cond,
-                NOP,
-            )
+        # All bodies end with CONTINUE — single nodes are auto‑wrapped.
+        body_slot: NodeCompose = (
+            NodeCompose(body, CONTINUE())
+            if is_single
+            else NodeCompose(*cast(NodeCompose, body)._graph, CONTINUE())
+        )
 
-        # Bubble: [0]=enter(PUSH→[2] for BREAK_LOOP/RET_FAR), [1]=body,
-        # [2]=NOP landing, [3]=do_while, [4]=cond, [5]=NOP exit.
-        assert isinstance(body, NodeCompose)
+        # DFS configure CONTINUE/BREAK_LOOP inside body_slot.
+        _configure_loop_control_nodes(body_slot, continue_pos=2, break_pos=4)
+
+        # Layout: [0]=enter, [1]=body_slot, [2]=do_while, [3]=cond, [4]=NOP
         return NodeCompose(
-            NativeBubbleEnterNode(body_pos=1, ret_pos=2),
-            body,
-            NOP,
+            NativeBubbleEnterNode(body_pos=1),
+            body_slot,
             NativeDoWhileNode(
                 condi_offset=1,
                 loop_pos=0,
-                exit_pos=5,
+                exit_pos=4,
             ),
             flat_cond,
             NOP,

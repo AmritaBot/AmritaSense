@@ -436,7 +436,7 @@ export default withMermaid({
         ],
         footer: {
           message: `Apache 2.0 许可证约束`,
-          copyright: `© Amrita 2025-${new Date().getFullYear()}`,
+          copyright: `© 弋恒常量 2025-${new Date().getFullYear()}`,
         },
         socialLinks: [
           { icon: "github", link: "https://github.com/AmritaBot/AmritaSense" },

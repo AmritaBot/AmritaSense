@@ -1192,10 +1192,14 @@ class WorkflowInterpreter(Generic[io_T]):
         addr_getter = addr_getter or self.get_graph().calc.find_addr
         node: BaseNode | NodeComposeRendered = addr_getter(self._pointer.base_addr)
         if isinstance(node, NodeComposeRendered):
-            if __flags__.ALLOW_CALL_NODECOMPOSE:
+            if not node:
                 return
-            raise RuntimeError(
-                f"Cannot call a NodeCompose in addr {self._pointer.base_addr}."
+            self._pointer.append(0)
+            return await self._call(
+                addr_getter=addr_getter,
+                *extra_args,
+                no_cache=no_cache,
+                **extra_kwargs,
             )
         await self.object_io._wait_for_continue(node.tag)
 
@@ -1242,7 +1246,7 @@ class WorkflowInterpreter(Generic[io_T]):
                 )
                 self._di_cache.payload[cache_key] = (static_kwargs, factories)
 
-        # ── Per-call resolution of non-cacheable factories ────────
+        #  Per-call resolution of non-cacheable factories
         if factories:
             kw_rsved = static_kwargs.copy()
             if not await MatcherFactory._do_runtime_resolve(

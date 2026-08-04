@@ -60,6 +60,9 @@ class BuiltinTags(str, Enum):
     BREAK_LOOP = "__BREAK_LOOP__"
     """Tag for :func:`~amrita_sense.instructions.native.break_loop.BREAK_LOOP`."""
 
+    CONTINUE = "__CONTINUE__"
+    """Tag for :func:`~amrita_sense.instructions.native.continue_loop.CONTINUE`."""
+
     #  Event system
     EVENT_TRIGGER_CALL = "EventTrigger::__call__"
     """Tag for the internal ``EventTrigger`` node in :func:`~amrita_sense.instructions.trigger_event.TRIGGER_EVENT`."""

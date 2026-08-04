@@ -23,7 +23,7 @@ class _Flags:
     DISABLE_EXC_IGNORED: bool = field(default=False)
     """Disable `exc_ignored` in built-in instructions and matcher system"""
     ALLOW_CALL_NODECOMPOSE: bool = field(default=False)
-    """Ignore the case that `NodeCompose` is called directly by `_call()`"""
+    """(Removed since v0.5.2) Ignore the case that `NodeCompose` is called directly by `_call()`"""
     NO_DEPENDENCY_META_CACHE: bool = field(default=False)
     """Ignore the case that `DependencyMeta` is cached, resolve it in each call"""
     NO_SHARED_MIDDLEWARE: bool = field(default=False)
