@@ -142,20 +142,17 @@ T = TypeVar("T")
 class DependsFactory(Generic[T]):
     """
     Dependency factory class.
-
-    .. note::
-        ``cacheable`` is reserved for v0.5.2 and currently has no effect.
     """
 
     _depency_func: Callable[..., T | Awaitable[T]]
     _sign: DependencyMeta
-    __cacheable: bool  # reserved for v0.5.2, currently unused
+    __cacheable: bool
 
     __slots__ = ("__cacheable", "_depency_func", "_sign")
 
     @property
     def cacheable(self) -> bool:
-        """Reserved for v0.5.2 — currently returns the stored value but has no runtime effect."""
+        """Whether the dependency is cacheable."""
         return self.__cacheable
 
     def __init__(
