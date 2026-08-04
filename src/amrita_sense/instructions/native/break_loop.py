@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import inspect
 
+from amrita_sense.instructions.enum import BuiltinTags
 from amrita_sense.node.core import BaseNode, NodeComposeRendered
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 
@@ -32,7 +33,7 @@ class _BreakLoopNode(BaseNode):
             raise RuntimeError("No frame found")
         self._init(
             self.__call__,
-            tag="__BREAK_LOOP__",
+            tag=BuiltinTags.BREAK_LOOP,
             wrap_to_async=False,
             address_able=True,
             frame=frame,

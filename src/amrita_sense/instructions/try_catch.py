@@ -8,6 +8,7 @@ from typing_extensions import Self
 from amrita_sense._unsafe import __flags__
 from amrita_sense.exceptions import IllegalState
 from amrita_sense.hook.fun_typing import DependencyMeta
+from amrita_sense.instructions.enum import BuiltinTags
 from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
@@ -55,7 +56,7 @@ class TryNode(BaseNode):
         self._else_addr = els_addr
         self._escape_addr = escape_addr
         self._init(
-            self._worker, "TryNode::worker", address_able=False, wrap_to_async=False
+            self._worker, BuiltinTags.TRY_WORKER, address_able=False, wrap_to_async=False
         )
 
     async def _worker(self, pc: WorkflowInterpreter):

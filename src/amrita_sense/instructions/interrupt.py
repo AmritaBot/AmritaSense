@@ -1,4 +1,5 @@
 from amrita_sense.exceptions import IllegalState
+from amrita_sense.instructions.enum import BuiltinTags
 from amrita_sense.node import NodeType
 from amrita_sense.node.core import NodeComposeRendered
 from amrita_sense.node.wrapper import Node
@@ -8,26 +9,38 @@ from amrita_sense.types import PointerVector
 
 
 def PUSH_CONTEXT(
-    alias_or_idata: str | list[int],
+    alias_or_idata: str | list[int] | None,
     *,
     exclude_deps: bool = True,
     exclude_stack: bool = True,
 ) -> NodeType[None]:
-    """Create a workflow node that saves the current interpreter state and jumps.
+    """Create a workflow node that saves the current interpreter state.
 
     This instruction snapshots the interpreter context (pointer, exception ignore
     list, and optionally dependency args and return-address stack) onto the
-    context stack, then **jumps** to the given target address.  This is the
-    low-level primitive — unlike :func:`INTERRUPT_INTO`, it does **not** set
-    ``if_flag`` and does **not** guard against being called inside an IF branch.
+    context stack.  The saved context's pointer is set to the given
+    ``alias_or_idata`` address so that when the context is later restored (via
+    :func:`INTERRUPT_RET` or :meth:`~amrita_sense.runtime.workflow.WorkflowInterpreter.rebase_context`),
+    execution resumes at that address — i.e. it serves as the **return address**,
+    not a jump target.
+
+    This is the low-level primitive — unlike :func:`INTERRUPT_INTO`, it does
+    **not** perform any jump, does **not** set ``if_flag``, and does **not**
+    guard against being called inside an IF branch.
 
     To restore the saved context and return, pair this with :func:`INTERRUPT_RET`
     (auto-restore) or pop manually and call
     :meth:`~amrita_sense.runtime.workflow.WorkflowInterpreter.rebase_context`.
 
     Args:
-        alias_or_idata: Target alias (str, resolved at runtime) or absolute
-            address vector (list[int]) to jump to after saving context.
+        alias_or_idata: Alias (str, resolved at runtime) or absolute
+            address vector (list[int]) to save as the **return address** in the
+            context snapshot.  When the context is later restored, execution will
+            resume at this address.  If ``None``, defaults to the top of the
+            **return-address stack** (i.e. the current instruction's return
+            address).  Since :func:`INTERRUPT_RET` does **not** set the jump flag
+            when restoring, the interpreter will naturally advance to the next
+            instruction (return-address + 1) after the restore.
         exclude_deps: If True (default), dependency args/kwargs are excluded
             from the snapshot.
         exclude_stack: If True (default), the return-address stack is excluded
@@ -36,19 +49,21 @@ def PUSH_CONTEXT(
     Returns:
         A workflow node that pushes an
         :class:`~amrita_sense.runtime.types.InterpreterContext` onto the
-        context stack and then jumps to the target address.
+        context stack (without performing any jump).
     """
     addr: list[int] | None = None
 
-    @Node("__PUSH_CONTEXT__", wrap_to_async=False)
+    @Node(BuiltinTags.PUSH_CONTEXT, wrap_to_async=False)
     def call(pc: WorkflowInterpreter) -> None:
         nonlocal addr
 
-        pc.context_stack.push(
-            pc.dump_interpreter(exclude_deps=exclude_deps, exclude_stack=exclude_stack)
+        dump = pc.dump_interpreter(
+            exclude_deps=exclude_deps, exclude_stack=exclude_stack
         )
-        assert addr is not None
-        pc.jump_to(addr)
+        if addr is None:
+            addr = pc._ret_addr_stack.stack[-1].base_addr.copy()
+        dump.ptr = PointerVector(addr)
+        pc._context_stack.push(dump)
 
     def _post_compile(compose: NodeComposeRendered):
         nonlocal addr
@@ -85,7 +100,7 @@ def POP_CONTEXT() -> NodeType[InterpreterContext]:
         :class:`~amrita_sense.runtime.types.InterpreterContext`.
     """
 
-    @Node("__POP_CONTEXT__", wrap_to_async=False)
+    @Node(BuiltinTags.POP_CONTEXT, wrap_to_async=False)
     def call(pc: WorkflowInterpreter) -> InterpreterContext:
         return pc.context_stack.pop()
 
@@ -94,7 +109,7 @@ def POP_CONTEXT() -> NodeType[InterpreterContext]:
 
 def INTERRUPT_INTO(
     jump_to: str | list[int],
-    ret_to: str | list[int],
+    ret_to: str | list[int] | None = None,
     if_state: bool = False,
 ) -> NodeType[None]:
     """Create a workflow node that performs an interrupt-style jump.
@@ -106,8 +121,14 @@ def INTERRUPT_INTO(
     ``ret_to`` — not at the original pre-jump position.
 
     This mirrors real CPU interrupt semantics: the return address is
-    explicitly the instruction *after* the interrupted one, not the
-    interrupted instruction itself.
+    the instruction where execution should resume after the handler
+    returns, not the interrupted instruction itself.
+
+    Since :func:`INTERRUPT_RET` uses
+    :meth:`~amrita_sense.runtime.workflow.WorkflowInterpreter.rebase_context`
+    which does **not** set the jump flag, after restoring the context the
+    interpreter will naturally advance to the next instruction
+    (return-address + 1).
 
     Additionally sets ``pc.if_flag = if_state``. While ``if_flag`` is
     ``True``, nested ``INTERRUPT_INTO`` is forbidden (raises
@@ -115,8 +136,12 @@ def INTERRUPT_INTO(
 
     Args:
         jump_to: Alias or absolute address to jump to **now** (the handler).
-        ret_to: Alias or absolute address saved as the return destination
-            inside the context snapshot (:func:`INTERRUPT_RET` will resume here).
+        ret_to: Alias or absolute address saved as the **return address** in
+            the context snapshot.  When :func:`INTERRUPT_RET` restores the
+            context, execution resumes here (and then advances to the next
+            instruction, since no jump flag is set).  If ``None``, defaults to
+            the top of the **return-address stack** (i.e. the current
+            instruction's return address).
         if_state: Value for ``pc.if_flag`` after the jump (default ``False``).
 
     Returns:
@@ -129,7 +154,7 @@ def INTERRUPT_INTO(
     jmp_addr: list[int] | None = None
     ret_addr: list[int] | None = None
 
-    @Node("__INTERRUPT_INTO__", wrap_to_async=False)
+    @Node(BuiltinTags.INTERRUPT_INTO, wrap_to_async=False)
     def call(pc: WorkflowInterpreter) -> None:
         nonlocal jmp_addr, ret_addr
         if pc.if_flag:
@@ -138,9 +163,10 @@ def INTERRUPT_INTO(
 
         # Resolve lazily, cache once
         assert jmp_addr is not None
-        assert ret_addr is not None
+        if ret_addr is None:
+            ret_addr = pc._ret_addr_stack.stack[-1].base_addr.copy()
 
-        ctx = pc.dump_interpreter()
+        ctx: InterpreterContext = pc.dump_interpreter()
         ctx.ptr = PointerVector(ret_addr)  # override: return here after IRET
         pc.context_stack.push(ctx)
         pc.jump_to(jmp_addr)
@@ -178,7 +204,7 @@ def INTERRUPT_RET(reset_mark: bool = True) -> NodeType[None]:
         A workflow node that restores the interpreter state and clears the ``if_flag``.
     """
 
-    @Node("__INTERRUPT_RET__", wrap_to_async=False)
+    @Node(BuiltinTags.INTERRUPT_RET, wrap_to_async=False)
     def call(pc: WorkflowInterpreter) -> None:
         pc.rebase_context(pc.context_stack.pop())
         if reset_mark:

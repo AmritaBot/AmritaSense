@@ -5,6 +5,7 @@ from typing import Any
 from amrita_sense.hook.event import BaseEvent, ConstructableEvent
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.hook.matcher import MatcherFactory
+from amrita_sense.instructions.enum import BuiltinTags
 from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
@@ -24,7 +25,7 @@ class EventTrigger(BaseNode):
     def __init__(self, c_offset: int, e_offset: int):
         self._c_offset = c_offset
         self._e_offset = e_offset
-        self._init(self.__call__, "EventTrigger::__call__", False, False)
+        self._init(self.__call__, BuiltinTags.EVENT_TRIGGER_CALL, False, False)
 
     async def __call__(self, pc: WorkflowInterpreter):
         event = await pc.call_offset(self._c_offset)
@@ -41,7 +42,7 @@ class TriggerInstruction(SelfCompileInstruction):
 
     def __init__(self, event: type[ConstructableEvent]):
         self._constructor = Node(
-            event.constructor, "TriggerInstruction::constructor", False, False
+            event.constructor, BuiltinTags.TRIGGER_CONSTRUCTOR, False, False
         )
 
     def extract(self) -> NodeCompose:

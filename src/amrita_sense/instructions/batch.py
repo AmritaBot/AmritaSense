@@ -6,6 +6,7 @@ from typing import Any
 from exceptiongroup import BaseExceptionGroup
 
 from amrita_sense.hook.fun_typing import DependencyMeta
+from amrita_sense.instructions.enum import BuiltinTags
 from amrita_sense.node.core import (
     BaseNode,
     NodeCompose,
@@ -21,7 +22,7 @@ from amrita_sense.streaming import SuspendObjectStream
 
 
 def _batch_call(nodes: Iterable[BaseNode], fail_fast: bool = True) -> NodeType[None]:
-    @Node("__BATCH_CALLER__")
+    @Node(BuiltinTags.BATCH_CALLER)
     async def caller(intp: WorkflowInterpreter):
         callers = [
             intp._call(lambda _, node=node: node, no_cache=True) for node in nodes
@@ -81,7 +82,7 @@ class BatchRun(BaseNode):
         self._origin = payload
         self._io = object_io
         self._mdw = middleware
-        self._init(self.__call__, "__BATCH_RUN__", False, True)
+        self._init(self.__call__, BuiltinTags.BATCH_RUN, False, True)
         self._interpreters = []
 
     def _post_compile(self, compose: NodeComposeRendered) -> None:
