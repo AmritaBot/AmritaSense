@@ -1,4 +1,4 @@
-"""01_minimal.py — Minimal example: single node + NOP + interpreter run
+"""01_minimal.py — Minimal example: single node + interpreter run
 
 Usage:
     python demos/01_minimal.py
@@ -6,7 +6,7 @@ Usage:
 
 import asyncio
 
-from amrita_sense import NOP, Node, WorkflowInterpreter
+from amrita_sense import Node, WorkflowInterpreter
 
 
 @Node()
@@ -15,8 +15,9 @@ async def hello() -> None:
 
 
 async def main() -> None:
-    # Compose: hello followed by NOP sentinel node
-    composition = hello >> NOP
+    # A single node is composed via as_compose() — no NOP sentinel needed;
+    # the interpreter finishes when the workflow reaches its end.
+    composition = hello.as_compose()
     rendered = composition.render()
 
     interpreter = WorkflowInterpreter(rendered)

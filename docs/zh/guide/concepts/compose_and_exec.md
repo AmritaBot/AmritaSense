@@ -144,7 +144,7 @@ b = {"arg":MyOtherType()}
 @Node()
 def my_func(arg: MyType):...
 
-interpreter = WorkflowInterpreter(my_func>>NOP,extra_args=a,extra_kwargs=b)
+interpreter = WorkflowInterpreter(my_func.as_compose(),extra_args=a,extra_kwargs=b)
 
 ...
 ```
@@ -154,7 +154,6 @@ interpreter = WorkflowInterpreter(my_func>>NOP,extra_args=a,extra_kwargs=b)
 来看看第二个例子：
 
 ```python
-from amrita_sense.instructions import NOP # 导入NOP
 # 假设你现在有一个叫a的参数元组,和一个叫b的参数字典
 a = (MyOtherType(),)
 b = {"other_arg":MyType()}
@@ -162,7 +161,7 @@ b = {"other_arg":MyType()}
 @Node()
 def my_func(arg: MyType):...
 
-interpreter = WorkflowInterpreter(my_func>>NOP,extra_args=a,extra_kwargs=b)
+interpreter = WorkflowInterpreter(my_func.as_compose(),extra_args=a,extra_kwargs=b)
 
 ...
 ```

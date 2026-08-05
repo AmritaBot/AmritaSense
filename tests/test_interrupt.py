@@ -28,7 +28,8 @@ class _FakeInterpreter:
     def __init__(self, alias_map=None, ptr=None):
         self._graph = _FakeGraph(alias_map or {})
         self._pointer = PointerVector(ptr or [0])
-        self.context_stack: Stack[InterpreterContext] = Stack()
+        self._context_stack: Stack[InterpreterContext] = Stack()
+        self.context_stack = self._context_stack  # public alias for real API
         self._ret_addr_stack: Stack[PointerVector] = Stack()
         self._exc_ignored: tuple[type[BaseException], ...] = (InterruptNotice,)
         self.if_flag: bool = False
@@ -126,14 +127,17 @@ def test_interrupt_ret_returns_node():
 
 
 def test_push_context_jumps():
+    """PUSH_CONTEXT saves the resolved alias as return addr, does NOT jump."""
     pc = _FakeInterpreter({"sub": [5, 0]}, [2, 3])
     n = PUSH_CONTEXT("sub")
     n._post_compile(_FakeRendered({"sub": [5, 0]}))
     n(pc)
     assert len(pc.context_stack) == 1
-    assert pc.context_stack.stack[0].ptr.base_addr == [2, 3]
-    assert pc._pointer.base_addr == [5, 0]
-    assert pc._jump_marked
+    # pointer saved in context = resolved alias (the return address)
+    assert pc.context_stack.stack[0].ptr.base_addr == [5, 0]
+    # PUSH_CONTEXT does NOT jump — current pointer unchanged
+    assert pc._pointer.base_addr == [2, 3]
+    assert not pc._jump_marked
 
 
 def test_push_context_list_target():
@@ -141,8 +145,10 @@ def test_push_context_list_target():
     n = PUSH_CONTEXT([7, 2])
     n._post_compile(_FakeRendered({}))
     n(pc)
-    assert pc.context_stack.stack[0].ptr.base_addr == [0, 0]
-    assert pc._pointer.base_addr == [7, 2]
+    # saved ptr = list target (the return address)
+    assert pc.context_stack.stack[0].ptr.base_addr == [7, 2]
+    # PUSH_CONTEXT does NOT jump
+    assert pc._pointer.base_addr == [0, 0]
 
 
 def test_push_context_exclude_deps():
@@ -168,6 +174,7 @@ def test_push_context_exclude_stack():
 
 
 def test_push_context_multiple():
+    """Multiple PUSH_CONTEXT calls stack return addresses from resolved aliases."""
     pc = _FakeInterpreter({"s1": [1], "s2": [2]}, [0])
     n1 = PUSH_CONTEXT("s1")
     n1._post_compile(_FakeRendered({"s1": [1]}))
@@ -177,26 +184,30 @@ def test_push_context_multiple():
     n2 = PUSH_CONTEXT("s2")
     n2._post_compile(_FakeRendered({"s2": [2]}))
     n2(pc)
-    assert pc.context_stack.stack[0].ptr.base_addr == [0]
-    assert pc.context_stack.stack[1].ptr.base_addr == [1]
-    assert pc._pointer.base_addr == [2]
+    # saved ptrs = resolved aliases, not current pointer
+    assert pc.context_stack.stack[0].ptr.base_addr == [1]
+    assert pc.context_stack.stack[1].ptr.base_addr == [2]
+    # PUSH_CONTEXT does NOT jump — current pointer unchanged
+    assert pc._pointer.base_addr == [1]
 
 
 # ---- POP_CONTEXT ----
 
 
 def test_pop_context_returns():
+    """POP_CONTEXT returns the context with ptr set to the saved alias addr."""
     pc = _FakeInterpreter({"s": [99]}, [2, 8])
     n = PUSH_CONTEXT("s")
     n._post_compile(_FakeRendered({"s": [99]}))
     n(pc)
     r = POP_CONTEXT()(pc)
     assert isinstance(r, InterpreterContext)
-    assert r.ptr.base_addr == [2, 8]
+    assert r.ptr.base_addr == [99]
     assert len(pc.context_stack) == 0
 
 
 def test_pop_context_lifo():
+    """POP_CONTEXT follows LIFO order with saved alias addrs."""
     pc = _FakeInterpreter({"a": [10], "b": [20]}, [0])
     n1 = PUSH_CONTEXT("a")
     n1._post_compile(_FakeRendered({"a": [10]}))
@@ -208,8 +219,9 @@ def test_pop_context_lifo():
     n2(pc)
     c2 = POP_CONTEXT()(pc)
     c1 = POP_CONTEXT()(pc)
-    assert c2.ptr.base_addr == [10]
-    assert c1.ptr.base_addr == [0]
+    # ptr saved in context = resolved alias, not current pointer
+    assert c2.ptr.base_addr == [20]
+    assert c1.ptr.base_addr == [10]
 
 
 # ---- INTERRUPT_INTO (jump_to + ret_to) ----
@@ -312,7 +324,10 @@ async def test_push_context_e2e():
         >> ALIAS(NOP, "done")
     )
     await WorkflowInterpreter(c.render()).run()
-    assert log == ["main", "sub", "back"]
+    # PUSH_CONTEXT pushes context but does NOT jump — execution continues
+    # linearly (main → back → GOTO done).  sub_entry is only reached if an
+    # INTERRUPT_RET or explicit jump targets it.
+    assert log == ["main", "back"]
 
 
 @pytest.mark.asyncio
@@ -365,4 +380,5 @@ async def test_push_context_skips():
 
     comp = a >> PUSH_CONTEXT("skip_b") >> b >> ALIAS(c, "skip_b") >> ALIAS(NOP, "done")
     await WorkflowInterpreter(comp.render()).run()
-    assert calls == ["a", "c"]
+    # PUSH_CONTEXT pushes context but does NOT jump — b still executes.
+    assert calls == ["a", "b", "c"]

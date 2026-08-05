@@ -25,6 +25,8 @@ def under_three() -> bool:
 
 @Node()
 def body() -> None:
+    global _counter
+    _counter += 1
     print(f"  WHILE iteration {_counter}")
 
 
@@ -35,6 +37,8 @@ def cond_dowhile() -> bool:
 
 @Node()
 def do_body() -> None:
+    global _counter
+    _counter += 1
     print(f"  DO-WHILE iteration {_counter}")
     if _counter >= 3:
         raise BreakLoop

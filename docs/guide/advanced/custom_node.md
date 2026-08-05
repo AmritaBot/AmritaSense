@@ -24,11 +24,11 @@ def my_function():
 
 Each node is essentially a thin wrapper around the original function. It preserves the original function’s signature information (`fun_sign`) and execution capability (`func`), while adding AmritaSense metadata:
 
-- **`func`**: the original function object, which the interpreter calls during execution
-- **`fun_sign`**: the function signature extracted by `inspect.signature`, used by dependency injection to match parameters
-- **`tag`**: the node’s unique identifier string
-- **`wrap_to_async`**: whether synchronous functions should be wrapped to async
-- **`address_able`**: whether the node can be referenced by `ALIAS`; only `True` nodes can become `GOTO` or `CALL` targets
+- `func`: the original function object, which the interpreter calls during execution
+- `fun_sign`: the function signature extracted by `inspect.signature`, used by dependency injection to match parameters
+- `tag`: the node’s unique identifier string
+- `wrap_to_async`: whether synchronous functions should be wrapped to async
+- `address_able`: whether the node can be referenced by `ALIAS`; only `True` nodes can become `GOTO` or `CALL` targets
 
 **Everything is a node** — this is AmritaSense’s core philosophy. Conditionals, loop bodies, exception handlers, and GOTO targets are all `Node` or `BaseNode` instances. Custom nodes are no exception.
 
@@ -102,8 +102,8 @@ Node atomicity is guaranteed by the **interpreter lock** and **cooperative inter
 
 If a custom node class inherits from `BaseNode`, it can override two lifecycle hooks:
 
-- **`_post_compile(compose: NodeComposeRendered)`** — called after the workflow graph is fully compiled. `CallNode` and `JumpNode` use this hook to resolve aliases to addresses at compile time, avoiding runtime overhead.
-- **`_pre_check(pointer: WorkflowInterpreter)`** — called before each node execution. Used for runtime checks that depend on interpreter state (e.g., `BatchRun` forks child interpreters here).
+- `_post_compile(compose: NodeComposeRendered)` — called after the workflow graph is fully compiled. `CallNode` and `JumpNode` use this hook to resolve aliases to addresses at compile time, avoiding runtime overhead.
+- `_pre_check(pointer: WorkflowInterpreter)` — called before each node execution. Used for runtime checks that depend on interpreter state (e.g., `BatchRun` forks child interpreters here).
 
 ## 4.6.4 `POINTER_DEPENDS`: access to the interpreter
 

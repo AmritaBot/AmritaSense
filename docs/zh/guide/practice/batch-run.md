@@ -9,7 +9,7 @@
 
 ## 概述
 
-`FUN_BLOCK` 将**一个**子工作流放入子解释器中**串行**执行——父解释器挂起等待，然后继续。但在实际场景中，你常常需要**同时**执行多个独立的子任务：并行调用多个微服务、批量处理数据分片、或同时执行多个互不依赖的计算分支。AmritaSense v0.4.4 引入的 **`BATCH_RUN`** 指令正是为此而生。
+`FUN_BLOCK` 将**一个**子工作流放入子解释器中**串行**执行——父解释器挂起等待，然后继续。但在实际场景中，你常常需要**同时**执行多个独立的子任务：并行调用多个微服务、批量处理数据分片、或同时执行多个互不依赖的计算分支。AmritaSense v0.4.4 引入的 `BATCH_RUN` 指令正是为此而生。
 
 `BATCH_RUN` 基于解释器树的 `fork_interpreter()` 机制，为每个输入项创建一个独立的子解释器，通过 `asyncio.gather()` 并发执行，并在所有子解释器完成后统一收集结果或异常。
 
@@ -53,9 +53,9 @@ def BATCH_RUN(
 
 内部 `_post_compile` 根据输入类型分派处理：
 
-- **裸 `BaseNode`**：多个裸节点被收集到一个 `__BATCH_CALLER__` 解释器中
-- **`NodeCompose`**：每个被独立 `.render()`，各得一个子解释器
-- **`SelfCompileInstruction`**：先 `.extract()` 再 `.render()`，各得一个子解释器
+- **裸 `BaseNode`**：多个裸节点被收集到一个 `__BATCH_CALLER__` 解释器中（tag 为 `BuiltinTags.BATCH_CALLER`）
+- `NodeCompose`：每个被独立 `.render()`，各得一个子解释器
+- `SelfCompileInstruction`：先 `.extract()` 再 `.render()`，各得一个子解释器
 
 三种可混合传入，内部自动分类处理。
 

@@ -31,22 +31,23 @@ All of AmritaSense's built-in instructions are subclasses of `SelfCompileInstruc
 
 ### Conditional branching instructions
 
-- **`IFClause`**: `IF(cond, do)` → `[ConditionJumpNode, condition, do, NOP]`
-- **`ELIFClause`**: Extends `IFClause` with an ELIF chain. Each ELIF appends a `[ConditionJumpNode, condition, do]` group; the final `NOP` serves as the unified exit.
-- **`ELSEClause`**: Appends `[ELSENode, else_do, NOP]` after an IF or IF-ELIF chain.
+- `IFClause`: `IF(cond, do)` → `[ConditionJumpNode, condition, do, NOP]`
+- `ELIFClause`: Extends `IFClause` with an ELIF chain. Each ELIF appends a `[ConditionJumpNode, condition, do]` group; the final `NOP` serves as the unified exit.
+- `ELSEClause`: Appends `[ELSENode, else_do, NOP]` after an IF or IF-ELIF chain.
 
 ### Loop instructions
 
-- **`WhileClause`**: `WHILE(condition).ACTION(action)` → `[WhileNode, condition, action, CheckUpNode, NOP]`
-- **`DoWhileClause`**: `DO(do).WHILE(condition)` → `[DONode, do, DowhileNode, condition, NOP]`
+- `WhileClause`: `WHILE(condition).ACTION(action)` → `[WhileNode, condition, action, CheckUpNode, NOP]`
+- `DoWhileClause`: `DO(do).WHILE(condition)` → `[DONode, do, DowhileNode, condition, NOP]`
 
 ### Exception handling instructions
 
-- **`TryClause`**: Expands to `[TryNode, try_body, ...catch_handler_i, catch_body_i..., FinNode(optional), fin_body, NOP]`. `TryNode` manages the runtime logic of the entire exception handling chain.
+- `TryClause`: Expands to `[TryNode, try_body, ...catch_handler_i, catch_body_i..., FinNode(optional), fin_body, NOP]`. `TryNode` manages the runtime logic of the entire exception handling chain.
 
 ### Subprogram storage instructions
 
-- **`SubprogramStorage`** (the underlying implementation of `ARCHIVED_NODES`): Expands to `[SubprogramJumpNode, node_1, node_2, ..., NOP]`. Accepts arbitrary `BaseNode` instances (not limited to `ALIAS`). `SubprogramJumpNode` unconditionally skips the entire storage block during normal execution. Internal nodes can be accessed via `CALL` or `GOTO` (if tagged with `ALIAS`).
+- `SubprogramStorage` (the underlying implementation of `ARCHIVED_NODES`): Expands to `[SubprogramJumpNode, node_1, node_2, ..., NOP]`. Accepts arbitrary `BaseNode` instances (not limited to `ALIAS`). `SubprogramJumpNode` unconditionally skips the entire storage block during normal execution. Internal nodes can be accessed via `CALL` or `GOTO` (if tagged with `ALIAS`).
+- `ARCHIVED_SEGMENT`: A `NodeCompose` wrapper (`[JMP 2, Payload, NOP]`) for archiving a full node composition as a skip-over segment. It is the building block for `FN` / `INTER_FN` function blocks — see [Function Block Call](../guide/advanced/function-block-call) for the modern call patterns.
 
 ### Note: CALL is not a self-compile instruction
 

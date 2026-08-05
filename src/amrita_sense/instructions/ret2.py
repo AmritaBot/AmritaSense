@@ -1,3 +1,4 @@
+from amrita_sense.instructions.enum import BuiltinTags
 from amrita_sense.node import NodeType
 from amrita_sense.node.core import NodeComposeRendered
 from amrita_sense.node.wrapper import Node
@@ -6,18 +7,31 @@ from amrita_sense.types import PointerVector
 
 
 def RET_FAR() -> NodeType[None]:
-    """Return from the current address.
+    """Pop the return-address stack and resume execution at the saved address.
 
-    This instruction jump out the current bubble. This instruction will use the last jump address in the return address stack, which is usually used for returning from subprograms (always is node compose).
+    This instruction pops the top of the return-address stack (typically pushed
+    by :func:`PUSH_AND_GOTO` or :func:`PUSH_STACK`) and restores the
+    interpreter's pointer via :meth:`~amrita_sense.runtime.workflow.WorkflowInterpreter.rebase_ptr`.
+    The return-address stack is usually used for returning from subprograms
+    (node compositions).
+
+    .. note::
+
+       This instruction uses ``rebase_ptr`` rather than ``jump_to`` — it does
+       **not** set the jump flag.  Therefore, after the return, the interpreter
+       will naturally advance to the next instruction (return-address + 1).
+
+       Callers should push ``target - 1`` so that ``advance_pointer`` lands on
+       the actual target node.
 
     Returns:
-        NodeType[None]: A node representing the RET_FAR instruction.
+        A workflow node that pops the return-address stack and resumes execution.
     """
 
-    @Node("__RET_FAR__", wrap_to_async=False)
+    @Node(BuiltinTags.RET_FAR, wrap_to_async=False)
     def call(pc: WorkflowInterpreter) -> None:
         ptr = pc._ret_addr_stack.pop()
-        pc.jump_far_ptr(ptr.base_addr)
+        pc.rebase_ptr(ptr.base_addr)
 
     return call
 
@@ -35,7 +49,7 @@ def PUSH_STACK(alias_or_idata: str | list[int]) -> NodeType[None]:
     """
     addr: list[int] | None = None
 
-    @Node("__PUSH_STACK__", wrap_to_async=False)
+    @Node(BuiltinTags.PUSH_STACK, wrap_to_async=False)
     def call(pc: WorkflowInterpreter) -> None:
         assert addr is not None
         pc._ret_addr_stack.push(PointerVector(addr))
@@ -52,25 +66,40 @@ def PUSH_STACK(alias_or_idata: str | list[int]) -> NodeType[None]:
     return call
 
 
-def PUSH_AND_GOTO(from_adr: str | list[int], to_adr: str | list[int]) -> NodeType[None]:
-    """Push an address to the return address stack and jump to another address.
+def PUSH_AND_GOTO(
+    from_adr: str | list[int] | None, to_adr: str | list[int]
+) -> NodeType[None]:
+    """Push a return address and jump to another address.
 
-    This instruction push an address to the return address stack and jump to another address. The addresses can be aliases or idata.
+    This instruction pushes a return address onto the return-address stack and
+    then jumps to ``to_adr``.  When the target routine later executes
+    :func:`RET_FAR`, it will pop this return address and resume execution there.
 
     Args:
-        from_adr (str | list[int]): The alias or idata to push.
-        to_adr (str | list[int]): The alias or idata to jump to.
+        from_adr: The **return address** (alias or absolute address vector) to
+            push onto the return-address stack.  This is where execution should
+            resume after :func:`RET_FAR`.  If ``None``, defaults to the top of
+            the **return-address stack** (i.e. the current instruction's return
+            address).
+        to_adr: The alias or absolute address to **jump to** now.
 
     Returns:
-        NodeType[None]: A node representing the PUSH_AND_GOTO instruction.
+        A workflow node that pushes the return address and jumps.
     """
     frm_addr: list[int] | None = None
     to_addr: list[int] | None = None
 
-    @Node("__PUSH_AND_GOTO__", wrap_to_async=False)
+    @Node(BuiltinTags.PUSH_AND_GOTO, wrap_to_async=False)
     def call(pc: WorkflowInterpreter) -> None:
-        assert frm_addr is not None
+        nonlocal frm_addr, to_addr
         assert to_addr is not None
+        if frm_addr is None:
+            # None default: reuse the parent's return address when inside a
+            # call_sub, otherwise use the current pointer.
+            if pc.outer_interpreting:
+                frm_addr = pc._ret_addr_stack.stack[-1].base_addr.copy()
+            else:
+                frm_addr = pc._pointer.base_addr.copy()
         pc._ret_addr_stack.push(PointerVector(frm_addr))
         pc.jump_to(to_addr)
 

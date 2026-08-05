@@ -158,7 +158,7 @@ except BreakLoop:
 | **Pointer operations** | Multiple per iteration (enter, exit, jump) | One per iteration (the body `call_offset`) |
 | **Lock acquire**       | Per sub-step (condition, body, jump)       | Once for the entire loop                   |
 | **External interrupt** | Possible between any sub-step              | Only at body boundaries (`call_offset`)    |
-| **`BreakLoop`**        | Caught by WhileNode/DONode                 | Caught by native except                    |
+| `BreakLoop`            | Caught by WhileNode/DONode                 | Caught by native except                    |
 | **Performance**        | Baseline                                   | Lower overhead per iteration               |
 
 ### When to use

@@ -10,7 +10,7 @@ terminate() for early stop, and interpreter tree properties (parent, id).
 import asyncio
 import contextlib
 
-from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
+from amrita_sense import Node, WorkflowInterpreter
 
 ### Sub-workflow ###
 
@@ -30,7 +30,7 @@ async def sub_step2() -> None:
     print("  [sub] step 2")
 
 
-sub_comp = sub_start >> sub_step1 >> sub_step2 >> ALIAS(NOP, "done")
+sub_comp = sub_start >> sub_step1 >> sub_step2
 
 
 ### Main node ###
@@ -45,7 +45,7 @@ async def demo_parallel() -> None:
     """Fork two children and run parent + children concurrently via gather."""
     print("\n=== Demo 1: parallel execution via asyncio.gather ===")
 
-    parent = WorkflowInterpreter((main_start >> ALIAS(NOP, "done")).render())
+    parent = WorkflowInterpreter(main_start.as_compose().render())
 
     child_a = parent.fork_interpreter(compose=sub_comp.render(), middleware=None)
     child_b = parent.fork_interpreter(compose=sub_comp.render(), middleware=None)
@@ -73,7 +73,7 @@ async def demo_terminate() -> None:
     """Early termination: cancel a child before it finishes."""
     print("\n=== Demo 2: early termination ===")
 
-    parent = WorkflowInterpreter((main_start >> ALIAS(NOP, "done")).render())
+    parent = WorkflowInterpreter(main_start.as_compose().render())
     child = parent.fork_interpreter(compose=sub_comp.render(), middleware=None)
 
     child_task = asyncio.create_task(child.run())

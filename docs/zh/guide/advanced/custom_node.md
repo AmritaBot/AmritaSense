@@ -24,11 +24,11 @@ def my_function():
 
 每个节点本质上是对原始函数的一次“薄封装”。它保留了原始函数的所有签名信息（`fun_sign`）和执行能力（`func`），同时附加了 AmritaSense 所需的元数据：
 
-- **`func`**：原始函数对象。节点执行时，解释器调用的就是它
-- **`fun_sign`**：由 `inspect.signature` 提取的函数签名，依赖注入依赖它来匹配参数
-- **`tag`**：节点的唯一标识字符串
-- **`wrap_to_async`**：同步函数是否需要被 `asyncio.to_thread` 包裹
-- **`address_able`**：是否可被 `ALIAS` 引用——只有为 `True` 的节点才能成为 `GOTO` 或 `CALL` 的目标
+- `func`：原始函数对象。节点执行时，解释器调用的就是它
+- `fun_sign`：由 `inspect.signature` 提取的函数签名，依赖注入依赖它来匹配参数
+- `tag`：节点的唯一标识字符串
+- `wrap_to_async`：同步函数是否需要被 `asyncio.to_thread` 包裹
+- `address_able`：是否可被 `ALIAS` 引用——只有为 `True` 的节点才能成为 `GOTO` 或 `CALL` 的目标
 
 ### 节点创建过程
 
@@ -111,8 +111,8 @@ def quick_check():
 
 如果自定义节点类继承自 `BaseNode`，可以重写两个生命周期钩子：
 
-- **`_post_compile(compose: NodeComposeRendered)`** — 在工作流图完整编译后被调用。`CallNode` 和 `JumpNode` 借此在编译期完成别名到地址的解析，避免运行时开销。
-- **`_pre_check(pointer: WorkflowInterpreter)`** — 每次节点执行前被调用。用于依赖解释器状态的运行时检查（如 `BatchRun` 在此创建子解释器）。
+- `_post_compile(compose: NodeComposeRendered)` — 在工作流图完整编译后被调用。`CallNode` 和 `JumpNode` 借此在编译期完成别名到地址的解析，避免运行时开销。
+- `_pre_check(pointer: WorkflowInterpreter)` — 每次节点执行前被调用。用于依赖解释器状态的运行时检查（如 `BatchRun` 在此创建子解释器）。
 
 ## 4.6.4 POINTER_DEPENDS：获得对解释器的访问
 

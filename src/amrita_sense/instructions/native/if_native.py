@@ -1,4 +1,4 @@
-"""Native IF / ELIF / ELSE — jump+RET_FAR fast-path branching.
+"""Native IF / ELIF / ELSE — jump fast-path branching.
 
 Usage::
 
@@ -10,7 +10,9 @@ Usage::
 
 * ``BaseNode`` — single node, executed via ``call_offset`` (no overhead vs vanilla).
 * ``NodeCompose`` | ``SelfCompileInstruction`` — wrapped into a **bubble**
-  with automatic ``RET_FAR`` (IF/ELIF) or ``NativeBubbleEnterNode`` (ELSE).
+  (a nested container).  The bubble flows back to the merge point naturally
+  via ``advance_pointer`` — like a Python ``if``/``else`` block, there is no
+  early-return / RET_FAR mechanism (since v0.6.1).
 """
 
 from __future__ import annotations
@@ -22,7 +24,6 @@ from amrita_sense.instructions.native._core import (
     NativeIfJumpNode,
     _classify_body,
 )
-from amrita_sense.instructions.ret2 import RET_FAR
 from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
@@ -96,12 +97,12 @@ class NativeIfClause(SelfCompileInstruction):
         def _wrap_if_body(
             payload: BaseNode | NodeCompose | SelfCompileInstruction,
         ) -> tuple[BaseNode | NodeCompose, bool]:
-            """IF/ELIF body: single node OR flat NodeCompose ending with RET_FAR."""
+            """IF/ELIF body: single node OR flat NodeCompose bubble (no RET_FAR)."""
             body, is_single = _classify_body(payload)
             if is_single:
                 return body, True
             assert isinstance(body, NodeCompose)
-            return NodeCompose(*body._graph, RET_FAR()), False
+            return NodeCompose(*body._graph), False
 
         def _wrap_else(
             payload: BaseNode | NodeCompose | SelfCompileInstruction,
@@ -176,11 +177,11 @@ class NativeIfClause(SelfCompileInstruction):
             nodes.append(ec)
             nodes.append(eb)
 
-        # --- ELSE slot ---
+        ### ELSE slot ###
         if has_else and not else_is_single:
             assert isinstance(else_body, NodeCompose)
             else_pos = len(nodes)
-            nodes.append(NativeBubbleEnterNode(else_pos + 1))
+            nodes.append(NativeBubbleEnterNode(else_pos + 1, push=False))
             nodes.append(NodeCompose(*else_body._graph))
         else:
             nodes.append(else_body)

@@ -7,7 +7,6 @@ from typing_extensions import Self
 from amrita_sense._unsafe import __flags__
 from amrita_sense.exceptions import BreakLoop
 from amrita_sense.hook.fun_typing import DependencyMeta
-from amrita_sense.instructions.jump import JumpNode
 from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
@@ -124,6 +123,8 @@ class WhileClause(SelfCompileInstruction):  # WHILE >> CONDI >> DO >> CHECKUP >>
         return lambda node: (self, self._action_set(node))[0]
 
     def extract(self) -> NodeCompose:
+        from amrita_sense.instructions.jump import JumpNode
+
         if isinstance(self._action, JumpNode):
             raise RuntimeError(
                 "Please DO NOT use a GOTO node in a WHILE clause. Which will cause probably problems."

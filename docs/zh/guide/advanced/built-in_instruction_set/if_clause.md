@@ -8,10 +8,10 @@ AmritaSense 的条件分支指令完全复刻了 Python 的 `elif` 链式语法�
 
 条件分支通过以下核心类实现：
 
-- **`IFClause`**: 基础 IF 语句实现
-- **`ELIFClause`**: ELIF 分支实现
-- **`ELSEClause`**: ELSE 分支实现
-- **`ConditionJumpNode`**: 条件判断和跳转节点
+- `IFClause`: 基础 IF 语句实现
+- `ELIFClause`: ELIF 分支实现
+- `ELSEClause`: ELSE 分支实现
+- `ConditionJumpNode`: 条件判断和跳转节点
 
 ### 编译期地址计算
 

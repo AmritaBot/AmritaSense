@@ -1,6 +1,6 @@
 # Advanced Practice: Subgraph Isolation Calls
 
-AmritaSense v0.3.0 introduces the **`FUN_BLOCK`** instruction and a full **interpreter tree model**, enabling workflows to launch isolated sub-workflows with their own lifecycle, middleware, and error boundaries.
+AmritaSense v0.3.0 introduces the `FUN_BLOCK` instruction and a full **interpreter tree model**, enabling workflows to launch isolated sub-workflows with their own lifecycle, middleware, and error boundaries.
 
 ## Concept
 
@@ -51,13 +51,13 @@ FUN_BLOCK(
 
 ### Parameters
 
-- **`sub_comp`** (`NodeComposeRendered`): The compiled workflow graph to execute in isolation. Use `.render()` on any `NodeCompose` to obtain this.
-- **`middleware`** (`Callable | None | UNSET`): Controls middleware inheritance:
+- `sub_comp` (`NodeComposeRendered`): The compiled workflow graph to execute in isolation. Use `.render()` on any `NodeCompose` to obtain this.
+- `middleware` (`Callable | None | UNSET`): Controls middleware inheritance:
   - `UNSET` (default): Inherits the parent's middleware, unless `__flags__.NO_SHARED_MIDDLEWARE` is `True`.
   - `None`: No middleware for the child interpreter.
   - A callable: Custom middleware for this child only.
-- **`object_io`** (`SuspendObjectStream | None`): I/O stream for the child. Default `None` shares the parent's `SuspendObjectStream`. Since v0.3.2, `SuspendObjectStream` is concurrency-safe via the **CLCA (Cross Loop Callback-Allocate) signal design pattern**, so sharing across interpreters and even threads is safe.
-- **`one_time_interp`** (`bool`): If `True`, a new `WorkflowInterpreter` is created on every invocation and torn down after completion. If `False` (default), the interpreter is reused across invocations (its state is reset but not reconstructed).
+- `object_io` (`SuspendObjectStream | None`): I/O stream for the child. Default `None` shares the parent's `SuspendObjectStream`. Since v0.3.2, `SuspendObjectStream` is concurrency-safe via the **CLCA (Cross Loop Callback-Allocate) signal design pattern**, so sharing across interpreters and even threads is safe.
+- `one_time_interp` (`bool`): If `True`, a new `WorkflowInterpreter` is created on every invocation and torn down after completion. If `False` (default), the interpreter is reused across invocations (its state is reset but not reconstructed).
 
 ### Return Value
 
@@ -126,10 +126,10 @@ Each interpreter in the tree can have its own middleware. By default, a forked i
 
 ```python
 import asyncio
-from amrita_sense import ALIAS, NOP, Node, NodeCompose, WorkflowInterpreter
+from amrita_sense import Node, NodeCompose, WorkflowInterpreter
 from amrita_sense.instructions import FUN_BLOCK
 
-# --- Define a sub-workflow ---
+### Define a sub-workflow ###
 @Node()
 async def sub_start() -> None:
     print("  [sub] start")
@@ -138,9 +138,9 @@ async def sub_start() -> None:
 async def sub_work() -> None:
     print("  [sub] working...")
 
-sub_comp = (sub_start >> sub_work >> ALIAS(NOP, "done")).render()
+sub_comp = (sub_start >> sub_work).render()
 
-# --- Define the main workflow ---
+### Define the main workflow ###
 @Node()
 async def main_start() -> None:
     print("[main] start")
@@ -153,10 +153,9 @@ main_comp = (
     main_start
     >> FUN_BLOCK(sub_comp, one_time_interp=True)
     >> main_after
-    >> ALIAS(NOP, "done")
 )
 
-# --- Execute ---
+### Execute ###
 async def main():
     interpreter = WorkflowInterpreter(main_comp.render())
     await interpreter.run()
@@ -186,7 +185,6 @@ comp = (
         FUN_BLOCK(sub_comp),
         CATCH=(ValueError, handle_value_error)
     )
-    >> ALIAS(NOP, "done")
 )
 ```
 

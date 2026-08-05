@@ -1,13 +1,9 @@
 """Unit tests for native fast-path control-flow instructions."""
 
-import asyncio
+import pytest
 
 from amrita_sense import Node, NodeCompose, WorkflowInterpreter
 from amrita_sense.instructions.native import NATIVE_DO, NATIVE_IF, NATIVE_WHILE
-
-
-def _run(coro):
-    return asyncio.run(coro)
 
 
 @Node(wrap_to_async=False)
@@ -24,35 +20,32 @@ def ret_false() -> bool:
 
 
 class TestNativeIf:
-    def test_if_true_single(self):
+    @pytest.mark.asyncio
+    async def test_if_true_single(self):
         executed = [False]
 
         @Node(wrap_to_async=False)
         def body():
             executed[0] = True
 
-        async def _test():
-            comp = NATIVE_IF(ret_true, body).extract().render()
-            await WorkflowInterpreter(comp).run()
-            assert executed[0] is True
+        comp = NATIVE_IF(ret_true, body).extract().render()
+        await WorkflowInterpreter(comp).run()
+        assert executed[0] is True
 
-        _run(_test())
-
-    def test_if_false_single(self):
+    @pytest.mark.asyncio
+    async def test_if_false_single(self):
         executed = [False]
 
         @Node(wrap_to_async=False)
         def body():
             executed[0] = True
 
-        async def _test():
-            comp = NATIVE_IF(ret_false, body).extract().render()
-            await WorkflowInterpreter(comp).run()
-            assert executed[0] is False
+        comp = NATIVE_IF(ret_false, body).extract().render()
+        await WorkflowInterpreter(comp).run()
+        assert executed[0] is False
 
-        _run(_test())
-
-    def test_if_else_true(self):
+    @pytest.mark.asyncio
+    async def test_if_else_true(self):
         if_done, else_done = [False], [False]
 
         @Node(wrap_to_async=False)
@@ -63,15 +56,13 @@ class TestNativeIf:
         def else_body():
             else_done[0] = True
 
-        async def _test():
-            comp = NATIVE_IF(ret_true, if_body).ELSE(else_body).extract().render()
-            await WorkflowInterpreter(comp).run()
-            assert if_done[0] is True
-            assert else_done[0] is False
+        comp = NATIVE_IF(ret_true, if_body).ELSE(else_body).extract().render()
+        await WorkflowInterpreter(comp).run()
+        assert if_done[0] is True
+        assert else_done[0] is False
 
-        _run(_test())
-
-    def test_if_else_false(self):
+    @pytest.mark.asyncio
+    async def test_if_else_false(self):
         if_done, else_done = [False], [False]
 
         @Node(wrap_to_async=False)
@@ -82,15 +73,13 @@ class TestNativeIf:
         def else_body():
             else_done[0] = True
 
-        async def _test():
-            comp = NATIVE_IF(ret_false, if_body).ELSE(else_body).extract().render()
-            await WorkflowInterpreter(comp).run()
-            assert if_done[0] is False
-            assert else_done[0] is True
+        comp = NATIVE_IF(ret_false, if_body).ELSE(else_body).extract().render()
+        await WorkflowInterpreter(comp).run()
+        assert if_done[0] is False
+        assert else_done[0] is True
 
-        _run(_test())
-
-    def test_if_elif_second_true(self):
+    @pytest.mark.asyncio
+    async def test_if_elif_second_true(self):
         results = []
 
         @Node(wrap_to_async=False)
@@ -105,20 +94,18 @@ class TestNativeIf:
         def body3():
             results.append("else")
 
-        async def _test():
-            comp = (
-                NATIVE_IF(ret_false, body1)
-                .ELIF(ret_true, body2)
-                .ELSE(body3)
-                .extract()
-                .render()
-            )
-            await WorkflowInterpreter(comp).run()
-            assert results == ["elif"]
+        comp = (
+            NATIVE_IF(ret_false, body1)
+            .ELIF(ret_true, body2)
+            .ELSE(body3)
+            .extract()
+            .render()
+        )
+        await WorkflowInterpreter(comp).run()
+        assert results == ["elif"]
 
-        _run(_test())
-
-    def test_if_bubble_body(self):
+    @pytest.mark.asyncio
+    async def test_if_bubble_body(self):
         results = []
 
         @Node(wrap_to_async=False)
@@ -129,14 +116,12 @@ class TestNativeIf:
         def step_b():
             results.append("b")
 
-        async def _test():
-            comp = NATIVE_IF(ret_true, NodeCompose(step_a, step_b)).extract().render()
-            await WorkflowInterpreter(comp).run()
-            assert results == ["a", "b"]
+        comp = NATIVE_IF(ret_true, NodeCompose(step_a, step_b)).extract().render()
+        await WorkflowInterpreter(comp).run()
+        assert results == ["a", "b"]
 
-        _run(_test())
-
-    def test_if_bubble_else(self):
+    @pytest.mark.asyncio
+    async def test_if_bubble_else(self):
         results = []
 
         @Node(wrap_to_async=False)
@@ -147,19 +132,17 @@ class TestNativeIf:
         def else_a():
             results.append("else")
 
-        async def _test():
-            comp = (
-                NATIVE_IF(ret_false, NodeCompose(if_a))
-                .ELSE(NodeCompose(else_a))
-                .extract()
-                .render()
-            )
-            await WorkflowInterpreter(comp).run()
-            assert results == ["else"]
+        comp = (
+            NATIVE_IF(ret_false, NodeCompose(if_a))
+            .ELSE(NodeCompose(else_a))
+            .extract()
+            .render()
+        )
+        await WorkflowInterpreter(comp).run()
+        assert results == ["else"]
 
-        _run(_test())
-
-    def test_if_elif_bubble(self):
+    @pytest.mark.asyncio
+    async def test_if_elif_bubble(self):
         results = []
 
         @Node(wrap_to_async=False)
@@ -170,38 +153,34 @@ class TestNativeIf:
         def body2():
             results.append("elif")
 
-        async def _test():
-            comp = (
-                NATIVE_IF(ret_false, NodeCompose(body1))
-                .ELIF(ret_true, NodeCompose(body2))
-                .extract()
-                .render()
-            )
-            await WorkflowInterpreter(comp).run()
-            assert results == ["elif"]
-
-        _run(_test())
+        comp = (
+            NATIVE_IF(ret_false, NodeCompose(body1))
+            .ELIF(ret_true, NodeCompose(body2))
+            .extract()
+            .render()
+        )
+        await WorkflowInterpreter(comp).run()
+        assert results == ["elif"]
 
 
 #  NATIVE_WHILE
 
 
 class TestNativeWhile:
-    def test_while_false_skips(self):
+    @pytest.mark.asyncio
+    async def test_while_false_skips(self):
         executed = [False]
 
         @Node(wrap_to_async=False)
         def body():
             executed[0] = True
 
-        async def _test():
-            comp = NATIVE_WHILE(ret_false).ACTION(body).extract().render()
-            await WorkflowInterpreter(comp).run()
-            assert executed[0] is False
+        comp = NATIVE_WHILE(ret_false).ACTION(body).extract().render()
+        await WorkflowInterpreter(comp).run()
+        assert executed[0] is False
 
-        _run(_test())
-
-    def test_while_three_iterations(self):
+    @pytest.mark.asyncio
+    async def test_while_three_iterations(self):
         counter = [0]
 
         @Node(wrap_to_async=False)
@@ -212,14 +191,12 @@ class TestNativeWhile:
         def body():
             counter[0] += 1
 
-        async def _test():
-            comp = NATIVE_WHILE(cond).ACTION(body).extract().render()
-            await WorkflowInterpreter(comp).run()
-            assert counter[0] == 3
+        comp = NATIVE_WHILE(cond).ACTION(body).extract().render()
+        await WorkflowInterpreter(comp).run()
+        assert counter[0] == 3
 
-        _run(_test())
-
-    def test_while_bubble_body(self):
+    @pytest.mark.asyncio
+    async def test_while_bubble_body(self):
         counter = [0]
 
         @Node(wrap_to_async=False)
@@ -234,19 +211,12 @@ class TestNativeWhile:
         def step_b():
             pass
 
-        async def _test():
-            comp = (
-                NATIVE_WHILE(cond)
-                .ACTION(NodeCompose(step_a, step_b))
-                .extract()
-                .render()
-            )
-            await WorkflowInterpreter(comp).run()
-            assert counter[0] == 2
+        comp = NATIVE_WHILE(cond).ACTION(NodeCompose(step_a, step_b)).extract().render()
+        await WorkflowInterpreter(comp).run()
+        assert counter[0] == 2
 
-        _run(_test())
-
-    def test_while_continues_after(self):
+    @pytest.mark.asyncio
+    async def test_while_continues_after(self):
         results = []
         counter = [0]
 
@@ -263,33 +233,29 @@ class TestNativeWhile:
         def after():
             results.append("after")
 
-        async def _test():
-            comp = (NATIVE_WHILE(cond).ACTION(body) >> after).render()
-            await WorkflowInterpreter(comp).run()
-            assert results == ["body", "after"]
-
-        _run(_test())
+        comp = (NATIVE_WHILE(cond).ACTION(body) >> after).render()
+        await WorkflowInterpreter(comp).run()
+        assert results == ["body", "after"]
 
 
 #  NATIVE_DO
 
 
 class TestNativeDo:
-    def test_do_at_least_once(self):
+    @pytest.mark.asyncio
+    async def test_do_at_least_once(self):
         results = []
 
         @Node(wrap_to_async=False)
         def body():
             results.append("body")
 
-        async def _test():
-            comp = NATIVE_DO(body).WHILE(ret_false).extract().render()
-            await WorkflowInterpreter(comp).run()
-            assert results == ["body"]
+        comp = NATIVE_DO(body).WHILE(ret_false).extract().render()
+        await WorkflowInterpreter(comp).run()
+        assert results == ["body"]
 
-        _run(_test())
-
-    def test_do_three_iterations(self):
+    @pytest.mark.asyncio
+    async def test_do_three_iterations(self):
         counter = [0]
 
         @Node(wrap_to_async=False)
@@ -300,14 +266,12 @@ class TestNativeDo:
         def cond():
             return counter[0] < 3
 
-        async def _test():
-            comp = NATIVE_DO(body).WHILE(cond).extract().render()
-            await WorkflowInterpreter(comp).run()
-            assert counter[0] == 3
+        comp = NATIVE_DO(body).WHILE(cond).extract().render()
+        await WorkflowInterpreter(comp).run()
+        assert counter[0] == 3
 
-        _run(_test())
-
-    def test_do_bubble_body(self):
+    @pytest.mark.asyncio
+    async def test_do_bubble_body(self):
         counter = [0]
 
         @Node(wrap_to_async=False)
@@ -322,14 +286,12 @@ class TestNativeDo:
         def cond():
             return counter[0] < 2
 
-        async def _test():
-            comp = NATIVE_DO(NodeCompose(step_a, step_b)).WHILE(cond).extract().render()
-            await WorkflowInterpreter(comp).run()
-            assert counter[0] == 2
+        comp = NATIVE_DO(NodeCompose(step_a, step_b)).WHILE(cond).extract().render()
+        await WorkflowInterpreter(comp).run()
+        assert counter[0] == 2
 
-        _run(_test())
-
-    def test_do_continues_after(self):
+    @pytest.mark.asyncio
+    async def test_do_continues_after(self):
         results = []
         counter = [0]
 
@@ -346,9 +308,6 @@ class TestNativeDo:
         def after():
             results.append("after")
 
-        async def _test():
-            comp = (NATIVE_DO(body).WHILE(cond) >> after).render()
-            await WorkflowInterpreter(comp).run()
-            assert results == ["body", "body", "after"]
-
-        _run(_test())
+        comp = (NATIVE_DO(body).WHILE(cond) >> after).render()
+        await WorkflowInterpreter(comp).run()
+        assert results == ["body", "body", "after"]

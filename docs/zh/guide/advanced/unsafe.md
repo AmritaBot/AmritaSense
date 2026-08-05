@@ -25,16 +25,16 @@ from amrita_sense._unsafe import __flags__
 ```python
 # ✅ 正确：在 main.py / __main__.py 最顶部
 from amrita_sense._unsafe import __flags__
-__flags__.ALLOW_CALL_NODECOMPOSE = True
+__flags__.DISABLE_EXC_IGNORED = True
 
 # ... 后续应用程序代码
 ```
 
 ```python
 # ❌ 错误：这将抛出 RuntimeError
-__flags__.ALLOW_CALL_NODECOMPOSE = True
+__flags__.DISABLE_EXC_IGNORED = True
 # ... 稍后 ...
-__flags__.ALLOW_CALL_NODECOMPOSE = False  # RuntimeError!
+__flags__.DISABLE_EXC_IGNORED = False  # RuntimeError!
 ```
 
 ## 标志参考
@@ -59,15 +59,13 @@ DISABLE_EXC_IGNORED: bool = False
 
 **适用场景**：需要 `TRY/CATCH` 块拦截 `BreakLoop` 或 `InterruptNotice`，或者希望完全手动控制异常穿透行为。
 
-### `ALLOW_CALL_NODECOMPOSE`
+### `ALLOW_CALL_NODECOMPOSE` — 已移除（0.6.0+）
 
 ```python
-ALLOW_CALL_NODECOMPOSE: bool = False
+ALLOW_CALL_NODECOMPOSE: bool = False  # 无效果；仅为兼容性保留
 ```
 
-默认情况下，对 `NodeCompose` 调用 `_call()` 会抛出 `RuntimeError`。将此标志设为 `True` 会抑制该错误，允许直接调用 `NodeCompose`。这在某些 `SelfCompileInstruction` 需要将渲染出的 `NodeCompose` 作为整体调用时非常有用。
-
-**适用场景**：自定义 `SelfCompileInstruction` 需要调用 `NodeCompose` 而不通过 `FUN_BLOCK` 包装时。
+> **0.6.0 起已移除。** 该字段仍存在于 `_Flags` 中以保持向后兼容，但**没有任何效果**：v0.6.0 起 `_call()` 遇到 `NodeComposeRendered` 会自动进入（在**循环**中向指针追加 `0`——不使用递归，深层嵌套组合不会栈溢出），不再抛出 `RuntimeError`——这个标志原本切换的行为现在已是默认行为。请勿依赖它。
 
 ### `NO_DEPENDENCY_META_CACHE`
 
@@ -153,7 +151,6 @@ WORKFLOW_DI_PRELOAD_BATCH: int = 10
 | 标志                        | 影响的系统                                                                       |
 | --------------------------- | -------------------------------------------------------------------------------- |
 | `DISABLE_EXC_IGNORED`       | `TryNode._call()`、`MatcherFactory._resolve()`、`WorkflowInterpreter.__init__()` |
-| `ALLOW_CALL_NODECOMPOSE`    | `WorkflowInterpreter._call()`                                                    |
 | `NO_DEPENDENCY_META_CACHE`  | `WorkflowInterpreter._call()`、`MatcherFactory._prepare()`                       |
 | `FORCE_NOT_WRAP_TO_ASYNC`   | `WorkflowInterpreter._call()`                                                    |
 | `NO_SHARED_MIDDLEWARE`      | `WorkflowInterpreter.fork_interpreter()`                                         |
@@ -164,14 +161,14 @@ WORKFLOW_DI_PRELOAD_BATCH: int = 10
 
 ## 汇总
 
-| 标志                        | 默认值  | 效果                             |
-| --------------------------- | ------- | -------------------------------- |
-| `FORCE_NOT_WRAP_TO_ASYNC`   | `False` | 强制同步节点保持同步             |
-| `DISABLE_EXC_IGNORED`       | `False` | 禁用异常自动穿透                 |
-| `ALLOW_CALL_NODECOMPOSE`    | `False` | 允许直接调用 `NodeCompose`       |
-| `NO_DEPENDENCY_META_CACHE`  | `False` | 每次调用重新解析依赖元数据       |
-| `NO_SHARED_MIDDLEWARE`      | `False` | fork 时不继承父中间件            |
-| `SQUASHED_LOOP`             | `False` | 将 while/do-while 压扁为原生循环 |
-| `WORKFLOW_DI_NO_CACHE`      | `False` | 禁用 DI 结果缓存（可重复写入）   |
-| `WORKFLOW_DI_PRELOAD_CACHE` | `False` | 启动时预解析所有节点的 DI        |
-| `WORKFLOW_DI_PRELOAD_BATCH` | `10`    | DI 预加载批量大小（可重复写入）  |
+| 标志                        | 默认值  | 效果                                         |
+| --------------------------- | ------- | -------------------------------------------- |
+| `FORCE_NOT_WRAP_TO_ASYNC`   | `False` | 强制同步节点保持同步                         |
+| `DISABLE_EXC_IGNORED`       | `False` | 禁用异常自动穿透                             |
+| `ALLOW_CALL_NODECOMPOSE`    | `False` | **已移除（0.6.0+）**——无效果，仅为兼容性保留 |
+| `NO_DEPENDENCY_META_CACHE`  | `False` | 每次调用重新解析依赖元数据                   |
+| `NO_SHARED_MIDDLEWARE`      | `False` | fork 时不继承父中间件                        |
+| `SQUASHED_LOOP`             | `False` | 将 while/do-while 压扁为原生循环             |
+| `WORKFLOW_DI_NO_CACHE`      | `False` | 禁用 DI 结果缓存（可重复写入）               |
+| `WORKFLOW_DI_PRELOAD_CACHE` | `False` | 启动时预解析所有节点的 DI                    |
+| `WORKFLOW_DI_PRELOAD_BATCH` | `10`    | DI 预加载批量大小（可重复写入）              |

@@ -38,7 +38,7 @@ If interruption or suspension behavior is needed inside an event handler, **it m
 
 Event handlers **fully reuse** AmritaSense's dependency injection system. Handlers can declare arbitrary dependencies via `Depends(...)` — including `POINTER_DEPENDS` to obtain the current `WorkflowInterpreter` instance — and the runtime will automatically resolve and inject them before invocation. This means event handlers enjoy the same DI capabilities as `@Node()` functions: type safety, concurrent resolution, and termination when a `Depends` factory returns `None`.
 
-> **Relationship with Core's Event System**: AmritaSense is the runtime foundation of Core. Sense's event system serves as the underlying execution engine for Core's event system. Both share identical API design and DI contracts — Core's `@on_event()` handlers are directly dispatched by Sense's `MatcherFactory`.
+> **Relationship with Core's Event System**: AmritaSense is the runtime foundation of Core. Sense's event system serves as the underlying execution engine for Core's event system. Both share identical API design and DI contracts — Core's `@on_event().handle()` handlers are directly dispatched by Sense's `MatcherFactory`.
 
 ## Custom Event Example
 
@@ -63,7 +63,7 @@ class TaskCompletedEvent(BaseEvent[str]):
     def get_event_type(self) -> str:
         return self.event_type
 
-@on_event("task.completed")
+@on_event("task.completed").handle()
 async def handle_task_completed(
     event: TaskCompletedEvent,
     pc: WorkflowInterpreter = Depends(POINTER_DEPENDS),
@@ -137,7 +137,7 @@ class OrderPlacedEvent(ConstructableEvent[str]):
     def constructor(cls, order_id: str = "auto-generated") -> "OrderPlacedEvent":
         return cls(order_id=order_id)
 
-@on_event("order.placed")
+@on_event("order.placed").handle()
 async def notify_warehouse(event: OrderPlacedEvent):
     print(f"Warehouse notified: {event.order_id}")
 

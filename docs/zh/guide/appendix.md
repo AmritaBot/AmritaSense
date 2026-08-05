@@ -40,7 +40,7 @@ AmritaSense 提供的协作式中断机制。工作流在指定标记点主动�
 
 ### 9.1.10 Subprogram（子程序）
 
-通过 `ARCHIVED_NODES` 指令定义的、被 `SubprogramJumpNode` 跳过、仅通过 `CALL` 或外部注入访问的节点序列。子程序可以存储中断处理逻辑、调试工具或可复用的功能模块，正常执行流不受其存在的影响。
+通过 `ARCHIVED_NODES` 指令定义的、被 `SubprogramJumpNode` 跳过、仅通过 `CALL` 或外部注入访问的节点序列。子程序可以存储中断处理逻辑、调试工具或可复用的功能模块，正常执行流不受其存在的影响。若要归档完整节点组合（如函数体），改用 `ARCHIVED_SEGMENT`；`FN` / `INTER_FN` 在其上构建命名函数块（参见[函数块调用](/zh/guide/advanced/function-block-call)）。
 
 ### 9.1.11 其他核心术语
 
@@ -48,7 +48,7 @@ AmritaSense 提供的协作式中断机制。工作流在指定标记点主动�
 - **跳转标记（Jump Mark）**：`_jump_marked` 标志，为 `True` 时解释器跳过常规的指针推进步骤，下一轮从跳转目标开始
 - **异常穿透（Exception Penetration）**：通过 `exception_ignored` 标记的异常不会被任何 `CATCH` 块捕获，直达顶层处理器
 - **Call Stack（调用栈）**：`Stack[PointerVector]`，管理子程序调用的返回地址
-- **DI Cache（DI 缓存）**（v0.4.2+）：`DICache` — `WorkflowInterpreter` 内部基于 LRU 的缓存，存储已解析的依赖注入 kwargs。键为 `hash((hash(pointer), args_hash))`，避免相同节点在相同参数类型下重复解析 DI。载体为最大 2048 条的 `LRUCache`。由 unsafe 标志 `WORKFLOW_DI_NO_CACHE`、`WORKFLOW_DI_PRELOAD_CACHE` 和 `WORKFLOW_DI_PRELOAD_BATCH` 控制。
+- **DI Cache（DI 缓存）**（v0.4.2+）：`DICache` — `WorkflowInterpreter` 内部基于 LRU 的缓存，存储已解析的依赖注入 kwargs。键为 `hash((id(node.func), args_hash))`（v0.6.0 起），避免相同节点函数在相同参数类型下重复解析 DI。载体为最大 2048 条的 `LRUCache`。由 unsafe 标志 `WORKFLOW_DI_NO_CACHE`、`WORKFLOW_DI_PRELOAD_CACHE` 和 `WORKFLOW_DI_PRELOAD_BATCH` 控制。
 - **Address Calculator（地址计算器）**（v0.4.4+）：`AddressCalculator` — 通过 `NodeComposeRendered.calc` 暴露的无状态地址计算工具，提供 `advance()`、`resolve_alias()`、`find_addr()`、`find_addr_safe()` 方法。将原先散落在解释器 `_ptr_cache` 中的指针推进逻辑固化为编译图的一部分。
 - **Debugger（调试器）**（v0.5.0+）：`amrita_sense.debugger` 模块提供的一套 REPL 优先的纯函数式调试工具包。包含状态检查（`inspect`、`where`、`backtrace`、`list_nodes`、`list_sub_intp`）、步进执行（`step`、`step_over`、`step_out`、`cont`）和断点管理（`break_at_tag`、`break_at_addr`、`clear_break_*`、`list_breaks`）。通过组合式中间件（middleware）注入实现，不修改核心运行时。同步函数可直接在 REPL 中调用而无需 `await`。
 - **Breakpoint（断点）**（v0.5.0+）：标记在特定节点标签或地址上的执行暂停点。通过 `amrita_sense.debugger` 的 `break_at_tag()` 和 `break_at_addr()` 设置，支持条件表达式（`condition` 参数）。命中断点时抛出 `BreakpointHit`（继承 `BaseException` 而非 `Exception`，避免触发 panic 机制），由 `cont()` 捕获后暂停执行。

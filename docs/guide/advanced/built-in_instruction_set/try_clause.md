@@ -119,8 +119,8 @@ pc = WorkflowInterpreter(
 
 When `TryNode` encounters one of these exceptions, it re-raises it immediately, allowing it to propagate upward. This ensures:
 
-- **`InterruptNotice`** can terminate the entire workflow and is not swallowed by a local TRY.
-- **`BreakLoop`** can jump out of the innermost loop and is not intercepted by intermediate exception handlers.
+- `InterruptNotice` can terminate the entire workflow and is not swallowed by a local TRY.
+- `BreakLoop` can jump out of the innermost loop and is not intercepted by intermediate exception handlers.
 - **Critical errors** can bypass local fault tolerance and reach a global handler.
 
 > **v0.3.0+**: The `_exc_ignored` penetration behavior can be disabled by setting `__flags__.DISABLE_EXC_IGNORED = True` from `amrita_sense._unsafe`. See [Unsafe Features](../unsafe.md) for details.

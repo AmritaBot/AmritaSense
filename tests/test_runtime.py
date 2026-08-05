@@ -273,22 +273,22 @@ class TestWorkflowInterpreter:
             interpreter.jump_to([99])
 
     @pytest.mark.asyncio
-    async def test_call_raises_on_nodecompose(self):
-        from amrita_sense._unsafe import __flags__
-
-        if __flags__.ALLOW_CALL_NODECOMPOSE:
-            pytest.skip("ALLOW_CALL_NODECOMPOSE is True; test expects default False")
+    async def test_call_auto_enters_nodecompose(self):
+        """_call() should auto-enter a NodeComposeRendered (e.g. inner native loop)."""
 
         @NodeDecorator()
         def simple_node():
             return "hello"
 
+        # NodeCompose(NodeCompose(simple_node)) → rendered has
+        # NodeComposeRendered at [0] containing simple_node at [0,0]
         rendered = NodeCompose(NodeCompose(simple_node)).render()
         interpreter = WorkflowInterpreter(rendered)
         interpreter._pointer = PointerVector([0])
 
-        with pytest.raises(RuntimeError):
-            await interpreter._call()
+        # Previously raised RuntimeError; now auto-enters the nested compose.
+        result = await interpreter._call()
+        assert result == "hello"
 
     def test_advance_pointer_empty_and_invalid(self):
         @NodeDecorator()
@@ -330,9 +330,7 @@ class TestWorkflowInterpreter:
         assert not interpreter.advance_pointer()
 
 
-# ---------------------------------------------------------------------------
 # Interpreter Tree tests (v0.3.0+)
-# ---------------------------------------------------------------------------
 
 
 import asyncio  # noqa: E402

@@ -1,6 +1,6 @@
 # 高级实践：子图隔离调用
 
-AmritaSense v0.3.0 引入了 **`FUN_BLOCK`** 指令和完整的**解释器树模型**，使工作流能够启动隔离的子工作流，拥有独立的生命周期、中间件和错误边界。
+AmritaSense v0.3.0 引入了 `FUN_BLOCK` 指令和完整的**解释器树模型**，使工作流能够启动隔离的子工作流，拥有独立的生命周期、中间件和错误边界。
 
 ## 概念
 
@@ -51,13 +51,13 @@ FUN_BLOCK(
 
 ### 参数
 
-- **`sub_comp`**（`NodeComposeRendered`）：要在隔离环境中执行的已编译工作流图。对任意 `NodeCompose` 调用 `.render()` 即可获得。
-- **`middleware`**（`Callable | None | UNSET`）：控制中间件继承：
+- `sub_comp`（`NodeComposeRendered`）：要在隔离环境中执行的已编译工作流图。对任意 `NodeCompose` 调用 `.render()` 即可获得。
+- `middleware`（`Callable | None | UNSET`）：控制中间件继承：
   - `UNSET`（默认）：继承父中间件，除非 `__flags__.NO_SHARED_MIDDLEWARE` 为 `True`。
   - `None`：子解释器不使用中间件。
   - 一个可调用对象：仅该子解释器使用此自定义中间件。
-- **`object_io`**（`SuspendObjectStream | None`）：子解释器的 I/O 流。默认 `None` 会共享父解释器的 `SuspendObjectStream`。自 v0.3.2 起，`SuspendObjectStream` 通过 **CLCA（Cross Loop Callback-Allocate）信号设计模式** 实现了并发安全，因此在解释器甚至线程间共享都是安全的。
-- **`one_time_interp`**（`bool`）：若为 `True`，每次调用都创建新的 `WorkflowInterpreter`，完成后销毁。若为 `False`（默认），解释器在多次调用间复用（状态被重置但不会重建）。
+- `object_io`（`SuspendObjectStream | None`）：子解释器的 I/O 流。默认 `None` 会共享父解释器的 `SuspendObjectStream`。自 v0.3.2 起，`SuspendObjectStream` 通过 **CLCA（Cross Loop Callback-Allocate）信号设计模式** 实现了并发安全，因此在解释器甚至线程间共享都是安全的。
+- `one_time_interp`（`bool`）：若为 `True`，每次调用都创建新的 `WorkflowInterpreter`，完成后销毁。若为 `False`（默认），解释器在多次调用间复用（状态被重置但不会重建）。
 
 ### 返回值
 
@@ -126,10 +126,10 @@ interpreter.pending_stop  # 是否已被调用 terminate()
 
 ```python
 import asyncio
-from amrita_sense import ALIAS, NOP, Node, NodeCompose, WorkflowInterpreter
+from amrita_sense import Node, NodeCompose, WorkflowInterpreter
 from amrita_sense.instructions import FUN_BLOCK
 
-# --- 定义子工作流 ---
+### 定义子工作流 ###
 @Node()
 async def sub_start() -> None:
     print("  [子] 开始")
@@ -138,9 +138,9 @@ async def sub_start() -> None:
 async def sub_work() -> None:
     print("  [子] 工作中...")
 
-sub_comp = (sub_start >> sub_work >> ALIAS(NOP, "done")).render()
+sub_comp = (sub_start >> sub_work).render()
 
-# --- 定义主工作流 ---
+### 定义主工作流 ###
 @Node()
 async def main_start() -> None:
     print("[主] 开始")
@@ -153,10 +153,9 @@ main_comp = (
     main_start
     >> FUN_BLOCK(sub_comp, one_time_interp=True)
     >> main_after
-    >> ALIAS(NOP, "done")
 )
 
-# --- 执行 ---
+### 执行 ###
 async def main():
     interpreter = WorkflowInterpreter(main_comp.render())
     await interpreter.run()
@@ -186,7 +185,6 @@ comp = (
         FUN_BLOCK(sub_comp),
         CATCH=(ValueError, handle_value_error)
     )
-    >> ALIAS(NOP, "done")
 )
 ```
 

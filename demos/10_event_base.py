@@ -40,8 +40,8 @@ async def produce_event() -> str:
 
 
 @Node()
-async def finish(result: str) -> None:
-    print(f"[Finish] Workflow completed: {result}")
+async def finish() -> None:
+    print("[Finish] Workflow completed")
 
 
 async def main() -> None:

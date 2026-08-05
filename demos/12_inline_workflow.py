@@ -16,18 +16,20 @@ class SimpleWorkflow:
         self.value = value
         self.result: str | None = None
 
+        # Node functions must be parameterless — DI cannot resolve `self`.
+        # Closure nodes capture the instance instead.
+        @Node()
+        async def double() -> None:
+            self.value *= 2
+
+        @Node()
+        async def format() -> str:
+            self.result = f"Processed: {self.value}"
+            return self.result
+
         # Compose -> render -> create interpreter
-        rendered = (self.double >> self.format).render()
+        rendered = (double >> format).render()
         self.interpreter = WorkflowInterpreter(rendered)
-
-    @Node()
-    async def double(self) -> None:
-        self.value *= 2
-
-    @Node()
-    async def format(self) -> str:
-        self.result = f"Processed: {self.value}"
-        return self.result
 
     async def run(self) -> str | None:
         await self.interpreter.run()

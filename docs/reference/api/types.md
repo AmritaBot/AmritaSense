@@ -65,16 +65,16 @@ Fields:
 class DICache:
     args_hash: int
     hash_trustable: bool
-    payload: LRUCache[int, dict[str, Any]] = field(
+    payload: LRUCache[int, tuple[dict[str, Any], dict[str, Any]]] = field(
         default_factory=lambda: LRUCache(2048)
     )
 ```
 
 Fields:
 
-- `args_hash`: Integer hash of the current DI argument types, computed by `_fingerprint_args()`. Used as part of the composite cache key `hash((hash(pointer), args_hash))`.
-- `hash_trustable`: Boolean indicating whether `args_hash` is guaranteed to match the current `_ava_args` / `_ava_kwargs`. Set to `False` whenever those arguments are modified; restored by `rehash_args()`.
-- `payload`: An `LRUCache` (from `cachetools`) mapping composite cache keys to resolved keyword argument dictionaries. Maximum 2048 entries with least-recently-used eviction.
+- `args_hash`: Integer fingerprint of the current DI argument types, computed by `_fingerprint_args()`. Used as part of the cache key `hash((id(node.func), args_hash))`.
+- `hash_trustable`: A **cache-validity gate** (not a hash-correctness assertion) indicating whether `args_hash` is guaranteed to match the current `_ava_args` / `_ava_kwargs`. Set to `False` whenever those arguments are modified; restored by `rehash_args()`. While `False`, the LRU payload is neither read nor written.
+- `payload`: An `LRUCache` (from `cachetools`) mapping cache keys to a `(static_kwargs, non_cacheable_factories)` tuple. Maximum 2048 entries with least-recently-used eviction. `cacheable=True` factory results are merged into `static_kwargs`; `cacheable=False` factories are re-resolved per call.
 
 ## Event Types
 

@@ -227,6 +227,10 @@ Unlike `InterruptNotice` (which is still an exception thrown from within), `call
 - **Node execution is inside the lock**: Guarantees state consistency during execution
 - **External interrupt is mutually exclusive with the main loop**: Only one runs inside the lock at a time
 
+### `outer_interpreting` (v0.6.0+)
+
+During **any** `call_sub` execution (regardless of `interrupt`), the read-only property `outer_interpreting` is `True`; it is cleared when the call returns. `PUSH_AND_GOTO` / `INTERRUPT_INTO` consult it when `from_adr` / `ret_to` is `None`: inside a call they reuse the top of `_ret_addr_stack` (the parent's return address), otherwise they use the current pointer. This guarantees correct return semantics for sub-calls injected mid-cycle.
+
 ## 3.4.4 Interaction model for suspension (cooperative suspend points)
 
 The suspension model divides the participants into two roles.

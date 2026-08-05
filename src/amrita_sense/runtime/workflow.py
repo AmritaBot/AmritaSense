@@ -70,6 +70,7 @@ class WorkflowInterpreter(Generic[io_T]):
 
     _interpreter_id: str  # Instance id
     _interpret_lock: aiologic.Lock
+    __outer_interpreting: bool
     _panic_exc: Exception | None
 
     _if_flag: bool  # Whether in the interrupt mode
@@ -89,6 +90,7 @@ class WorkflowInterpreter(Generic[io_T]):
     __slots__ = (
         "__ava_args",
         "__ava_kwargs",
+        "__outer_interpreting",
         "_context_stack",
         "_di_cache",
         "_exc_ignored",
@@ -144,6 +146,7 @@ class WorkflowInterpreter(Generic[io_T]):
         self._graph = node_compose
         self._pointer = PointerVector()
         self._panic_exc = None
+        self.__outer_interpreting = False
         # DI
         self.__ava_args = (self, *extra_args)
         extra_kwargs = extra_kwargs or {}
@@ -251,19 +254,30 @@ class WorkflowInterpreter(Generic[io_T]):
 
     @property
     def args_hash_trustable(self) -> bool:
-        """Get whether the args hash is trustable.
+        """Whether cached DI entries are still valid under the current args.
 
-        Returns:
-            Whether the args hash is trustable.
+        This is a *cache-validity* gate, not a hash-correctness assertion.
+        Any write to ``_ava_args`` / ``_ava_kwargs`` sets this to ``False``
+        (the cached hash may be stale).  Call ``rehash_args()`` to recalculate
+        the hash and restore trust.
         """
         return self._di_cache.hash_trustable
 
     @property
     def args_hash(self) -> int:
-        """Get the args hash."""
+        """Fingerprint of the current args type-signature (see ``_fingerprint_args``)."""
         return self._di_cache.args_hash
 
     def rehash_args(self) -> None:
+        """Recalculate the args hash and mark the DI cache as trusted again.
+
+        Lifecycle:
+        1. Any setter of ``_ava_args`` / ``_ava_kwargs`` sets ``hash_trustable=False``.
+        2. ``run_step_by`` (and other entry points) call this method after
+           resolving any ``DependsFactory`` instances in the session args.
+        3. If the type-signature actually changed, clear the LRU payload
+           so stale entries are not served.
+        """
         pev = self._di_cache.args_hash
         self._di_cache.args_hash = _fingerprint_args(self.__ava_args, self.__ava_kwargs)
         self._di_cache.hash_trustable = True
@@ -278,6 +292,8 @@ class WorkflowInterpreter(Generic[io_T]):
     def _ava_kwargs(self) -> dict:
         return self.__ava_kwargs
 
+    # hash_trustable=False means "the cached args_hash may not match
+    # the current __ava_args/__ava_kwargs".  rehash_args() restores it.
     @_ava_args.setter
     def _ava_args(self, value: tuple) -> None:
         self._di_cache.hash_trustable = False
@@ -615,6 +631,7 @@ class WorkflowInterpreter(Generic[io_T]):
                     "Subroutine call detected, but lock is not acquired by current coroutine and caller is not in interrupt mode."
                     " Set `interrupt` to True to use outer interrupt mode."
                 )
+            self.__outer_interpreting = True
             async with self._interpret_lock if interrupt else NULL_CTX:
                 return await (
                     self._middleware(self)
@@ -624,13 +641,18 @@ class WorkflowInterpreter(Generic[io_T]):
                     )
                 )
         finally:
+            self.__outer_interpreting = False
             ptr = self._ret_addr_stack.pop()
             if not self._jump_marked:
-                self._pointer = ptr
+                self.rebase_ptr(ptr)
 
     @property
     def pending_stop(self) -> bool:
         return self._pending_stop
+
+    @property
+    def outer_interpreting(self) -> bool:
+        return self.__outer_interpreting
 
     async def terminate(self, eol: bool = True):
         """Mark interpreter as terminated, wait for it to finish.
@@ -863,21 +885,24 @@ class WorkflowInterpreter(Generic[io_T]):
         return text.getvalue()
 
     async def _refresh_di_cache_full(self):
-        """Fully refresh DI cache of nodes.
+        """Pre-warm the DI cache by resolving every node in the graph.
 
-        !!!WARNINGS!!!: This method should only be used in initializing phase, because it's costy.
+        Only safe during initialization (after ``rehash_args()`` has been
+        called).  Requires ``hash_trustable=True`` — otherwise the cache
+        keys would be built from a stale ``args_hash``.
         """
         if not self._di_cache.hash_trustable:
             raise DependsResolveFailed(
-                "Args hash is not trustable! Please use `rehash_args()` to rehash args."
+                "Args hash is not trustable! Call `rehash_args()` first."
             )
 
-        async def _worker(node: BaseNode, ptr_hash: int):
+        async def _worker(node: BaseNode, cache_key: int):
             if self._di_cache.payload.currsize >= self._di_cache.payload.maxsize:
                 return
-            kw = await self._rslv_node(node, self.__ava_args, self.__ava_kwargs)
-
-            self._di_cache.payload[ptr_hash] = kw
+            result = await self._rslv_node_static(
+                node, self.__ava_args, self.__ava_kwargs
+            )
+            self._di_cache.payload[cache_key] = result
 
         ptr = PointerVector([0])
         logger.debug(f"Preloading DI cache for {self.id}")
@@ -888,7 +913,12 @@ class WorkflowInterpreter(Generic[io_T]):
                     break
                 node = self.get_graph().calc.find_addr(ptr.base_addr)
                 assert isinstance(node, BaseNode)
-                coro.append(_worker(node, hash((hash(ptr), self._di_cache.args_hash))))
+                coro.append(
+                    _worker(
+                        node,
+                        hash((id(node.func), self._di_cache.args_hash)),
+                    )
+                )
                 if len(coro) > __flags__.WORKFLOW_DI_PRELOAD_BATCH:
                     await asyncio.gather(*coro)
                     await asyncio.sleep(0)
@@ -1084,6 +1114,54 @@ class WorkflowInterpreter(Generic[io_T]):
             )
         return kw_rsved
 
+    async def _rslv_node_static(
+        self, node: BaseNode, ava_args: tuple, ava_kwargs: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Resolve static dependencies and cacheable factories for a node.
+
+        Returns a ``(static_kwargs, non_cacheable_factories)`` tuple.
+
+        *   ``cacheable=True`` factories are resolved immediately — their
+            results are merged into ``static_kwargs`` and **will be cached**.
+        *   ``cacheable=False`` (default) factories are returned as-is in the
+            second dict for **per-call** resolution.
+        """
+        fun = node.func
+        fail, static_kwargs, all_factories = MatcherFactory._resolve_dependencies(
+            node.fun_sign
+            if not __flags__.NO_DEPENDENCY_META_CACHE
+            else sign_func(node.func),
+            ava_args,
+            ava_kwargs,
+        )
+        if fail is not None:
+            raise DependsResolveFailed(
+                f"Function {fun.__name__} in {node.tag} could not be resolved due to reason `{fail.value}`"
+            )
+        cacheable: dict[str, DependsFactory] = {}
+        non_cacheable: dict[str, DependsFactory] = {}
+        for name, factory in all_factories.items():
+            if factory.cacheable:
+                cacheable[name] = factory
+            else:
+                non_cacheable[name] = factory
+        if cacheable:
+            if not await MatcherFactory._do_runtime_resolve(
+                runtime_args={},
+                runtime_kwargs=cacheable,
+                args2update=[],
+                kwargs2update=static_kwargs,
+                session_args=list(ava_args),
+                session_kwargs=ava_kwargs,
+                exception_ignored=self._exc_ignored,
+            ):
+                raise DependsInjectFailed(
+                    "Runtime resolve failed for cacheable factories: {}".format(
+                        ", ".join(cacheable.keys())
+                    )
+                )
+        return static_kwargs, non_cacheable
+
     async def _call(
         self,
         addr_getter: Callable[[list[int]], BaseNode | NodeComposeRendered]
@@ -1094,12 +1172,22 @@ class WorkflowInterpreter(Generic[io_T]):
     ) -> Any:
         """Execute a single node at the current pointer position.
 
-        This internal method handles the complete execution cycle for a node,
-        including dependency resolution, pre-checks, and actual function execution.
+        Dependency resolution has **two orthogonal concerns**:
+
+        1. **cacheable vs non-cacheable** — handled by ``_rslv_node_static``.
+           ``cacheable=True`` factories are resolved at cache-write time and
+           merged into ``static_kwargs``.  ``cacheable=False`` factories are
+           stored as-is and re-resolved on every call.
+
+        2. **cache validity** — controlled by ``hash_trustable`` / ``no_cache`` /
+           ``WORKFLOW_DI_NO_CACHE``.  When the cache is not trusted, we still
+           split cacheable/non-cacheable factories, but skip the LRU read/write.
 
         Args:
             addr_getter: Optional function to retrieve the node at a specific address.
             *extra_args: Additional positional arguments for the node execution.
+            no_cache: If True, skip the LRU cache for this call (still respects
+                      ``cacheable`` flags via ``_rslv_node_static``).
             **extra_kwargs: Additional keyword arguments for the node execution.
 
         Returns:
@@ -1108,16 +1196,14 @@ class WorkflowInterpreter(Generic[io_T]):
         Raises:
             DependsResolveFailed: If node dependencies cannot be resolved.
             DependsInjectFailed: If dependency injection fails at runtime.
-            RuntimeError: If attempting to call a NodeCompose directly.
         """
         addr_getter = addr_getter or self.get_graph().calc.find_addr
         node: BaseNode | NodeComposeRendered = addr_getter(self._pointer.base_addr)
-        if isinstance(node, NodeComposeRendered):
-            if __flags__.ALLOW_CALL_NODECOMPOSE:
+        while isinstance(node, NodeComposeRendered):
+            if not node:
                 return
-            raise RuntimeError(
-                f"Cannot call a NodeCompose in addr {self._pointer.base_addr}."
-            )
+            self._pointer.append(0)
+            node = addr_getter(self._pointer.base_addr)
         await self.object_io._wait_for_continue(node.tag)
 
         ava_args = self.__ava_args
@@ -1134,27 +1220,54 @@ class WorkflowInterpreter(Generic[io_T]):
             ava_kwargs.update(extra_kwargs)
         else:
             ava_kwargs = self.__ava_kwargs
-        if extra_args or extra_kwargs:  # should rebuild hash:
-            code = _fingerprint_args(ava_args, ava_kwargs)
-        else:
-            code = self._di_cache.args_hash
 
         fun = node.func
         if not isabstractmethod(node._pre_check):
             node._pre_check(self)
         if (
-            (__flags__.WORKFLOW_DI_NO_CACHE or no_cache)
+            __flags__.WORKFLOW_DI_NO_CACHE
+            or no_cache
             or not self._di_cache.hash_trustable
-            or (
-                kw_rsved := self._di_cache.payload.get(
-                    hash((hash(self._pointer), code))
-                )
-            )
-            is None
         ):
-            kw_rsved = await self._rslv_node(node, ava_args, ava_kwargs)
-            if not __flags__.WORKFLOW_DI_NO_CACHE and not no_cache:
-                self._di_cache.payload[hash((hash(self._pointer), code))] = kw_rsved
+            # Cache not trusted: resolve but don't touch LRU.
+            static_kwargs, factories = await self._rslv_node_static(
+                node, ava_args, ava_kwargs
+            )
+        else:
+            # Cache is trusted
+            if extra_args or extra_kwargs:
+                code = _fingerprint_args(ava_args, ava_kwargs)
+            else:
+                code = self._di_cache.args_hash
+            cache_key = hash((id(fun), code))
+            cached = self._di_cache.payload.get(cache_key)
+            if cached is not None:
+                static_kwargs, factories = cached
+            else:
+                static_kwargs, factories = await self._rslv_node_static(
+                    node, ava_args, ava_kwargs
+                )
+                self._di_cache.payload[cache_key] = (static_kwargs, factories)
+
+        #  Per-call resolution of non-cacheable factories
+        if factories:
+            kw_rsved = static_kwargs.copy()
+            if not await MatcherFactory._do_runtime_resolve(
+                runtime_args={},
+                runtime_kwargs=factories,
+                args2update=[],
+                kwargs2update=kw_rsved,
+                session_args=list(ava_args),
+                session_kwargs=ava_kwargs,
+                exception_ignored=self._exc_ignored,
+            ):
+                raise DependsInjectFailed(
+                    "Runtime resolve failed for kwargs: {}".format(
+                        ", ".join(factories.keys())
+                    )
+                )
+        else:
+            kw_rsved = static_kwargs
         if iscoroutinefunction(fun):
             return await fun(**kw_rsved)
         elif node.wrap_to_async and not __flags__.FORCE_NOT_WRAP_TO_ASYNC:

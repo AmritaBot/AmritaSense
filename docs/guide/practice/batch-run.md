@@ -9,7 +9,7 @@ Before reading this article, make sure you understand:
 
 ## Overview
 
-`FUN_BLOCK` places **one** sub-workflow into a child interpreter for **sequential** execution — the parent suspends and waits, then continues. But in real-world scenarios you often need to execute **multiple** independent sub-tasks **simultaneously**: calling several microservices in parallel, batch-processing data shards, or running independent computation branches. AmritaSense v0.4.4 introduces **`BATCH_RUN`** for exactly this purpose.
+`FUN_BLOCK` places **one** sub-workflow into a child interpreter for **sequential** execution — the parent suspends and waits, then continues. But in real-world scenarios you often need to execute **multiple** independent sub-tasks **simultaneously**: calling several microservices in parallel, batch-processing data shards, or running independent computation branches. AmritaSense v0.4.4 introduces `BATCH_RUN` for exactly this purpose.
 
 `BATCH_RUN` leverages the interpreter tree's `fork_interpreter()` mechanism to create an independent child interpreter for each input, executes them concurrently via `asyncio.gather()`, and collects results or exceptions afterward.
 
@@ -53,9 +53,9 @@ Returns a `BatchRun` node, placed directly in the `>>` chain.
 
 Internally, `_post_compile` dispatches based on input type:
 
-- **Bare `BaseNode`**: Multiple bare nodes are bundled into a single `__BATCH_CALLER__` interpreter.
-- **`NodeCompose`**: Each is independently `.render()`ed → one child interpreter each.
-- **`SelfCompileInstruction`**: Each is `.extract().render()`ed → one child interpreter each.
+- **Bare `BaseNode`**: Multiple bare nodes are bundled into a single `__BATCH_CALLER__` interpreter (tagged `BuiltinTags.BATCH_CALLER`).
+- `NodeCompose`: Each is independently `.render()`ed → one child interpreter each.
+- `SelfCompileInstruction`: Each is `.extract().render()`ed → one child interpreter each.
 
 All three can be mixed freely; internal logic classifies automatically.
 

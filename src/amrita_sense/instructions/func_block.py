@@ -7,7 +7,11 @@ from typing_extensions import override
 
 from amrita_sense.exceptions import IllegalState
 from amrita_sense.hook.fun_typing import DependencyMeta
-from amrita_sense.node.core import BaseNode, NodeComposeRendered
+from amrita_sense.instructions.alias import ALIAS
+from amrita_sense.instructions.workfl_ctrl import NOP
+from amrita_sense.node.core import BaseNode, NodeCompose, NodeComposeRendered
+from amrita_sense.node.self_compile import SelfCompileInstruction
+from amrita_sense.node.wrapper import Node
 from amrita_sense.runtime.workflow import UNSET, WorkflowInterpreter
 from amrita_sense.streaming import SuspendObjectStream
 
@@ -99,3 +103,67 @@ def FUN_BLOCK(
         object_io=object_io,
         one_time_interp=one_time_interp,
     )
+
+
+@Node(wrap_to_async=False, address_able=False)
+def _fn_escape(pc: WorkflowInterpreter):
+    pc.rebase_ptr(pc._pointer.copy().offset(3))
+
+
+def INTER_FN(
+    entrypoint: str,
+    block: BaseNode | NodeCompose | SelfCompileInstruction,
+) -> NodeCompose:
+    """Define an **interrupt service routine** (Sense interrupt handler).
+
+    Appends :func:`~amrita_sense.instructions.interrupt.INTERRUPT_RET` to
+    ``block`` so the routine auto-restores the interpreter context when it
+    finishes.  Use this together with
+    :func:`~amrita_sense.instructions.interrupt.INTERRUPT_INTO` (the
+    interrupt dispatcher) and :func:`ARCHIVED_SEGMENT` (to hide the routine
+    from normal execution flow).
+
+    Args:
+        entrypoint: Alias used to enter the routine.
+        block: The body of the interrupt routine (a single node, nodes or
+            self-compiling instruction).
+
+    Returns:
+        A :class:`NodeCompose` representing the complete interrupt routine
+        (body + :func:`INTERRUPT_RET`).
+    """
+    from amrita_sense.instructions.interrupt import INTERRUPT_RET
+
+    if isinstance(block, SelfCompileInstruction):
+        block = block.extract()
+    return _fn_escape >> ALIAS(NOP, entrypoint) >> block >> INTERRUPT_RET()
+
+
+def FN(
+    entrypoint: str,
+    block: BaseNode | NodeCompose | SelfCompileInstruction,
+) -> NodeCompose:
+    """Define a **regular function block** (Sense subroutine).
+
+    Appends :func:`~amrita_sense.instructions.ret2.RET_FAR` to ``block`` so
+    the function returns via the return-address stack when it finishes.  Use
+    this together with
+    :func:`~amrita_sense.instructions.ret2.PUSH_AND_GOTO` (the caller) and
+    :func:`ARCHIVED_SEGMENT` (to hide the function body from normal
+    execution flow).
+
+    Args:
+        entrypoint: Alias used to enter the function.
+        block: The body of the function (a single node, nodes or
+            self-compiling instruction).
+
+    Returns:
+        A :class:`NodeCompose` representing the complete function (body +
+        :func:`RET_FAR`).
+    """
+    from amrita_sense.instructions.ret2 import RET_FAR
+
+    if isinstance(block, SelfCompileInstruction):
+        block = block.extract()
+
+    return _fn_escape >> ALIAS(NOP, entrypoint) >> block >> RET_FAR()

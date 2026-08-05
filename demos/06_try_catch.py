@@ -6,7 +6,7 @@ Usage:
 
 import asyncio
 
-from amrita_sense import NOP, Node, Try, WorkflowInterpreter
+from amrita_sense import Node, Try, WorkflowInterpreter
 
 
 @Node()
@@ -36,9 +36,8 @@ async def cleanup() -> None:
 async def example_1() -> None:
     """Exception caught by CATCH"""
     print("=== Example 1: ValueError -> caught by CATCH ===")
-    comp = Try(may_fail).CATCH(ValueError, handle_error) >> NOP
-    rendered = comp.render()
-    await WorkflowInterpreter(rendered).run()
+    # TryClause is a SelfCompileInstruction — pass it straight to the interpreter.
+    await WorkflowInterpreter(Try(may_fail).CATCH(ValueError, handle_error)).run()
 
 
 async def example_2() -> None:
@@ -51,10 +50,8 @@ async def example_2() -> None:
 
     comp = (
         Try(always_ok).THEN(on_success).CATCH(ValueError, handle_error).FINALLY(cleanup)
-        >> NOP
     )
-    rendered = comp.render()
-    await WorkflowInterpreter(rendered).run()
+    await WorkflowInterpreter(comp).run()
 
 
 async def main() -> None:

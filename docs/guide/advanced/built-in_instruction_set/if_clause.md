@@ -8,10 +8,10 @@ AmritaSense’s conditional branch instructions fully replicate Python’s `elif
 
 Conditional branching is implemented through these core classes:
 
-- **`IFClause`**: base IF statement implementation
-- **`ELIFClause`**: ELIF branch implementation
-- **`ELSEClause`**: ELSE branch implementation
-- **`ConditionJumpNode`**: conditional evaluation and jump node
+- `IFClause`: base IF statement implementation
+- `ELIFClause`: ELIF branch implementation
+- `ELSEClause`: ELSE branch implementation
+- `ConditionJumpNode`: conditional evaluation and jump node
 
 ### Compile-time address calculation
 

@@ -10,9 +10,8 @@ from amrita_sense.node.wrapper import Node
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 from amrita_sense.types import PointerVector, Stack
 
-# ---------------------------------------------------------------------------
 # Fake rendered object for post_compile hooks (mirrors interrupt test pattern)
-# ---------------------------------------------------------------------------
+
 
 if not TYPE_CHECKING:
 
@@ -36,9 +35,7 @@ else:
         def __init__(*args, **kwargs): ...
 
 
-# ---------------------------------------------------------------------------
 # Fake interpreter (minimal — no alias resolution needed at runtime)
-# ---------------------------------------------------------------------------
 
 
 class _FakeInterpreter:
@@ -57,10 +54,13 @@ class _FakeInterpreter:
     def jump_far_ptr(self, addr: list[int]) -> None:
         self._pointer.far_to(addr)
 
+    def rebase_ptr(self, ptr: list[int] | PointerVector) -> None:
+        self._pointer.base_addr = (
+            list(ptr) if isinstance(ptr, list) else ptr.base_addr.copy()
+        )
 
-# ---------------------------------------------------------------------------
+
 # Unit tests — return values and types
-# ---------------------------------------------------------------------------
 
 
 def test_ret_far_returns_node():
@@ -81,9 +81,7 @@ def test_push_and_goto_returns_node():
     assert node.wrap_to_async is False
 
 
-# ---------------------------------------------------------------------------
 # Unit tests — PUSH_STACK logic
-# ---------------------------------------------------------------------------
 
 
 def test_push_stack_with_alias_pushes_resolved_address():
@@ -117,9 +115,7 @@ def test_push_stack_multiple():
     assert pc._ret_addr_stack.stack[1].base_addr == [2]
 
 
-# ---------------------------------------------------------------------------
 # Unit tests — RET_FAR logic
-# ---------------------------------------------------------------------------
 
 
 def test_ret_far_pops_and_jumps():
@@ -142,9 +138,7 @@ def test_ret_far_lifo_order():
     assert len(pc._ret_addr_stack) == 0
 
 
-# ---------------------------------------------------------------------------
 # Unit tests — PUSH_AND_GOTO logic
-# ---------------------------------------------------------------------------
 
 
 def test_push_and_goto_alias_alias():
@@ -184,34 +178,41 @@ def test_push_and_goto_list_list():
     assert pc._pointer.base_addr == [4]
 
 
-# ---------------------------------------------------------------------------
 # Integration tests — real WorkflowInterpreter
-# ---------------------------------------------------------------------------
+
 
 from amrita_sense import ALIAS, NOP  # noqa: E402
 
 
 @pytest.mark.asyncio
 async def test_push_stack_goto_ret_far_roundtrip():
-    """PUSH_STACK + GOTO + RET_FAR pattern with real interpreter."""
+    """PUSH_STACK + GOTO + RET_FAR pattern with real interpreter.
+
+    Since v0.6.0, RET_FAR uses rebase_ptr (no jump flag) and the interpreter
+    advances onto the node AFTER the saved address — so the caller must push
+    the predecessor of the real resume point (the "resume" NOP).
+    """
     from amrita_sense.instructions.jump import GOTO
+
+    executed: list[str] = []
 
     @Node()
     async def start() -> None:
-        pass
+        executed.append("start")
 
     @Node()
     async def work() -> None:
-        pass
+        executed.append("work")
 
     @Node()
     async def returned() -> None:
-        pass
+        executed.append("returned")
 
     comp = (
         start
-        >> PUSH_STACK("after")
+        >> PUSH_STACK("resume")  # push the NOP right before `returned`
         >> GOTO("work")
+        >> ALIAS(NOP, "resume")  # RET_FAR rebases here -> advance lands on returned
         >> ALIAS(returned, "after")
         >> GOTO("end")
         >> ALIAS(work, "work")
@@ -220,30 +221,34 @@ async def test_push_stack_goto_ret_far_roundtrip():
     )
     interpreter = WorkflowInterpreter(comp.render())
     await interpreter.run()
-    # If we reach here without error, the roundtrip succeeded
+    assert executed == ["start", "work", "returned"]
 
 
 @pytest.mark.asyncio
 async def test_push_and_goto_equivalent_to_push_stack_plus_goto():
-    """PUSH_AND_GOTO should behave identically to PUSH_STACK + GOTO."""
+    """PUSH_AND_GOTO(None, ...) should behave identically to PUSH_STACK + GOTO."""
     from amrita_sense.instructions.jump import GOTO
+
+    executed: list[str] = []
 
     @Node()
     async def start() -> None:
-        pass
+        executed.append("start")
 
     @Node()
     async def work() -> None:
-        pass
+        executed.append("work")
 
     @Node()
     async def returned() -> None:
-        pass
+        executed.append("returned")
 
     comp = (
         start
-        >> PUSH_AND_GOTO("after", "work")
-        >> ALIAS(returned, "after")
+        >> PUSH_AND_GOTO(None, "work")  # None in main flow = current pointer
+        >> ALIAS(
+            returned, "after"
+        )  # RET_FAR rebases to PUSH_AND_GOTO -> advance lands here
         >> GOTO("end")
         >> ALIAS(work, "work")
         >> RET_FAR()
@@ -251,3 +256,4 @@ async def test_push_and_goto_equivalent_to_push_stack_plus_goto():
     )
     interpreter = WorkflowInterpreter(comp.render())
     await interpreter.run()
+    assert executed == ["start", "work", "returned"]

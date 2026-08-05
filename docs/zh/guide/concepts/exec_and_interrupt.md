@@ -238,6 +238,10 @@ flowchart TB
 - **节点执行在锁之内**：确保节点执行期间状态一致性
 - **外中断与主循环互斥**：同一时刻只有一个在锁内运行，保证状态安全
 
+### `outer_interpreting`（v0.6.0+）
+
+**任何** `call_sub` 执行期间（无论 `interrupt` 取值），只读属性 `outer_interpreting` 为 `True`；调用返回时清除。`PUSH_AND_GOTO` / `INTERRUPT_INTO` 在 `from_adr` / `ret_to` 为 `None` 时据此选择默认返回地址：调用期间复用 `_ret_addr_stack` 栈顶（父级的返回地址），否则使用当前指针。这保证了周期中途注入的子调用返回语义正确。
+
 ## 3.4.4 挂起操作的交互模型（协作式挂起点）
 
 与上述中断（终止性）不同，挂起是**可恢复的**。底层能力全部由 `SuspendObjectStream` 基类提供。

@@ -46,7 +46,7 @@ def _interrupt_keep_ctx() -> NoReturn:
 
 
 NOP: _Node[None] = _no_operation
-"""Constant representing a no-operation node instance."""
+"""Constant representing a no-operation node instance. Usually used as a sentinel in control flow constructs."""
 
 INTERRUPT: _Node[NoReturn] = _interrput_operation
 """Constant representing an interrupt node instance."""

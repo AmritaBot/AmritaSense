@@ -119,8 +119,8 @@ pc = WorkflowInterpreter(
 
 当 `TryNode` 捕获到这些异常时，会直接 `raise`，让异常穿透当前层级，继续向上传播。这种机制确保了：
 
-- **`InterruptNotice`** 始终能终止整个工作流，不被某个 TRY 块误吞
-- **`BreakLoop`** 始终能跳出最内层循环，不被中间的异常处理拦截
+- `InterruptNotice` 始终能终止整个工作流，不被某个 TRY 块误吞
+- `BreakLoop` 始终能跳出最内层循环，不被中间的异常处理拦截
 - **关键业务异常** 可以绕过局部容错逻辑，直达顶层全局处理器
 
 > **v0.3.0+**：`_exc_ignored` 的穿透行为可通过 `amrita_sense._unsafe` 中的 `__flags__.DISABLE_EXC_IGNORED = True` 禁用。详见 [Unsafe 特性](../unsafe.md)。
