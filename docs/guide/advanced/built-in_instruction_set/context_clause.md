@@ -37,22 +37,22 @@ This is the low-level primitive — unlike `INTERRUPT_INTO`, it does **not** set
 
 ### Parameters
 
-| Parameter        | Type                          | Default | Description                                                                   |
-| ---------------- | ----------------------------- | ------- | ----------------------------------------------------------------------------- |
-| `alias_or_idata` | `str \| list[int] \| None`   | `None`  | Alias or address saved as the **return address** in the snapshot. `None` = top of `_ret_addr_stack` |
-| `exclude_deps`   | `bool`                        | `True`  | If `True`, dependency args/kwargs are excluded from the snapshot              |
-| `exclude_stack`  | `bool`                        | `True`  | If `True`, the return-address stack is excluded from the snapshot             |
+| Parameter        | Type                       | Default | Description                                                                                         |
+| ---------------- | -------------------------- | ------- | --------------------------------------------------------------------------------------------------- |
+| `alias_or_idata` | `str \| list[int] \| None` | `None`  | Alias or address saved as the **return address** in the snapshot. `None` = top of `_ret_addr_stack` |
+| `exclude_deps`   | `bool`                     | `True`  | If `True`, dependency args/kwargs are excluded from the snapshot                                    |
+| `exclude_stack`  | `bool`                     | `True`  | If `True`, the return-address stack is excluded from the snapshot                                   |
 
 ### What is saved
 
-| Field                 | Condition                              |
-| --------------------- | -------------------------------------- |
-| `ptr` (PointerVector) | Always (the resolved return address)   |
-| `exception_ignored`   | Always                                 |
-| `s_args` / `s_kwargs` | Only when `exclude_deps=False`         |
-| `stack` (ret-addr)    | Only when `exclude_stack=False`        |
-| `extra`               | Always (empty dict)                    |
-| `exception`           | Always (panic exception or `None`)     |
+| Field                 | Condition                            |
+| --------------------- | ------------------------------------ |
+| `ptr` (PointerVector) | Always (the resolved return address) |
+| `exception_ignored`   | Always                               |
+| `s_args` / `s_kwargs` | Only when `exclude_deps=False`       |
+| `stack` (ret-addr)    | Only when `exclude_stack=False`      |
+| `extra`               | Always (empty dict)                  |
+| `exception`           | Always (panic exception or `None`)   |
 
 ### Execution flow
 
@@ -98,11 +98,11 @@ This mirrors real CPU interrupt semantics: the return address is the instruction
 
 ### Parameters
 
-| Parameter  | Type                          | Default | Description                                                                                          |
-| ---------- | ----------------------------- | ------- | ---------------------------------------------------------------------------------------------------- |
-| `jump_to`  | `str \| list[int]`           | —       | Target alias or address to jump to **now** (the handler)                                             |
-| `ret_to`   | `str \| list[int] \| None`   | `None`  | Alias or address saved as the return destination. `None` = top of `_ret_addr_stack` inside a `call_sub`, else the current pointer |
-| `if_state` | `bool`                        | `False` | Value to set for the interpreter's `if_flag` after the jump                                           |
+| Parameter  | Type                       | Default | Description                                                                                                                       |
+| ---------- | -------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `jump_to`  | `str \| list[int]`         | —       | Target alias or address to jump to **now** (the handler)                                                                          |
+| `ret_to`   | `str \| list[int] \| None` | `None`  | Alias or address saved as the return destination. `None` = top of `_ret_addr_stack` inside a `call_sub`, else the current pointer |
+| `if_state` | `bool`                     | `False` | Value to set for the interpreter's `if_flag` after the jump                                                                       |
 
 ### Execution flow
 
@@ -140,15 +140,15 @@ The counterpart to `INTERRUPT_INTO`. Pops the top `InterpreterContext` from the 
 
 ## Comparison: Three Save/Restore Mechanisms
 
-| Feature                | PUSH_STACK + RET_FAR       | PUSH_CONTEXT + INTERRUPT_RET   | INTERRUPT_INTO + INTERRUPT_RET     |
-| ---------------------- | -------------------------- | ------------------------------ | ---------------------------------- |
-| **Saves**              | Return address only        | Full interpreter state         | Full interpreter state             |
-| **Jumps on save**      | No (separate GOTO needed)  | No (separate GOTO needed, v0.6.0+) | Yes (jump_to)                  |
-| **Return address**     | PUSH_STACK target          | Resolved alias / ret-stack top | `ret_to` param (or default)        |
-| **Dependency args**    | Not saved                  | Optional (exclude_deps=False)  | Always saved                       |
-| **if_flag management** | Not involved               | Not involved                   | Auto set on entry, cleared on exit |
-| **Use case**           | Custom call/return schemes | Context save + jump primitives | Interrupt-style handler entry/exit |
-| **Complexity**         | Low                        | Low                            | Low                                |
+| Feature                | PUSH_STACK + RET_FAR       | PUSH_CONTEXT + INTERRUPT_RET       | INTERRUPT_INTO + INTERRUPT_RET     |
+| ---------------------- | -------------------------- | ---------------------------------- | ---------------------------------- |
+| **Saves**              | Return address only        | Full interpreter state             | Full interpreter state             |
+| **Jumps on save**      | No (separate GOTO needed)  | No (separate GOTO needed, v0.6.0+) | Yes (jump_to)                      |
+| **Return address**     | PUSH_STACK target          | Resolved alias / ret-stack top     | `ret_to` param (or default)        |
+| **Dependency args**    | Not saved                  | Optional (exclude_deps=False)      | Always saved                       |
+| **if_flag management** | Not involved               | Not involved                       | Auto set on entry, cleared on exit |
+| **Use case**           | Custom call/return schemes | Context save + jump primitives     | Interrupt-style handler entry/exit |
+| **Complexity**         | Low                        | Low                                | Low                                |
 
 ---
 

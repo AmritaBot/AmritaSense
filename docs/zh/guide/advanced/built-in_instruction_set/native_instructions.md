@@ -17,10 +17,10 @@ call_sub 路径：     call_sub → 执行 → 自动返回
 
 ### CONTINUE 与 BREAK_LOOP
 
-| 指令            | 用途                                       | 自动插入？        |
-| --------------- | ------------------------------------------ | ----------------- |
-| `CONTINUE()`    | 结束本轮迭代，跳回循环头                   | ✅ 编译器末尾兜底 |
-| `BREAK_LOOP()`  | 终止循环（弹栈 + 跳到出口哨兵）            | ❌ 需手动插入     |
+| 指令           | 用途                            | 自动插入？        |
+| -------------- | ------------------------------- | ----------------- |
+| `CONTINUE()`   | 结束本轮迭代，跳回循环头        | ✅ 编译器末尾兜底 |
+| `BREAK_LOOP()` | 终止循环（弹栈 + 跳到出口哨兵） | ❌ 需手动插入     |
 
 关键区别：`CONTINUE()` 弹栈后跳回循环头（循环继续下一轮），而 `BREAK_LOOP()` 弹栈后直接跳到循环的出口哨兵 `NOP`，干净地结束整个循环。两者的目标位置都由外层循环的 `extract()` 在编译期通过 DFS 扫描器 `_configure_loop_control_nodes()` 配置——永远不需要手动指定。
 
@@ -30,10 +30,10 @@ call_sub 路径：     call_sub → 执行 → 自动返回
 
 编译期通过 `_classify_body` 区分 payload 类型：
 
-| payload 类型                             | `NATIVE_IF` 路径                                | `NATIVE_WHILE` / `NATIVE_DO` 路径                    |
-| ---------------------------------------- | ------------------------------------------------ | ---------------------------------------------------- |
-| `BaseNode`                               | `call_offset` 调用（自动返回）                   | 自动包装 `NodeCompose(body, CONTINUE())`             |
-| `NodeCompose` / `SelfCompileInstruction` | 包裹 Bubble（自然回退，无返回指令）              | 包装为 `NodeCompose(*body._graph, CONTINUE())`       |
+| payload 类型                             | `NATIVE_IF` 路径                    | `NATIVE_WHILE` / `NATIVE_DO` 路径              |
+| ---------------------------------------- | ----------------------------------- | ---------------------------------------------- |
+| `BaseNode`                               | `call_offset` 调用（自动返回）      | 自动包装 `NodeCompose(body, CONTINUE())`       |
+| `NodeCompose` / `SelfCompileInstruction` | 包裹 Bubble（自然回退，无返回指令） | 包装为 `NodeCompose(*body._graph, CONTINUE())` |
 
 ## NATIVE_IF
 
@@ -256,14 +256,14 @@ NATIVE_DO(
 
 ## 与传统指令对照
 
-|          | `IF`                | `NATIVE_IF`                         | `WHILE`             | `NATIVE_WHILE`                      | `DO`                | `NATIVE_DO`                         |
-| -------- | ------------------- | ----------------------------------- | ------------------- | ----------------------------------- | ------------------- | ----------------------------------- |
-| 进入方式 | `call_sub`          | `jump_far_ptr` 或 `call_offset`     | `call_sub`          | `PUSH+JMP`                         | `call_sub`          | `PUSH+JMP`                         |
-| 返回方式 | `call_sub` 自动返回 | 自然回退（Bubble）/ 自动（单节点）  | `call_sub` 自动返回 | `CONTINUE()`（自动）               | `call_sub` 自动返回 | `CONTINUE()`（自动）               |
-| Break    | `raise BreakLoop`   | `BREAK_LOOP()`                      | `raise BreakLoop`   | `BREAK_LOOP()`                     | `raise BreakLoop`   | `BREAK_LOOP()`                     |
-| Continue | —                   | —                                   | —                   | `CONTINUE()`                       | —                   | `CONTINUE()`                       |
-| 中间件   | 触发                | 触发（解释器级）                    | 触发                | 触发（解释器级）                   | 触发                | 触发（解释器级）                   |
-| DI 解析  | 触发                | 触发（解释器级）                    | 触发                | 触发（解释器级）                   | 触发                | 触发（解释器级）                   |
+|          | `IF`                | `NATIVE_IF`                        | `WHILE`             | `NATIVE_WHILE`       | `DO`                | `NATIVE_DO`          |
+| -------- | ------------------- | ---------------------------------- | ------------------- | -------------------- | ------------------- | -------------------- |
+| 进入方式 | `call_sub`          | `jump_far_ptr` 或 `call_offset`    | `call_sub`          | `PUSH+JMP`           | `call_sub`          | `PUSH+JMP`           |
+| 返回方式 | `call_sub` 自动返回 | 自然回退（Bubble）/ 自动（单节点） | `call_sub` 自动返回 | `CONTINUE()`（自动） | `call_sub` 自动返回 | `CONTINUE()`（自动） |
+| Break    | `raise BreakLoop`   | `BREAK_LOOP()`                     | `raise BreakLoop`   | `BREAK_LOOP()`       | `raise BreakLoop`   | `BREAK_LOOP()`       |
+| Continue | —                   | —                                  | —                   | `CONTINUE()`         | —                   | `CONTINUE()`         |
+| 中间件   | 触发                | 触发（解释器级）                   | 触发                | 触发（解释器级）     | 触发                | 触发（解释器级）     |
+| DI 解析  | 触发                | 触发（解释器级）                   | 触发                | 触发（解释器级）     | 触发                | 触发（解释器级）     |
 
 ## 注意事项
 

@@ -8,16 +8,16 @@ Since v0.6.0, the loop mechanics were redesigned: loop bodies always end with th
 
 Native instructions are **not** performance replacements for traditional ones — they are **orthogonal extensions**. The core difference lies in the underlying implementation pattern:
 
-|                   | Traditional (`IF`/`WHILE`/`DO`)                | Native (`NATIVE_IF`/`NATIVE_WHILE`/`NATIVE_DO`)               |
-| ----------------- | ---------------------------------------------- | ------------------------------------------------------------- |
-| Mechanism         | `call_sub` (nested call + auto stack manage)   | `PUSH / JMP / CONTINUE / BREAK_LOOP` (pointer ops)             |
-| Branch entry      | Interpreter auto-manages call stack            | Developer explicitly controls jumps and returns               |
-| Bubble return     | Automatic (`call_sub` has built-in return)     | Natural flow-back via `advance_pointer` (IF/ELSE) / `CONTINUE` (loops) |
-| Loop break        | Raise `BreakLoop` exception                    | `BREAK_LOOP()` instruction (pop stack + jump to sentinel)     |
-| Skip to next iter | N/A                                            | `CONTINUE()` instruction (pop stack + jump to loop head)      |
-| Use case          | General control flow, works out of box         | Precise pointer control, fewer call-sub nesting layers         |
+|                   | Traditional (`IF`/`WHILE`/`DO`)              | Native (`NATIVE_IF`/`NATIVE_WHILE`/`NATIVE_DO`)                        |
+| ----------------- | -------------------------------------------- | ---------------------------------------------------------------------- |
+| Mechanism         | `call_sub` (nested call + auto stack manage) | `PUSH / JMP / CONTINUE / BREAK_LOOP` (pointer ops)                     |
+| Branch entry      | Interpreter auto-manages call stack          | Developer explicitly controls jumps and returns                        |
+| Bubble return     | Automatic (`call_sub` has built-in return)   | Natural flow-back via `advance_pointer` (IF/ELSE) / `CONTINUE` (loops) |
+| Loop break        | Raise `BreakLoop` exception                  | `BREAK_LOOP()` instruction (pop stack + jump to sentinel)              |
+| Skip to next iter | N/A                                          | `CONTINUE()` instruction (pop stack + jump to loop head)               |
+| Use case          | General control flow, works out of box       | Precise pointer control, fewer call-sub nesting layers                 |
 
-> **DI & middleware are interpreter-level** — they are **not** bypassed by native instructions. Every node — whether reached via `call_sub` or a native pointer jump — is executed through `_call()`, so dependency injection and the middleware hook apply identically in both paths. What native instructions save is the *extra `call_sub` nesting layer* (lock/stack bookkeeping), not DI or middleware.
+> **DI & middleware are interpreter-level** — they are **not** bypassed by native instructions. Every node — whether reached via `call_sub` or a native pointer jump — is executed through `_call()`, so dependency injection and the middleware hook apply identically in both paths. What native instructions save is the _extra `call_sub` nesting layer_ (lock/stack bookkeeping), not DI or middleware.
 
 > **CONTINUE vs BREAK_LOOP**:
 >
@@ -180,14 +180,14 @@ Loop exit: condition false → `jump_near(4)` to NOP exit. Or `BREAK_LOOP()` for
 
 ## Selection Guide
 
-| Scenario                                         | Recommendation                                        |
-| ------------------------------------------------ | ----------------------------------------------------- |
-| General control flow, works out of box           | Traditional `IF` / `WHILE` / `DO`                     |
-| Performance-sensitive paths, fewer nesting layers | `NATIVE_WHILE` / `NATIVE_DO` / `NATIVE_IF`            |
-| Need precise pointer jump control                | `NATIVE_*` (pure jump model)                          |
-| Need exception penetration (`exception_ignored`) | Traditional instructions                              |
-| Conditional break inside loop                    | Traditional: `raise BreakLoop` / Native: `BREAK_LOOP()`|
-| Skip to next iteration                           | Native: `CONTINUE()` (no traditional equivalent)      |
+| Scenario                                          | Recommendation                                          |
+| ------------------------------------------------- | ------------------------------------------------------- |
+| General control flow, works out of box            | Traditional `IF` / `WHILE` / `DO`                       |
+| Performance-sensitive paths, fewer nesting layers | `NATIVE_WHILE` / `NATIVE_DO` / `NATIVE_IF`              |
+| Need precise pointer jump control                 | `NATIVE_*` (pure jump model)                            |
+| Need exception penetration (`exception_ignored`)  | Traditional instructions                                |
+| Conditional break inside loop                     | Traditional: `raise BreakLoop` / Native: `BREAK_LOOP()` |
+| Skip to next iteration                            | Native: `CONTINUE()` (no traditional equivalent)        |
 
 Native and traditional instructions can be **freely mixed** within the same workflow — they operate on the same pointer vector and call stack system at different abstraction levels.
 

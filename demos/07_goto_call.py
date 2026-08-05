@@ -24,15 +24,20 @@ async def after_jump() -> None:
     print("Arrived after GOTO jump")
 
 
+_greet_result: str = ""
+
+
 @Node()
 async def reusable_greet(name: str = "World") -> str:
+    global _greet_result
     print(f"  Hello, {name}!")
+    _greet_result = name
     return name
 
 
 @Node()
-async def done(result: str) -> None:
-    print(f"CALL returned: {result}")
+async def done() -> None:
+    print(f"CALL returned: {_greet_result}")
 
 
 async def main() -> None:

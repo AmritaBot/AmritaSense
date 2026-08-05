@@ -195,16 +195,12 @@ def Depends(
 ) -> Any:
     """Dependency injection decorator.
 
-    .. note::
-        The *cacheable* parameter is **not yet effective** — DI result
-        caching is planned for v0.5.2.
-
     **IMPORTANT**: For database sessions (or ORM frameworks like SQLAlchemy),
     DI-caching may cause connection leaks.
 
     Args:
         dependency: The dependency function to inject.
-        cacheable: Reserved for v0.5.2 DI result caching.  Currently ignored.
+        cacheable: Whether to cache the dependency result.
 
     Returns:
         DependsFactory: A factory for dependency injection

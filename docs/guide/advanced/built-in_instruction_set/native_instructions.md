@@ -30,9 +30,9 @@ The key difference: `CONTINUE()` pops the stack and jumps back to the loop head 
 
 `_classify_body` distinguishes payload types:
 
-| payload type                             | `NATIVE_IF` path                              | `NATIVE_WHILE` / `NATIVE_DO` path            |
-| ---------------------------------------- | --------------------------------------------- | ------------------------------------------- |
-| `BaseNode`                               | `call_offset` (auto-return)                   | Auto-wrapped `NodeCompose(body, CONTINUE())` |
+| payload type                             | `NATIVE_IF` path                                          | `NATIVE_WHILE` / `NATIVE_DO` path               |
+| ---------------------------------------- | --------------------------------------------------------- | ----------------------------------------------- |
+| `BaseNode`                               | `call_offset` (auto-return)                               | Auto-wrapped `NodeCompose(body, CONTINUE())`    |
 | `NodeCompose` / `SelfCompileInstruction` | Wrap in bubble (natural flow-back, no return instruction) | Wrap as `NodeCompose(*body._graph, CONTINUE())` |
 
 ## NATIVE_IF
@@ -256,14 +256,14 @@ NATIVE_DO(
 
 ## Comparison with Traditional Instructions
 
-|               | `IF`              | `NATIVE_IF`                         | `WHILE`           | `NATIVE_WHILE`                      | `DO`              | `NATIVE_DO`                         |
-| ------------- | ----------------- | ----------------------------------- | ----------------- | ----------------------------------- | ----------------- | ----------------------------------- |
-| Entry         | `call_sub`        | `jump_far_ptr` or `call_offset`     | `call_sub`        | `PUSH+JMP`                         | `call_sub`        | `PUSH+JMP`                         |
-| Return        | auto (`call_sub`) | natural flow-back (bubble) / auto (single) | auto (`call_sub`) | `CONTINUE()` (auto)                | auto (`call_sub`) | `CONTINUE()` (auto)                |
-| Break         | `raise BreakLoop` | `BREAK_LOOP()`                      | `raise BreakLoop` | `BREAK_LOOP()`                     | `raise BreakLoop` | `BREAK_LOOP()`                     |
-| Continue      | —                | —                                   | —                 | `CONTINUE()`                       | —                 | `CONTINUE()`                       |
-| Middleware    | invoked           | invoked (interpreter-level)         | invoked           | invoked (interpreter-level)        | invoked           | invoked (interpreter-level)        |
-| DI resolution | invoked           | invoked (interpreter-level)         | invoked           | invoked (interpreter-level)        | invoked           | invoked (interpreter-level)        |
+|               | `IF`              | `NATIVE_IF`                                | `WHILE`           | `NATIVE_WHILE`              | `DO`              | `NATIVE_DO`                 |
+| ------------- | ----------------- | ------------------------------------------ | ----------------- | --------------------------- | ----------------- | --------------------------- |
+| Entry         | `call_sub`        | `jump_far_ptr` or `call_offset`            | `call_sub`        | `PUSH+JMP`                  | `call_sub`        | `PUSH+JMP`                  |
+| Return        | auto (`call_sub`) | natural flow-back (bubble) / auto (single) | auto (`call_sub`) | `CONTINUE()` (auto)         | auto (`call_sub`) | `CONTINUE()` (auto)         |
+| Break         | `raise BreakLoop` | `BREAK_LOOP()`                             | `raise BreakLoop` | `BREAK_LOOP()`              | `raise BreakLoop` | `BREAK_LOOP()`              |
+| Continue      | —                 | —                                          | —                 | `CONTINUE()`                | —                 | `CONTINUE()`                |
+| Middleware    | invoked           | invoked (interpreter-level)                | invoked           | invoked (interpreter-level) | invoked           | invoked (interpreter-level) |
+| DI resolution | invoked           | invoked (interpreter-level)                | invoked           | invoked (interpreter-level) | invoked           | invoked (interpreter-level) |
 
 ## Notes
 

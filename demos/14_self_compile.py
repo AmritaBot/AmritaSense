@@ -20,16 +20,23 @@ class TimedWrapper(SelfCompileInstruction):
     def extract(self):
         from amrita_sense.node.core import NodeCompose
 
+        # Return values are not auto-injected between nodes —
+        # capture the inner node's result via a closure box instead.
+        box: dict[str, str] = {}
+
         @Node()
         def log_start() -> None:
             print("[Start]")
 
         @Node()
-        def log_end(result: str) -> str:
-            print(f"[End] Result: {result}")
-            return result
+        async def capture() -> None:
+            box["result"] = await self._inner.func()
 
-        return NodeCompose(log_start, self._inner, log_end)
+        @Node()
+        def log_end() -> None:
+            print(f"[End] Result: {box['result']}")
+
+        return NodeCompose(log_start, capture, log_end)
 
 
 @Node()

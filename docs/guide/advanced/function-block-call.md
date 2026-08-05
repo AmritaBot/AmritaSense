@@ -6,15 +6,15 @@ AmritaSense provides `FN` / `INTER_FN` — helpers that look like **function def
 
 ## What a Function Block Is (and Is Not)
 
-| Aspect            | High-level language function                     | AmritaSense `FN` / `INTER_FN`                      |
-| ----------------- | ------------------------------------------------ | --------------------------------------------------- |
-| Entry             | Caller evaluates arguments, pushes a frame       | `PUSH_AND_GOTO` / `INTERRUPT_INTO` jump to an alias |
-| Local variables   | Fresh frame with locals                          | ❌ none — the interpreter has a single shared state |
-| Arguments         | Passed by value/reference                        | ❌ none — data flows via **dependency injection** from the interpreter's arg pool |
-| Return value      | `return expr`                                    | ❌ none — `RET_FAR` / `INTERRUPT_RET` only restore the pointer/context |
-| Stack             | Dedicated call stack per function                | Shared `_ret_addr_stack` (a single jump target)     |
-| Recursion         | Supported                                        | ❌ meaningless — there is no frame to re-enter      |
-| Closures / scope  | Lexical scoping, captures                        | ❌ none — the whole workflow shares one pointer space |
+| Aspect           | High-level language function               | AmritaSense `FN` / `INTER_FN`                                                     |
+| ---------------- | ------------------------------------------ | --------------------------------------------------------------------------------- |
+| Entry            | Caller evaluates arguments, pushes a frame | `PUSH_AND_GOTO` / `INTERRUPT_INTO` jump to an alias                               |
+| Local variables  | Fresh frame with locals                    | ❌ none — the interpreter has a single shared state                               |
+| Arguments        | Passed by value/reference                  | ❌ none — data flows via **dependency injection** from the interpreter's arg pool |
+| Return value     | `return expr`                              | ❌ none — `RET_FAR` / `INTERRUPT_RET` only restore the pointer/context            |
+| Stack            | Dedicated call stack per function          | Shared `_ret_addr_stack` (a single jump target)                                   |
+| Recursion        | Supported                                  | ❌ meaningless — there is no frame to re-enter                                    |
+| Closures / scope | Lexical scoping, captures                  | ❌ none — the whole workflow shares one pointer space                             |
 
 Think of a function block as a **named, archived jump target**: entering it changes the pointer; ending it changes the pointer back. Everything else you might expect from a function simply does not exist.
 
