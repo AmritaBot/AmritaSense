@@ -65,7 +65,7 @@ DISABLE_EXC_IGNORED: bool = False
 ALLOW_CALL_NODECOMPOSE: bool = False  # 无效果；仅为兼容性保留
 ```
 
-> **v0.5.2 起已移除。** 该字段仍存在于 `_Flags` 中以保持向后兼容，但**没有任何效果**：v0.6.0 起 `_call()` 遇到 `NodeComposeRendered` 会自动进入（向指针追加 `0` 并递归），不再抛出 `RuntimeError`——这个标志原本切换的行为现在已是默认行为。请勿依赖它。
+> **v0.5.2 起已移除。** 该字段仍存在于 `_Flags` 中以保持向后兼容，但**没有任何效果**：v0.6.0 起 `_call()` 遇到 `NodeComposeRendered` 会自动进入（在**循环**中向指针追加 `0`——不使用递归，深层嵌套组合不会栈溢出），不再抛出 `RuntimeError`——这个标志原本切换的行为现在已是默认行为。请勿依赖它。
 
 ### `NO_DEPENDENCY_META_CACHE`
 

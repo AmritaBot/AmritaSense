@@ -65,7 +65,7 @@ By default, `InterruptNotice` and `BreakLoop` are automatically added to `_exc_i
 ALLOW_CALL_NODECOMPOSE: bool = False  # no effect; kept for compatibility
 ```
 
-> **Removed since v0.5.2.** The flag field still exists in `_Flags` for backwards compatibility, but it has **no effect**: since v0.6.0, `_call()` automatically enters a `NodeComposeRendered` (appending `0` to the pointer and recursing) instead of raising `RuntimeError` — the behavior this flag used to toggle is now the default. Do not rely on it.
+> **Removed since v0.5.2.** The flag field still exists in `_Flags` for backwards compatibility, but it has **no effect**: since v0.6.0, `_call()` automatically descends into a `NodeComposeRendered` (appending `0` to the pointer in a **loop** — no recursion, so deeply nested compositions cannot overflow the stack) instead of raising `RuntimeError` — the behavior this flag used to toggle is now the default. Do not rely on it.
 
 ### `NO_DEPENDENCY_META_CACHE`
 
