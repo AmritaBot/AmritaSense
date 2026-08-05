@@ -95,7 +95,7 @@ The ELSE branch body does not append `RET_FAR`; it flows naturally to the merge 
 
 ### Underlying Nodes
 
-- **`NativeIfJumpNode`** (`_core.py`): Condition jump node for IF/ELIF. The `_is_single` flag determines the single-node (`call_offset`) vs bubble (`PUSH + jump_far_ptr`) path. Bubble bodies end with `RET_FAR` (compiler-appended).
+- `NativeIfJumpNode` (`_core.py`): Condition jump node for IF/ELIF. The `_is_single` flag determines the single-node (`call_offset`) vs bubble (`PUSH + jump_far_ptr`) path. Bubble bodies end with `RET_FAR` (compiler-appended).
 
 ## NATIVE_WHILE
 
@@ -132,7 +132,7 @@ graph LR
 
 ### Underlying Nodes
 
-- **`NativeWhileNode`** (`_core.py`): Condition evaluation + dispatch node. Pure jump: condition true → `PUSH [0]` (its own address) → `jump_far_ptr` into body; condition false → `jump_near(3)` to exit. The body's trailing `CONTINUE()` pops and jumps back to `[0]`.
+- `NativeWhileNode` (`_core.py`): Condition evaluation + dispatch node. Pure jump: condition true → `PUSH [0]` (its own address) → `jump_far_ptr` into body; condition false → `jump_near(3)` to exit. The body's trailing `CONTINUE()` pops and jumps back to `[0]`.
 
 ## NATIVE_DO
 
@@ -172,8 +172,8 @@ Single-node bodies are auto-wrapped the same way (`NodeCompose(body, CONTINUE())
 
 ### Underlying Nodes
 
-- **`NativeDoWhileNode`** (`_core.py`): DO-WHILE back-edge node. When condition is true, `jump_near(loop_pos)` back to body entry (`NativeBubbleEnterNode` handles re-entry); when false, `jump_near(exit_pos)` to exit.
-- **`NativeBubbleEnterNode`** (`_core.py`): Bubble entry helper. Always `PUSH`es a sentinel (its own address) then `jump_far_ptr`s into the body, so `CONTINUE()` / `BREAK_LOOP()` can pop it. Constructor takes only `body_pos` (the `ret_pos` parameter was removed in v0.6.0).
+- `NativeDoWhileNode` (`_core.py`): DO-WHILE back-edge node. When condition is true, `jump_near(loop_pos)` back to body entry (`NativeBubbleEnterNode` handles re-entry); when false, `jump_near(exit_pos)` to exit.
+- `NativeBubbleEnterNode` (`_core.py`): Bubble entry helper. Always `PUSH`es a sentinel (its own address) then `jump_far_ptr`s into the body, so `CONTINUE()` / `BREAK_LOOP()` can pop it. Constructor takes only `body_pos` (the `ret_pos` parameter was removed in v0.6.0).
 
 ## BREAK_LOOP
 

@@ -65,7 +65,7 @@ def early_exit():
 
 Traditional Sense loops (`WHILE` / `DO`) do not provide a native `continue` keyword, but they support a zero-cost equivalent: simply `return` early from the current node. The interpreter will naturally advance to the next loop condition check (or to the loop entry point), yielding behavior equivalent to `continue`.
 
-> Native loops (`NATIVE_WHILE` / `NATIVE_DO`) provide an explicit **`CONTINUE()`** instruction that pops the stack and jumps straight to the loop head — see [Native Control Flow](../advanced/native_control_flow.md).
+> Native loops (`NATIVE_WHILE` / `NATIVE_DO`) provide an explicit `CONTINUE()` instruction that pops the stack and jumps straight to the loop head — see [Native Control Flow](../advanced/native_control_flow.md).
 
 ## 3.3.3 Exception handling
 

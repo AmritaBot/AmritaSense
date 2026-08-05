@@ -29,8 +29,8 @@ sequenceDiagram
 
 ## PUSH_STACK 与 RET_FAR
 
-- **`PUSH_STACK(alias_or_idata)`**——将目标别名（或裸地址列表）解析后的地址压入 `_ret_addr_stack`。该指令返回的是一个 `NodeType[None]`（内联 `@Node` 装饰的可调用对象），直接放在 `>>` 链中。
-- **`RET_FAR()`**——从 `_ret_addr_stack` 弹出栈顶条目，通过 `rebase_ptr` 恢复指针。与 `jump_to` / `jump_far_ptr` 不同，`rebase_ptr` **不会**设置跳转标记，解释器在返回后会自然**推进到下一指令**（`返回地址 + 1`）。调用方应压入 `目标 - 1`，使 advance 恰好落在目标节点上。
+- `PUSH_STACK(alias_or_idata)`——将目标别名（或裸地址列表）解析后的地址压入 `_ret_addr_stack`。该指令返回的是一个 `NodeType[None]`（内联 `@Node` 装饰的可调用对象），直接放在 `>>` 链中。
+- `RET_FAR()`——从 `_ret_addr_stack` 弹出栈顶条目，通过 `rebase_ptr` 恢复指针。与 `jump_to` / `jump_far_ptr` 不同，`rebase_ptr` **不会**设置跳转标记，解释器在返回后会自然**推进到下一指令**（`返回地址 + 1`）。调用方应压入 `目标 - 1`，使 advance 恰好落在目标节点上。
 
 两个指令都**不能**从 `@Node()` 函数内部 `return`——直接放在 `>>` 链中。
 
@@ -78,12 +78,12 @@ await WorkflowInterpreter(comp.render()).run()
 
 ## PUSH_AND_GOTO（v0.3.0+）
 
-**`PUSH_AND_GOTO(from_adr, to_adr)`** 是一个便捷指令，将 `PUSH_STACK` + `GOTO` 合并为一个节点。内部执行：
+`PUSH_AND_GOTO(from_adr, to_adr)` 是一个便捷指令，将 `PUSH_STACK` + `GOTO` 合并为一个节点。内部执行：
 
 1. 将 `from_adr` 压入 `_ret_addr_stack`（与 `PUSH_STACK` 一致）
 2. 跳转到 `to_adr`（与 `GOTO` 一致）
 
-`from_adr` 接受别名字符串、裸地址列表，或 **`None`**。为 `None` 时：
+`from_adr` 接受别名字符串、裸地址列表，或 `None`。为 `None` 时：
 
 - 在子程序调用内部（`pc.outer_interpreting` 为 `True`——即通过 `call_sub` 进入的执行），复用 `_ret_addr_stack` 栈顶（父级压入的返回地址）。
 - 否则（主流程 `run()`），使用当前指针——`RET_FAR` 随后会推进到 `PUSH_AND_GOTO` 之后的节点。

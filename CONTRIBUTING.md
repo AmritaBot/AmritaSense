@@ -120,17 +120,17 @@ bash scripts/run_test.sh
 
 The project provides several helper scripts in the `scripts/` directory:
 
-- **`format.sh`**: Format Python code using ruff (`--check` for dry-run)
-- **`lint.sh`**: Lint Python code using ruff (`--fix` to auto-fix issues)
-- **`typecheck.sh`**: Run type checking
-- **`run_test.sh`**: Run all tests
-- **`docs-lint.sh`**: Lint documentation files using Prettier (`--fix` to auto-fix)
-- **`docs-dev.sh`**: Start documentation development server
-- **`docs-build.sh`**: Build documentation
-- **`clean.sh`**: Clean build artifacts and caches
-- **`release.sh`**: Prepare release
-- **`init_venv.sh`**: Initialize virtual environment
-- **`check.sh`**: Run comprehensive checks (format, lint, typecheck, test)
+- `format.sh`: Format Python code using ruff (`--check` for dry-run)
+- `lint.sh`: Lint Python code using ruff (`--fix` to auto-fix issues)
+- `typecheck.sh`: Run type checking
+- `run_test.sh`: Run all tests
+- `docs-lint.sh`: Lint documentation files using Prettier (`--fix` to auto-fix)
+- `docs-dev.sh`: Start documentation development server
+- `docs-build.sh`: Build documentation
+- `clean.sh`: Clean build artifacts and caches
+- `release.sh`: Prepare release
+- `init_venv.sh`: Initialize virtual environment
+- `check.sh`: Run comprehensive checks (format, lint, typecheck, test)
 
 Before submitting a PR, it's recommended to run:
 

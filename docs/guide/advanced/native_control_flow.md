@@ -19,8 +19,8 @@ Native instructions are **not** performance replacements for traditional ones �
 
 > **CONTINUE vs BREAK_LOOP**:
 >
-> - **`CONTINUE()`** ends the current iteration. The compiler **always** auto-appends a `CONTINUE()` at the end of every loop body — you never need to write it yourself. Insert `CONTINUE()` mid-body to skip the remaining nodes and start the next iteration.
-> - **`BREAK_LOOP()`** terminates the loop. It pops the return address pushed on loop entry, then jumps to the loop's sentinel (`NOP`), cleanly ending the loop.
+> - `CONTINUE()` ends the current iteration. The compiler **always** auto-appends a `CONTINUE()` at the end of every loop body — you never need to write it yourself. Insert `CONTINUE()` mid-body to skip the remaining nodes and start the next iteration.
+> - `BREAK_LOOP()` terminates the loop. It pops the return address pushed on loop entry, then jumps to the loop's sentinel (`NOP`), cleanly ending the loop.
 >
 > Both pop the `_ret_addr_stack` and `jump_far_ptr` to a compile-time-configured target position inside the enclosing loop bubble. Their targets are configured by the enclosing loop's `extract()` via a DFS scanner — you never specify addresses manually.
 
@@ -129,7 +129,7 @@ How `BREAK_LOOP()` works:
 
 ### Continuing: CONTINUE()
 
-To skip the rest of the current iteration and jump straight to the loop head (re-evaluating the condition), use **`CONTINUE()`**:
+To skip the rest of the current iteration and jump straight to the loop head (re-evaluating the condition), use `CONTINUE()`:
 
 ```python
 NATIVE_WHILE(cond).ACTION(

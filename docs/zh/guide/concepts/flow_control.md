@@ -65,7 +65,7 @@ def early_exit():
 
 传统 Sense 循环（`WHILE` / `DO`）没有设计原生的 `continue` 关键字，但提供了零开销的等效实现：只需要在当前节点中执行 `return` 提前结束本轮节点执行，解释器就会自然推进到下一轮循环的条件检查（或循环体开始），实现与 `continue` 完全一致的“跳过剩余逻辑、直接进入下一轮循环”的效果。
 
-> 原生循环（`NATIVE_WHILE` / `NATIVE_DO`）提供了显式的 **`CONTINUE()`** 指令——弹栈后直接跳到循环头，详见 [原生控制流](../advanced/native_control_flow.md)。
+> 原生循环（`NATIVE_WHILE` / `NATIVE_DO`）提供了显式的 `CONTINUE()` 指令——弹栈后直接跳到循环头，详见 [原生控制流](../advanced/native_control_flow.md)。
 
 ## 3.3.3 异常处理
 

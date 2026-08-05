@@ -95,7 +95,7 @@ ELSE 分支体不追加 `RET_FAR`，自然流入汇合点。
 
 ### 底层节点
 
-- **`NativeIfJumpNode`**（`_core.py`）：IF/ELIF 的条件跳转节点。`_is_single` 标志决定单节点（`call_offset`）还是 Bubble（`PUSH + jump_far_ptr`）路径。Bubble 体末尾带 `RET_FAR`（编译器追加）。
+- `NativeIfJumpNode`（`_core.py`）：IF/ELIF 的条件跳转节点。`_is_single` 标志决定单节点（`call_offset`）还是 Bubble（`PUSH + jump_far_ptr`）路径。Bubble 体末尾带 `RET_FAR`（编译器追加）。
 
 ## NATIVE_WHILE
 
@@ -132,7 +132,7 @@ graph LR
 
 ### 底层节点
 
-- **`NativeWhileNode`**（`_core.py`）：条件判断 + 分派节点。纯跳转：条件真 → `PUSH [0]`（自身地址）→ `jump_far_ptr` 进入循环体；条件假 → `jump_near(3)` 到出口。循环体末尾的 `CONTINUE()` 弹栈并跳回 `[0]`。
+- `NativeWhileNode`（`_core.py`）：条件判断 + 分派节点。纯跳转：条件真 → `PUSH [0]`（自身地址）→ `jump_far_ptr` 进入循环体；条件假 → `jump_near(3)` 到出口。循环体末尾的 `CONTINUE()` 弹栈并跳回 `[0]`。
 
 ## NATIVE_DO
 
@@ -172,8 +172,8 @@ graph LR
 
 ### 底层节点
 
-- **`NativeDoWhileNode`**（`_core.py`）：DO-WHILE 回边节点。条件真时 `jump_near(loop_pos)` 回到 body 入口（`NativeBubbleEnterNode` 处理重新进入）；条件假时 `jump_near(exit_pos)` 跳到出口。
-- **`NativeBubbleEnterNode`**（`_core.py`）：Bubble 入口辅助节点。**总是**先 `PUSH` 哨兵（自身地址）再 `jump_far_ptr` 进入 body，使 `CONTINUE()` / `BREAK_LOOP()` 可以弹栈。构造函数只接受 `body_pos`（v0.6.0 移除了 `ret_pos` 参数）。
+- `NativeDoWhileNode`（`_core.py`）：DO-WHILE 回边节点。条件真时 `jump_near(loop_pos)` 回到 body 入口（`NativeBubbleEnterNode` 处理重新进入）；条件假时 `jump_near(exit_pos)` 跳到出口。
+- `NativeBubbleEnterNode`（`_core.py`）：Bubble 入口辅助节点。**总是**先 `PUSH` 哨兵（自身地址）再 `jump_far_ptr` 进入 body，使 `CONTINUE()` / `BREAK_LOOP()` 可以弹栈。构造函数只接受 `body_pos`（v0.6.0 移除了 `ret_pos` 参数）。
 
 ## BREAK_LOOP
 

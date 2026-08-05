@@ -32,8 +32,8 @@ In multi-threaded, multi-event-loop environments, ensures that mutations to the 
 
 Depending on _who initiates the suspend_, CLCA manifests in two typical forms:
 
-- **Voluntary yield (active)** — The coroutine itself decides when to suspend and wait for an external signal. This is the most direct one-to-many notification scenario, represented by the **`Signal`** class.
-- **Checkpoint suspend (passive)** — An external controller pre-sets a "checkpoint"; when a coroutine reaches that point it passively detects and suspends until explicitly resumed. This form excels when the system needs fine-grained external control over coroutine execution pacing, represented by the **`CheckpointSignal`** class.
+- **Voluntary yield (active)** — The coroutine itself decides when to suspend and wait for an external signal. This is the most direct one-to-many notification scenario, represented by the `Signal` class.
+- **Checkpoint suspend (passive)** — An external controller pre-sets a "checkpoint"; when a coroutine reaches that point it passively detects and suspends until explicitly resumed. This form excels when the system needs fine-grained external control over coroutine execution pacing, represented by the `CheckpointSignal` class.
 
 Both forms share the same CLCA kernel; they differ only in the direction of the suspend trigger.
 
@@ -175,7 +175,7 @@ sequenceDiagram
     deactivate W1
 ```
 
-When control resides externally, a "checkpoint" mechanism is needed: the outside sets a suspension point, and internal coroutines automatically suspend upon arrival, waiting for external resumption. Stripping away business logic (queue, tag filtering, callbacks, etc.) from the real-world `SuspendObjectStream` yields the pure **`CheckpointSignal`**.
+When control resides externally, a "checkpoint" mechanism is needed: the outside sets a suspension point, and internal coroutines automatically suspend upon arrival, waiting for external resumption. Stripping away business logic (queue, tag filtering, callbacks, etc.) from the real-world `SuspendObjectStream` yields the pure `CheckpointSignal`.
 
 ### Design Rationale
 
@@ -344,7 +344,7 @@ thread.join()
 
 CLCA abstracts "suspend‑resume" into a standalone signal-distribution primitive, solving the core challenge of multi-coroutine synchronized waiting. From this foundation, two practical variants emerge depending on the control relationship:
 
-- **`Signal`** — Voluntary yield, suitable for coroutines willingly waiting on external events;
-- **`CheckpointSignal`** — External checkpoint suspend, suitable for externally controlling coroutine execution pacing with precision.
+- `Signal` — Voluntary yield, suitable for coroutines willingly waiting on external events;
+- `CheckpointSignal` — External checkpoint suspend, suitable for externally controlling coroutine execution pacing with precision.
 
 Both share the same lightweight, cross-event-loop CLCA kernel, achieving high flexibility and reusability with nothing more than `Future` + `Lock`. If your system needs to insert precise synchronization points into complex async flows, these two signal primitives will serve as exceptionally effective tools.

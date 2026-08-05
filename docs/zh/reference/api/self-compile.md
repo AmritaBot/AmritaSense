@@ -31,23 +31,23 @@ AmritaSense 的内置指令集全部是 `SelfCompileInstruction` 的子类。以
 
 ### 条件分支指令
 
-- **`IFClause`**：`IF(cond, do)` -> `[ConditionJumpNode, condition, do, NOP]`
-- **`ELIFClause`**：在 `IFClause` 基础上扩展 ELIF 链，每个 ELIF 追加一组 `[ConditionJumpNode, condition, do]`，最终 NOP 作为统一出口
-- **`ELSEClause`**：在 IF 或 IF-ELIF 链后追加 `[ELSENode, else_do, NOP]`
+- `IFClause`：`IF(cond, do)` -> `[ConditionJumpNode, condition, do, NOP]`
+- `ELIFClause`：在 `IFClause` 基础上扩展 ELIF 链，每个 ELIF 追加一组 `[ConditionJumpNode, condition, do]`，最终 NOP 作为统一出口
+- `ELSEClause`：在 IF 或 IF-ELIF 链后追加 `[ELSENode, else_do, NOP]`
 
 ### 循环指令
 
-- **`WhileClause`**：`WHILE(condition).ACTION(action)` -> `[WhileNode, condition, action, CheckUpNode, NOP]`
-- **`DoWhileClause`**：`DO(do).WHILE(condition)` -> `[DONode, do, DowhileNode, condition, NOP]`
+- `WhileClause`：`WHILE(condition).ACTION(action)` -> `[WhileNode, condition, action, CheckUpNode, NOP]`
+- `DoWhileClause`：`DO(do).WHILE(condition)` -> `[DONode, do, DowhileNode, condition, NOP]`
 
 ### 异常处理指令
 
-- **`TryClause`**：展开为 `[TryNode, try_body, ...catch_handler_i, catch_body_i..., FinNode(可选), fin_body, NOP]`。`TryNode` 管理整条异常处理链的运行时逻辑。
+- `TryClause`：展开为 `[TryNode, try_body, ...catch_handler_i, catch_body_i..., FinNode(可选), fin_body, NOP]`。`TryNode` 管理整条异常处理链的运行时逻辑。
 
 ### 子程序存储指令
 
-- **`SubprogramStorage`**（`ARCHIVED_NODES` 的底层实现）：展开为 `[SubprogramJumpNode, node_1, node_2, ..., NOP]`。接收任意 `BaseNode`（不限于 `ALIAS`），`SubprogramJumpNode` 在正常执行流中无条件跳过整个存储区。内部节点可通过 `CALL` 或 `GOTO` 寻址访问（若使用 `ALIAS` 标记）。
-- **`ARCHIVED_SEGMENT`**：归档完整节点组合的 `NodeCompose` 包装（`[JMP 2, Payload, NOP]`）。它是 `FN` / `INTER_FN` 函数块的构建基础——现代调用模式参见[函数块调用](../guide/advanced/function-block-call)。
+- `SubprogramStorage`（`ARCHIVED_NODES` 的底层实现）：展开为 `[SubprogramJumpNode, node_1, node_2, ..., NOP]`。接收任意 `BaseNode`（不限于 `ALIAS`），`SubprogramJumpNode` 在正常执行流中无条件跳过整个存储区。内部节点可通过 `CALL` 或 `GOTO` 寻址访问（若使用 `ALIAS` 标记）。
+- `ARCHIVED_SEGMENT`：归档完整节点组合的 `NodeCompose` 包装（`[JMP 2, Payload, NOP]`）。它是 `FN` / `INTER_FN` 函数块的构建基础——现代调用模式参见[函数块调用](../guide/advanced/function-block-call)。
 
 ### 注意：CALL 不是自编译指令
 

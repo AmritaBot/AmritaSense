@@ -29,8 +29,8 @@ sequenceDiagram
 
 ## PUSH_STACK and RET_FAR
 
-- **`PUSH_STACK(alias_or_idata)`** — pushes the resolved address of a target alias (or a raw address list) onto `_ret_addr_stack`. The instruction returns a `NodeType[None]` (an inline `@Node`-decorated callable), placed directly in the `>>` chain.
-- **`RET_FAR()`** — pops the top entry from `_ret_addr_stack` and restores the pointer via `rebase_ptr`. Unlike `jump_to` / `jump_far_ptr`, `rebase_ptr` does **not** set the jump flag, so the interpreter naturally **advances to the next instruction** (`return-address + 1`) after the return. Callers should push `target - 1` so that the advance step lands exactly on the target node.
+- `PUSH_STACK(alias_or_idata)` — pushes the resolved address of a target alias (or a raw address list) onto `_ret_addr_stack`. The instruction returns a `NodeType[None]` (an inline `@Node`-decorated callable), placed directly in the `>>` chain.
+- `RET_FAR()` — pops the top entry from `_ret_addr_stack` and restores the pointer via `rebase_ptr`. Unlike `jump_to` / `jump_far_ptr`, `rebase_ptr` does **not** set the jump flag, so the interpreter naturally **advances to the next instruction** (`return-address + 1`) after the return. Callers should push `target - 1` so that the advance step lands exactly on the target node.
 
 Neither instruction should be `return`-ed from inside a `@Node()` function — place them directly in the `>>` chain.
 
@@ -78,12 +78,12 @@ await WorkflowInterpreter(comp.render()).run()
 
 ## PUSH_AND_GOTO (v0.3.0+)
 
-**`PUSH_AND_GOTO(from_adr, to_adr)`** is a convenience instruction that combines `PUSH_STACK` + `GOTO` into a single node. Internally it:
+`PUSH_AND_GOTO(from_adr, to_adr)` is a convenience instruction that combines `PUSH_STACK` + `GOTO` into a single node. Internally it:
 
 1. Pushes `from_adr` onto `_ret_addr_stack` (just like `PUSH_STACK`)
 2. Jumps to `to_adr` (just like `GOTO`)
 
-`from_adr` accepts an alias string, a raw address list, or **`None`**. When `None`:
+`from_adr` accepts an alias string, a raw address list, or `None`. When `None`:
 
 - Inside a subroutine call (`pc.outer_interpreting` is `True` — i.e. execution was entered via `call_sub`), it reuses the top of `_ret_addr_stack` (the return address pushed by the parent).
 - Otherwise (main `run()` flow), it uses the current pointer — `RET_FAR` will then advance onto the node right after `PUSH_AND_GOTO`.

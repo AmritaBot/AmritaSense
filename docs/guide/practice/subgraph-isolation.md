@@ -1,6 +1,6 @@
 # Advanced Practice: Subgraph Isolation Calls
 
-AmritaSense v0.3.0 introduces the **`FUN_BLOCK`** instruction and a full **interpreter tree model**, enabling workflows to launch isolated sub-workflows with their own lifecycle, middleware, and error boundaries.
+AmritaSense v0.3.0 introduces the `FUN_BLOCK` instruction and a full **interpreter tree model**, enabling workflows to launch isolated sub-workflows with their own lifecycle, middleware, and error boundaries.
 
 ## Concept
 
@@ -51,13 +51,13 @@ FUN_BLOCK(
 
 ### Parameters
 
-- **`sub_comp`** (`NodeComposeRendered`): The compiled workflow graph to execute in isolation. Use `.render()` on any `NodeCompose` to obtain this.
-- **`middleware`** (`Callable | None | UNSET`): Controls middleware inheritance:
+- `sub_comp` (`NodeComposeRendered`): The compiled workflow graph to execute in isolation. Use `.render()` on any `NodeCompose` to obtain this.
+- `middleware` (`Callable | None | UNSET`): Controls middleware inheritance:
   - `UNSET` (default): Inherits the parent's middleware, unless `__flags__.NO_SHARED_MIDDLEWARE` is `True`.
   - `None`: No middleware for the child interpreter.
   - A callable: Custom middleware for this child only.
-- **`object_io`** (`SuspendObjectStream | None`): I/O stream for the child. Default `None` shares the parent's `SuspendObjectStream`. Since v0.3.2, `SuspendObjectStream` is concurrency-safe via the **CLCA (Cross Loop Callback-Allocate) signal design pattern**, so sharing across interpreters and even threads is safe.
-- **`one_time_interp`** (`bool`): If `True`, a new `WorkflowInterpreter` is created on every invocation and torn down after completion. If `False` (default), the interpreter is reused across invocations (its state is reset but not reconstructed).
+- `object_io` (`SuspendObjectStream | None`): I/O stream for the child. Default `None` shares the parent's `SuspendObjectStream`. Since v0.3.2, `SuspendObjectStream` is concurrency-safe via the **CLCA (Cross Loop Callback-Allocate) signal design pattern**, so sharing across interpreters and even threads is safe.
+- `one_time_interp` (`bool`): If `True`, a new `WorkflowInterpreter` is created on every invocation and torn down after completion. If `False` (default), the interpreter is reused across invocations (its state is reset but not reconstructed).
 
 ### Return Value
 
