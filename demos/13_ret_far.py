@@ -9,8 +9,9 @@ instruction that combines PUSH_STACK + GOTO into a single node.
 
 import asyncio
 
-from amrita_sense import ALIAS, GOTO, NOP, Node, WorkflowInterpreter
-from amrita_sense.instructions import PUSH_STACK, RET_FAR
+from amrita_sense import ALIAS, Node, WorkflowInterpreter
+from amrita_sense.instructions.ret2 import PUSH_AND_GOTO
+from amrita_sense.instructions.subprogram import ARCHIVED_SEGMENT
 
 
 @Node()
@@ -32,19 +33,11 @@ async def after_return() -> None:
 
 async def main() -> None:
     print("=== PUSH_STACK + GOTO + RET_FAR example ===")
-    # Pattern: PUSH_STACK -> GOTO -> RET_FAR pop-and-return
-    #   1) PUSH_STACK("after") pushes "after" address onto _ret_addr_stack
-    #   2) GOTO("work") jumps to the work section
-    #   3) RET_FAR() pops the saved address and jumps back
     comp = (
         start
-        >> PUSH_STACK("after")
-        >> GOTO("work")
-        >> ALIAS(after_return, "after")
-        >> GOTO("end")
-        >> ALIAS(doing_work, "work")
-        >> RET_FAR()
-        >> ALIAS(NOP, "end")
+        >> PUSH_AND_GOTO(None, "doing_work")
+        >> after_return
+        >> ARCHIVED_SEGMENT(ALIAS(doing_work, "doing_work") >> doing_work)
     )
     await WorkflowInterpreter(comp.render()).run()
 

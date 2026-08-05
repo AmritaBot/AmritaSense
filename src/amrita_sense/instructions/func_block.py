@@ -7,8 +7,11 @@ from typing_extensions import override
 
 from amrita_sense.exceptions import IllegalState
 from amrita_sense.hook.fun_typing import DependencyMeta
+from amrita_sense.instructions.alias import ALIAS
+from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.node.core import BaseNode, NodeCompose, NodeComposeRendered
 from amrita_sense.node.self_compile import SelfCompileInstruction
+from amrita_sense.node.wrapper import Node
 from amrita_sense.runtime.workflow import UNSET, WorkflowInterpreter
 from amrita_sense.streaming import SuspendObjectStream
 
@@ -102,7 +105,14 @@ def FUN_BLOCK(
     )
 
 
-def INTER_FN(block: NodeCompose | SelfCompileInstruction) -> NodeCompose:
+@Node(wrap_to_async=False, address_able=False)
+def _fn_escape(pc: WorkflowInterpreter):
+    pc.rebase_ptr(pc._pointer.copy().offset(3))
+
+
+def INTER_FN(
+    entrypoint: str, block: NodeCompose | SelfCompileInstruction
+) -> NodeCompose:
     """Define an **interrupt service routine** (Sense interrupt handler).
 
     Appends :func:`~amrita_sense.instructions.interrupt.INTERRUPT_RET` to
@@ -124,10 +134,10 @@ def INTER_FN(block: NodeCompose | SelfCompileInstruction) -> NodeCompose:
 
     if isinstance(block, SelfCompileInstruction):
         block = block.extract()
-    return block >> INTERRUPT_RET()
+    return _fn_escape >> ALIAS(NOP, entrypoint) >> block >> INTERRUPT_RET()
 
 
-def FN(block: NodeCompose | SelfCompileInstruction) -> NodeCompose:
+def FN(entrypoint: str, block: NodeCompose | SelfCompileInstruction) -> NodeCompose:
     """Define a **regular function block** (Sense subroutine).
 
     Appends :func:`~amrita_sense.instructions.ret2.RET_FAR` to ``block`` so
@@ -149,4 +159,5 @@ def FN(block: NodeCompose | SelfCompileInstruction) -> NodeCompose:
 
     if isinstance(block, SelfCompileInstruction):
         block = block.extract()
-    return block >> RET_FAR()
+
+    return _fn_escape >> ALIAS(NOP, entrypoint) >> block >> RET_FAR()

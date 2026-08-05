@@ -70,6 +70,7 @@ class WorkflowInterpreter(Generic[io_T]):
 
     _interpreter_id: str  # Instance id
     _interpret_lock: aiologic.Lock
+    __outer_interpreting: bool
     _panic_exc: Exception | None
 
     _if_flag: bool  # Whether in the interrupt mode
@@ -89,6 +90,7 @@ class WorkflowInterpreter(Generic[io_T]):
     __slots__ = (
         "__ava_args",
         "__ava_kwargs",
+        "__outer_interpreting",
         "_context_stack",
         "_di_cache",
         "_exc_ignored",
@@ -144,6 +146,7 @@ class WorkflowInterpreter(Generic[io_T]):
         self._graph = node_compose
         self._pointer = PointerVector()
         self._panic_exc = None
+        self.__outer_interpreting = False
         # DI
         self.__ava_args = (self, *extra_args)
         extra_kwargs = extra_kwargs or {}
@@ -628,6 +631,7 @@ class WorkflowInterpreter(Generic[io_T]):
                     "Subroutine call detected, but lock is not acquired by current coroutine and caller is not in interrupt mode."
                     " Set `interrupt` to True to use outer interrupt mode."
                 )
+            self.__outer_interpreting = True
             async with self._interpret_lock if interrupt else NULL_CTX:
                 return await (
                     self._middleware(self)
@@ -637,13 +641,18 @@ class WorkflowInterpreter(Generic[io_T]):
                     )
                 )
         finally:
+            self.__outer_interpreting = False
             ptr = self._ret_addr_stack.pop()
             if not self._jump_marked:
-                self._pointer = ptr
+                self.rebase_ptr(ptr)
 
     @property
     def pending_stop(self) -> bool:
         return self._pending_stop
+
+    @property
+    def outer_interpreting(self) -> bool:
+        return self.__outer_interpreting
 
     async def terminate(self, eol: bool = True):
         """Mark interpreter as terminated, wait for it to finish.

@@ -10,8 +10,9 @@ INTERRUPT_INTO(jump_to, ret_to) takes TWO addresses:
 
 import asyncio
 
-from amrita_sense import ALIAS, ARCHIVED_NODES, NOP, Node, WorkflowInterpreter
-from amrita_sense.instructions import GOTO, INTERRUPT_INTO, INTERRUPT_RET
+from amrita_sense import ALIAS, Node, WorkflowInterpreter
+from amrita_sense.instructions import INTERRUPT_INTO, INTERRUPT_RET
+from amrita_sense.instructions.subprogram import ARCHIVED_SEGMENT
 
 
 @Node()
@@ -38,21 +39,15 @@ async def main() -> None:
     print("=== INTERRUPT_INTO(jump_to, ret_to) + INTERRUPT_RET demo ===\n")
 
     # Archived handler: skipped by normal flow, entered via INTERRUPT_INTO
-    interrupt_handler = ARCHIVED_NODES(
-        ALIAS(handler_entry, "int_handler"),
-        handler_body,
-        INTERRUPT_RET(),
+    interrupt_handler = ARCHIVED_SEGMENT(
+        ALIAS(handler_entry, "int_handler") >> handler_body >> INTERRUPT_RET(),
     )
 
     comp = (
         main_start
-        >> INTERRUPT_INTO("int_handler", "restore_here")
-        #     ^jump to handler    ^return address for INTERRUPT_RET
-        >> ALIAS(NOP, "restore_here")  # NOP return point
+        >> INTERRUPT_INTO("int_handler", None)  # Restore at the next command.
         >> back_to_main  # executes after restore
-        >> GOTO("done")
         >> interrupt_handler
-        >> ALIAS(NOP, "done")
     )
     await WorkflowInterpreter(comp.render()).run()
 

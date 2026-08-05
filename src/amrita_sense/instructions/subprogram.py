@@ -182,6 +182,6 @@ def ARCHIVED_SEGMENT(seg: NodeCompose | SelfCompileInstruction) -> NodeCompose:
 
     @Node(BuiltinTags.ARCHIVED_SEGMENT, wrap_to_async=False)
     def call(pc: WorkflowInterpreter) -> None:
-        pc.jump_near(2)  # [JMP 2, Payload, NOP] JMP 2->NOP
+        pc.jump_offset(2)  # [JMP 2, Payload, NOP] JMP 2->NOP
 
     return call >> seg >> NOP
