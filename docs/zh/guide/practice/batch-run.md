@@ -53,7 +53,7 @@ def BATCH_RUN(
 
 内部 `_post_compile` 根据输入类型分派处理：
 
-- **裸 `BaseNode`**：多个裸节点被收集到一个 `__BATCH_CALLER__` 解释器中
+- **裸 `BaseNode`**：多个裸节点被收集到一个 `__BATCH_CALLER__` 解释器中（tag 为 `BuiltinTags.BATCH_CALLER`）
 - **`NodeCompose`**：每个被独立 `.render()`，各得一个子解释器
 - **`SelfCompileInstruction`**：先 `.extract()` 再 `.render()`，各得一个子解释器
 

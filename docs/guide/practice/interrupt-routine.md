@@ -29,7 +29,7 @@ Each `WorkflowInterpreter` now maintains a **context stack** (`pc.context_stack`
 
 ## Pattern 1: PUSH_CONTEXT + INTERRUPT_RET (Simplest Context Save)
 
-The simplest pattern — save full state, jump to a sub-routine, restore and return.
+The simplest pattern — save full state, jump to a sub-routine, restore and return. Since v0.6.0, `PUSH_CONTEXT` no longer jumps, so the jump into the sub-routine must be explicit (`GOTO`).
 
 ```python
 from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
@@ -44,7 +44,9 @@ async def after_restore() -> None: ...
 
 comp = (
     start
-    >> PUSH_CONTEXT("sub_entry")   # save state, jump to sub
+    >> PUSH_CONTEXT("resume")      # save state; return address = resume NOP
+    >> GOTO("sub_entry")           # explicit jump to sub (v0.6.0+)
+    >> ALIAS(NOP, "resume")        # INTERRUPT_RET rebases here -> advance onto after_restore
     >> after_restore                # resumed here after INTERRUPT_RET
     >> GOTO("done")
     >> ALIAS(sub_routine, "sub_entry")
@@ -56,9 +58,9 @@ await WorkflowInterpreter(comp.render()).run()
 
 ---
 
-## Pattern 2: INTERRUPT_INTO + INTERRUPT_RET (Interrupt with Explicit Return)
+## Pattern 2: INTERRUPT_INTO + INTERRUPT_RET (Interrupt with Return)
 
-`INTERRUPT_INTO(jump_to, ret_to)` takes **two** addresses: where to go now, and where to return. This is the closest analog to CPU interrupt semantics.
+`INTERRUPT_INTO(jump_to, ret_to=None)` takes the target to jump to now, plus an optional return destination. This is the closest analog to CPU interrupt semantics. With `ret_to=None` in the main flow, the saved return address is the instruction itself — after `INTERRUPT_RET` restores, the interpreter advances onto the next node.
 
 ```python
 from amrita_sense import ALIAS, ARCHIVED_NODES, NOP, Node, WorkflowInterpreter
@@ -91,7 +93,7 @@ await WorkflowInterpreter(comp.render()).run()
 **What happens:**
 
 1. `INTERRUPT_INTO("on_error", "restore_here")` saves interpreter state, **replaces** the saved ptr with `"restore_here"`, sets `if_flag`, jumps to `error_handler`.
-2. `error_handler` runs. `INTERRUPT_RET` pops and restores the state — resuming at `"restore_here"`.
+2. `error_handler` runs. `INTERRUPT_RET` pops and restores the state — `rebase_context` puts the pointer at `"restore_here"`, then the interpreter advances onto the next node (`after_handler`).
 3. `after_handler` executes, then `GOTO("done")`.
 
 ---
@@ -185,8 +187,8 @@ See [External Interrupt Calls](/guide/advanced/external_interrupt) for the exter
 ## Caveats
 
 1. **No INTERRUPT_INTO inside IF branches**: `pc.if_flag == True` raises `IllegalState`.
-2. **Explicit ret_to**: With `INTERRUPT_INTO`, you must always provide a return destination alias.
+2. **ret_to is optional (v0.6.0+)**: `INTERRUPT_INTO(jump_to)` works without `ret_to` — `None` resolves to the top of `_ret_addr_stack` inside a `call_sub`, otherwise to the current pointer (advancing onto the next node after restore).
 3. **if_flag cleared on return**: After `INTERRUPT_RET`, `pc.if_flag` is always reset to `False`.
-4. **INTERRUPT_RET performs jump_to**: Like other jump instructions, it sets `_jump_marked = True`.
+4. **INTERRUPT_RET does not set the jump flag**: it restores via `rebase_context` (i.e. `rebase_ptr`) — execution resumes at the node **after** the saved address. Save the predecessor of your real resume point when using `PUSH_CONTEXT` / explicit `ret_to`.
 5. **Dependency injection preserved**: `INTERRUPT_INTO` always includes `s_args` and `s_kwargs`.
 6. **Context stack integrity**: Ensure each `PUSH_CONTEXT`/`INTERRUPT_INTO` has a corresponding `INTERRUPT_RET`.

@@ -25,16 +25,16 @@ The recommended practice is to configure flags at the very top of your applicati
 ```python
 # ✅ Correct: at the top of main.py / __main__.py
 from amrita_sense._unsafe import __flags__
-__flags__.ALLOW_CALL_NODECOMPOSE = True
+__flags__.DISABLE_EXC_IGNORED = True
 
 # ... rest of your application
 ```
 
 ```python
 # ❌ Wrong: this will raise RuntimeError
-__flags__.ALLOW_CALL_NODECOMPOSE = True
+__flags__.DISABLE_EXC_IGNORED = True
 # ... later ...
-__flags__.ALLOW_CALL_NODECOMPOSE = False  # RuntimeError!
+__flags__.DISABLE_EXC_IGNORED = False  # RuntimeError!
 ```
 
 ## Flag Reference
@@ -59,15 +59,13 @@ By default, `InterruptNotice` and `BreakLoop` are automatically added to `_exc_i
 
 **When to use**: When you need `TRY/CATCH` blocks to intercept `BreakLoop` or `InterruptNotice`, or when you want fully manual control over which exceptions penetrate.
 
-### `ALLOW_CALL_NODECOMPOSE`
+### `ALLOW_CALL_NODECOMPOSE` — Removed (v0.5.2+)
 
 ```python
-ALLOW_CALL_NODECOMPOSE: bool = False
+ALLOW_CALL_NODECOMPOSE: bool = False  # no effect; kept for compatibility
 ```
 
-By default, calling `_call()` on a `NodeCompose` raises `RuntimeError`. Setting this flag to `True` suppresses that error and allows `NodeCompose` to be invoked directly. This is sometimes useful when a `SelfCompileInstruction` renders a `NodeCompose` that is meant to be called as a single unit.
-
-**When to use**: When your custom `SelfCompileInstruction` needs to call into a `NodeCompose` without wrapping it in a `FUN_BLOCK`.
+> **Removed since v0.5.2.** The flag field still exists in `_Flags` for backwards compatibility, but it has **no effect**: since v0.6.0, `_call()` automatically enters a `NodeComposeRendered` (appending `0` to the pointer and recursing) instead of raising `RuntimeError` — the behavior this flag used to toggle is now the default. Do not rely on it.
 
 ### `NO_DEPENDENCY_META_CACHE`
 
@@ -153,7 +151,6 @@ Several built-in instructions and the matcher system read flags at key decision 
 | Flag                        | Affected Systems                                                                 |
 | --------------------------- | -------------------------------------------------------------------------------- |
 | `DISABLE_EXC_IGNORED`       | `TryNode._call()`, `MatcherFactory._resolve()`, `WorkflowInterpreter.__init__()` |
-| `ALLOW_CALL_NODECOMPOSE`    | `WorkflowInterpreter._call()`                                                    |
 | `NO_DEPENDENCY_META_CACHE`  | `WorkflowInterpreter._call()`, `MatcherFactory._prepare()`                       |
 | `FORCE_NOT_WRAP_TO_ASYNC`   | `WorkflowInterpreter._call()`                                                    |
 | `NO_SHARED_MIDDLEWARE`      | `WorkflowInterpreter.fork_interpreter()`                                         |
@@ -168,10 +165,10 @@ Several built-in instructions and the matcher system read flags at key decision 
 | --------------------------- | ------- | ----------------------------------------- |
 | `FORCE_NOT_WRAP_TO_ASYNC`   | `False` | Force sync nodes to stay sync             |
 | `DISABLE_EXC_IGNORED`       | `False` | Disable automatic exception penetration   |
-| `ALLOW_CALL_NODECOMPOSE`    | `False` | Allow `NodeCompose` to be called directly |
 | `NO_DEPENDENCY_META_CACHE`  | `False` | Re-resolve dependency metadata each call  |
 | `NO_SHARED_MIDDLEWARE`      | `False` | Don't inherit parent middleware in forks  |
 | `SQUASHED_LOOP`             | `False` | Squash while/do-while into native loops   |
 | `WORKFLOW_DI_NO_CACHE`      | `False` | Disable DI result caching (repeatable)    |
 | `WORKFLOW_DI_PRELOAD_CACHE` | `False` | Pre-resolve DI for all nodes at startup   |
 | `WORKFLOW_DI_PRELOAD_BATCH` | `10`    | Batch size for DI preloading (repeatable) |
+| `ALLOW_CALL_NODECOMPOSE`    | `False` | **Removed (v0.5.2+)** — no effect, kept for compatibility |

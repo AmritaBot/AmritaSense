@@ -3,9 +3,12 @@
 Usage:
     python demos/19_interrupt_into.py
 
-INTERRUPT_INTO(jump_to, ret_to) takes TWO addresses:
+INTERRUPT_INTO(jump_to, ret_to=None) snapshots the interpreter state and
+jumps to the handler:
   - jump_to: where to go NOW (the interrupt handler)
-  - ret_to:  where INTERRUPT_RET will resume (explicit return address)
+  - ret_to:  where INTERRUPT_RET will resume.  None (default) in the main
+             flow means "the current pointer" — after the restore the
+             interpreter advances onto the next node (back_to_main).
 """
 
 import asyncio
@@ -36,7 +39,7 @@ async def back_to_main() -> None:
 
 
 async def main() -> None:
-    print("=== INTERRUPT_INTO(jump_to, ret_to) + INTERRUPT_RET demo ===\n")
+    print("=== INTERRUPT_INTO + INTERRUPT_RET demo ===\n")
 
     # Archived handler: skipped by normal flow, entered via INTERRUPT_INTO
     interrupt_handler = ARCHIVED_SEGMENT(

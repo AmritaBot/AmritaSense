@@ -63,7 +63,9 @@ def early_exit():
 
 ### Equivalent of `continue`
 
-Sense loops do not provide a native `continue` keyword, but they support a zero-cost equivalent: simply `return` early from the current node. The interpreter will naturally advance to the next loop condition check (or to the loop entry point), yielding behavior equivalent to `continue`.
+Traditional Sense loops (`WHILE` / `DO`) do not provide a native `continue` keyword, but they support a zero-cost equivalent: simply `return` early from the current node. The interpreter will naturally advance to the next loop condition check (or to the loop entry point), yielding behavior equivalent to `continue`.
+
+> Native loops (`NATIVE_WHILE` / `NATIVE_DO`) provide an explicit **`CONTINUE()`** instruction that pops the stack and jumps straight to the loop head — see [Native Control Flow](../advanced/native_control_flow.md).
 
 ## 3.3.3 Exception handling
 
@@ -105,6 +107,6 @@ This design lets developers mark exceptions as “non-recoverable” or “globa
 
 From conditionals and loops to exception handling, AmritaSense's flow control system covers all core structured programming paradigms. These capabilities are not "simulated" through an external DSL or graph topology; they are directly encoded as first-class primitives in the instruction set and interpreter.
 
-> **Further reading**: v0.5.1 introduced the native control flow instruction set (`NATIVE_IF` / `NATIVE_WHILE` / `NATIVE_DO` / `BREAK_LOOP`), an **orthogonal extension** to traditional instructions. See [Native Control Flow](../advanced/native_control_flow.md).
+> **Further reading**: v0.5.1 introduced the native control flow instruction set (`NATIVE_IF` / `NATIVE_WHILE` / `NATIVE_DO` / `BREAK_LOOP` / `CONTINUE`), an **orthogonal extension** to traditional instructions — redesigned in v0.6.0 around the `CONTINUE()` / `BREAK_LOOP()` factory-function jump model. See [Native Control Flow](../advanced/native_control_flow.md).
 
 In the next chapter, we will explore execution and interrupt control at runtime.

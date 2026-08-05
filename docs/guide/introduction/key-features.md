@@ -23,7 +23,7 @@ AmritaSense provides a first-class control flow instruction set; no external gra
 - **Jump instructions** – `GOTO` with `ALIAS` for unconditional jumps, `CALL` with `ARCHIVED_NODES` for subroutine calls and returns.
 - **Exception handling** – `TRY…CATCH…THEN…FIN`, fully aligned with Python’s exception handling semantics, with controlled exception penetration.
 
-v0.5.1 added native control flow instructions `NATIVE_IF` / `NATIVE_WHILE` / `NATIVE_DO` / `BREAK_LOOP`, an **orthogonal extension** providing lower-level control flow based on `PUSH/JMP/RET_FAR` for scenarios requiring precise pointer control.
+v0.5.1 added native control flow instructions `NATIVE_IF` / `NATIVE_WHILE` / `NATIVE_DO` / `BREAK_LOOP`, an **orthogonal extension** providing lower-level control flow based on `PUSH/JMP/CONTINUE/BREAK_LOOP` for scenarios requiring precise pointer control. Since v0.6.0, loop bodies are always wrapped with `CONTINUE()` and `BREAK_LOOP()` / `CONTINUE()` are factory functions.
 
 All control flow instructions are expanded into low-level node compositions at compile time. Execution is performed entirely through pointer offsets; there is no graph traversal, string routing, or state-dictionary lookup.
 

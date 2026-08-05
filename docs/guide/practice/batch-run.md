@@ -53,7 +53,7 @@ Returns a `BatchRun` node, placed directly in the `>>` chain.
 
 Internally, `_post_compile` dispatches based on input type:
 
-- **Bare `BaseNode`**: Multiple bare nodes are bundled into a single `__BATCH_CALLER__` interpreter.
+- **Bare `BaseNode`**: Multiple bare nodes are bundled into a single `__BATCH_CALLER__` interpreter (tagged `BuiltinTags.BATCH_CALLER`).
 - **`NodeCompose`**: Each is independently `.render()`ed → one child interpreter each.
 - **`SelfCompileInstruction`**: Each is `.extract().render()`ed → one child interpreter each.
 

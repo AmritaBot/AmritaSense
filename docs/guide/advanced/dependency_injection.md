@@ -154,12 +154,12 @@ Starting from v0.4.2, the `WorkflowInterpreter` maintains an internal DI result 
 
 ### How it works
 
-The cache key is a composite of:
+Since v0.6.0, the cache key is built from the **node function identity** plus the argument fingerprint (the pointer position is **no longer** part of the key — the same node function shares cache entries across call sites):
 
-- **Pointer hash**: `hash(self._pointer)` — the interpreter's current execution position
-- **Args hash**: a fingerprint computed from the types of `_ava_args` and `_ava_kwargs`
+- **Function identity**: `id(node.func)` — the node's underlying function object
+- **Args fingerprint**: computed from the types of `_ava_args` and `_ava_kwargs`
 
-The utility function `_fingerprint_args()` generates the args hash by:
+The utility function `_fingerprint_args()` generates the args fingerprint by:
 
 1. Extracting `type(arg).__name__` for each positional argument
 2. Extracting `(key, type(v).__name__)` for each keyword argument (sorted for stability)
@@ -167,16 +167,22 @@ The utility function `_fingerprint_args()` generates the args hash by:
 
 ```python
 # Simplified illustration of the cache key
-cache_key = hash((hash(pointer), _fingerprint_args(ava_args, ava_kwargs)))
+code = _fingerprint_args(ava_args, ava_kwargs)  # or the cached args_hash when no extra args
+cache_key = hash((id(node.func), code))
 ```
 
-The cache payload is an `LRUCache` (from `cachetools`) with a maximum of 2048 entries. When the cache is full, the least recently used entry is evicted.
+The cache payload is an `LRUCache` (from `cachetools`) with a maximum of 2048 entries. When the cache is full, the least recently used entry is evicted. Each entry stores `(static_kwargs, non_cacheable_factories)` — see `cacheable` below.
+
+### `cacheable` factories (v0.6.0+)
+
+`DependsFactory(cacheable=True)` providers are resolved **once, at cache-write time**, and their results are stored in the cache. `cacheable=False` (the default) providers are stored as-is and re-resolved **on every call** — use this for providers with side effects or time-varying values. This separation is orthogonal to cache validity (`hash_trustable`).
 
 ### Cache lifecycle
 
-- **Initialization**: The cache is created during `WorkflowInterpreter.__init__()` with an initial args hash.
-- **Lookup**: Before resolving dependencies for a node, the interpreter checks `_di_cache.payload` for a matching key. On a cache hit, the cached kwargs are used directly, skipping all dependency resolution.
-- **Invalidation**: Modifying `_ava_args` or `_ava_kwargs` sets `hash_trustable = False`, indicating the args hash may be stale. Call `rehash_args()` to recompute the hash and restore trust. If the new hash differs from the old one, the entire cache is cleared.
+- **Initialization**: The cache is created during `WorkflowInterpreter.__init__()` with an initial args fingerprint.
+- **Lookup**: Before resolving dependencies for a node, the interpreter checks `_di_cache.payload` for a matching key. On a cache hit, the cached static kwargs are used directly, skipping static dependency resolution.
+- **Per-call factories**: `cacheable=False` factories stored in the cache entry are re-resolved on every invocation.
+- **Invalidation**: Modifying `_ava_args` or `_ava_kwargs` sets `hash_trustable = False` (a cache-validity gate), indicating the args fingerprint may be stale. Call `rehash_args()` to recompute the fingerprint and restore trust. If the new fingerprint differs from the old one, the entire cache is cleared.
 - **Disable**: Set `__flags__.WORKFLOW_DI_NO_CACHE = True` to disable caching entirely.
 
 ### Code example

@@ -93,10 +93,13 @@ def PUSH_AND_GOTO(
     def call(pc: WorkflowInterpreter) -> None:
         nonlocal frm_addr, to_addr
         assert to_addr is not None
-        if frm_addr is None and pc.outer_interpreting:
-            frm_addr = pc._ret_addr_stack.stack[-1].base_addr.copy()
-        else:
-            frm_addr = pc._pointer.base_addr.copy()
+        if frm_addr is None:
+            # None default: reuse the parent's return address when inside a
+            # call_sub, otherwise use the current pointer.
+            if pc.outer_interpreting:
+                frm_addr = pc._ret_addr_stack.stack[-1].base_addr.copy()
+            else:
+                frm_addr = pc._pointer.base_addr.copy()
         pc._ret_addr_stack.push(PointerVector(frm_addr))
         pc.jump_to(to_addr)
 

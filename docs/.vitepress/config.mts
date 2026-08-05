@@ -187,10 +187,14 @@ export default withMermaid({
                     link: "/guide/advanced/built-in_instruction_set/context_clause",
                   },
                   {
-                    text: "Native Instructions (NATIVE_IF/WHILE/DO/BREAK_LOOP)",
+                    text: "Native Instructions (NATIVE_IF/WHILE/DO/BREAK_LOOP/CONTINUE)",
                     link: "/guide/advanced/built-in_instruction_set/native_instructions",
                   },
                 ],
+              },
+              {
+                text: "Function Block Call",
+                link: "/guide/advanced/function-block-call",
               },
               { text: "Custom Nodes", link: "/guide/advanced/custom_node" },
               {
@@ -372,10 +376,14 @@ export default withMermaid({
                     link: "/zh/guide/advanced/built-in_instruction_set/context_clause",
                   },
                   {
-                    text: "原生特性指令 (NATIVE_IF/WHILE/DO/BREAK_LOOP)",
+                    text: "原生特性指令 (NATIVE_IF/WHILE/DO/BREAK_LOOP/CONTINUE)",
                     link: "/zh/guide/advanced/built-in_instruction_set/native_instructions",
                   },
                 ],
+              },
+              {
+                text: "函数块调用",
+                link: "/zh/guide/advanced/function-block-call",
               },
               { text: "自定义节点", link: "/zh/guide/advanced/custom_node" },
               {

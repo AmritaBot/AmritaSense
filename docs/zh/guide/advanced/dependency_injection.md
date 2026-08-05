@@ -157,12 +157,12 @@ TRY(
 
 ### 工作原理
 
-缓存键由两部分组成：
+v0.6.0 起，缓存键由**节点函数标识** + 参数指纹组成（指针位置**不再**参与——同一节点函数在不同调用点共享缓存条目）：
 
-- **指针哈希**：`hash(self._pointer)` —— 解释器当前执行位置
-- **参数哈希**：基于 `_ava_args` 和 `_ava_kwargs` 的类型指纹
+- **函数标识**：`id(node.func)` —— 节点底层的函数对象
+- **参数指纹**：基于 `_ava_args` 和 `_ava_kwargs` 的类型指纹
 
-工具函数 `_fingerprint_args()` 按以下方式生成参数哈希：
+工具函数 `_fingerprint_args()` 按以下方式生成参数指纹：
 
 1. 对每个位置参数提取 `type(arg).__name__`
 2. 对每个关键字参数提取 `(key, type(v).__name__)`（排序以保证稳定性）
@@ -170,16 +170,22 @@ TRY(
 
 ```python
 # 缓存键的简化示意
-cache_key = hash((hash(pointer), _fingerprint_args(ava_args, ava_kwargs)))
+code = _fingerprint_args(ava_args, ava_kwargs)  # 无额外参数时用缓存的 args_hash
+cache_key = hash((id(node.func), code))
 ```
 
-缓存载体是 `cachetools` 的 `LRUCache`，最大容量 2048 条。缓存满时按最近最少使用策略淘汰。
+缓存载体是 `cachetools` 的 `LRUCache`，最大容量 2048 条。缓存满时按最近最少使用策略淘汰。每个条目存储 `(static_kwargs, non_cacheable_factories)`——见下方 `cacheable`。
+
+### `cacheable` 工厂（v0.6.0+）
+
+`DependsFactory(cacheable=True)` 的提供者在**写入缓存时解析一次**，结果存入缓存。`cacheable=False`（默认）的提供者按原样存储，**每次调用**重新解析——适用于有副作用或取值随时间变化的提供者。该区分与缓存有效性（`hash_trustable`）正交。
 
 ### 缓存生命周期
 
-- **初始化**：`WorkflowInterpreter.__init__()` 中创建，携带初始参数哈希。
-- **查询**：解析节点依赖前，先检查 `_di_cache.payload` 是否有匹配键。命中则直接使用缓存的 kwargs，跳过全部依赖解析。
-- **失效**：修改 `_ava_args` 或 `_ava_kwargs` 会将 `hash_trustable` 设为 `False`，表示参数哈希可能过期。调用 `rehash_args()` 重新计算并恢复信任。若新哈希与旧值不同，整个缓存被清空。
+- **初始化**：`WorkflowInterpreter.__init__()` 中创建，携带初始参数指纹。
+- **查询**：解析节点依赖前，先检查 `_di_cache.payload` 是否有匹配键。命中则直接使用缓存的静态 kwargs，跳过静态依赖解析。
+- **逐调用工厂**：缓存条目中 `cacheable=False` 的工厂每次调用都会重新解析。
+- **失效**：修改 `_ava_args` 或 `_ava_kwargs` 会将 `hash_trustable` 设为 `False`（缓存有效性门闩），表示参数指纹可能过期。调用 `rehash_args()` 重新计算并恢复信任。若新指纹与旧值不同，整个缓存被清空。
 - **禁用**：设置 `__flags__.WORKFLOW_DI_NO_CACHE = True` 完全关闭缓存。
 
 ### 代码示例

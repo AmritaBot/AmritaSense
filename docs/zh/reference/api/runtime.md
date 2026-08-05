@@ -96,21 +96,25 @@ def __init__(
 
 **`pending_stop: bool`** — 是否已对该解释器调用 `terminate()`。
 
+**`outer_interpreting: bool`**（v0.6.0+，只读）— 子程序调用（`call_sub`）执行期间为 `True`。进入子程序时无条件置位，返回时在 `finally` 块中恢复为 `False`。`PUSH_AND_GOTO` / `INTERRUPT_INTO` 在 `from_adr` / `ret_to` 为 `None` 时据此选择默认返回地址：调用期间（标志为 `True`）复用 `_ret_addr_stack` 栈顶（父级压入的返回地址），否则使用当前指针。
+
 **`wait: asyncio.Future[None]`** — 一个在解释器执行完成时 resolve 的 future。若解释器未运行则抛出 `IllegalState`。
 
 **`get_exception() -> Exception | None`**（v0.3.1+）— 获取上次 panic 异常。若解释器正常完成或从未崩溃，返回 `None`。崩溃后即时可用，用于诊断。
 
-**`_di_cache: DICache`**（v0.4.2+）— 内部 DI 结果缓存。以 `hash((hash(_pointer), args_hash))` 为键存储已解析的依赖 kwargs。载体为 `LRUCache`，最大 2048 条。缓存失效见 `args_hash` 和 `args_hash_trustable`。
+**`_di_cache: DICache`**（v0.4.2+）— 内部 DI 结果缓存。以 `hash((id(node.func), args_hash))` 为键存储 `(static_kwargs, non_cacheable_factories)`（v0.6.0 起；指针位置不再参与键）。载体为 `LRUCache`，最大 2048 条。缓存失效见 `args_hash` 和 `args_hash_trustable`。
 
-**`args_hash_trustable: bool`**（v0.4.2+，只读）— 若缓存的参数哈希已知有效，返回 `True`。修改 `_ava_args` 或 `_ava_kwargs` 时自动置为 `False`。调用 `rehash_args()` 恢复信任。
+**`args_hash_trustable: bool`**（v0.4.2+，只读）— 缓存有效性门闩：若缓存的参数哈希已知有效，返回 `True`。修改 `_ava_args` 或 `_ava_kwargs` 时自动置为 `False`。调用 `rehash_args()` 恢复信任。为 `False` 期间，LRU payload 既不被读取也不被写入。
 
 **`args_hash: int`**（v0.4.2+，只读）— 返回当前参数哈希，用作 DI 缓存键的一部分。由 `_fingerprint_args()` 计算。
 
 **`rehash_args() -> None`**（v0.4.2+）— 基于当前 `_ava_args` 和 `_ava_kwargs` 重新计算参数哈希，并将 `hash_trustable` 置为 `True`。若新哈希与旧值不同，清空整个 DI 缓存。
 
-**`_rslv_node(node, ava_args, ava_kwargs) -> dict[str, Any]`**（v0.4.2+，内部方法）— 为单个节点解析依赖。依次调用 `MatcherFactory._resolve_dependencies()` 和 `MatcherFactory._do_runtime_resolve()`。返回已解析的关键字参数字典。失败时抛出 `DependsResolveFailed` 或 `DependsInjectFailed`。此方法从 `_call()` 中提取，供主循环和预加载机制共用。
+**`_rslv_node(node, ava_args, ava_kwargs) -> dict[str, Any]`**（v0.4.2+，内部方法）— 为单个节点解析依赖。依次调用 `MatcherFactory._resolve_dependencies()` 和 `MatcherFactory._do_runtime_resolve()`。返回已解析的关键字参数字典。失败时抛出 `DependsResolveFailed` 或 `DependsInjectFailed`。
 
-**`_refresh_di_cache_full() -> None`**（v0.4.2+，内部方法）— 遍历整个工作流图，为每个节点预解析 DI 并存入 `_di_cache`。节点以 `WORKFLOW_DI_PRELOAD_BATCH` 控制的并发批量解析。仅在 `WORKFLOW_DI_PRELOAD_CACHE` 启用时于 `run()` 初始化阶段调用。若 `hash_trustable` 为 `False` 则抛出 `DependsResolveFailed`。
+**`_rslv_node_static(node, ava_args, ava_kwargs) -> tuple[dict[str, Any], dict[str, Any]]`**（v0.6.0+，内部方法）— 为节点解析静态依赖与 `cacheable=True` 工厂，返回 `(static_kwargs, non_cacheable_factories)`。供 `_call()` 与预加载机制使用。`cacheable=False` 工厂按原样返回，每次调用重新解析。
+
+**`_refresh_di_cache_full() -> None`**（v0.4.2+，内部方法）— 遍历整个工作流图，为每个节点预解析 DI 并以键 `hash((id(node.func), args_hash))` 存入 `_di_cache`（条目为 `(static_kwargs, non_cacheable_factories)`）。节点以 `WORKFLOW_DI_PRELOAD_BATCH` 控制的并发批量解析。仅在 `WORKFLOW_DI_PRELOAD_CACHE` 启用时于 `run()` 初始化阶段调用。若 `hash_trustable` 为 `False` 则抛出 `DependsResolveFailed`。
 
 ### 主要方法
 
@@ -229,7 +233,7 @@ def __init__(
 
 **`jump_far_ptr(offset: list[int])`**
 
-多维绝对跳转。用 `far_to(offset)` 完整替换 `_pointer`。被 `RET_FAR` 用于从嵌套作用域返回。
+多维绝对跳转。用 `far_to(offset)` 完整替换 `_pointer`。这是带 `@markup` 的跳转——会设置 `_jump_marked`，主循环随后不再步进。被 `CONTINUE` / `BREAK_LOOP` 用于跳回循环头或出口哨兵（`RET_FAR` 不使用它，而是用 `rebase_ptr`）。
 
 **`jump_offset_far(offset: list[int])`**
 
@@ -248,7 +252,7 @@ def __init__(
 5. `finally` 块弹栈恢复 `_pointer`（除非 `_jump_marked` 为 `True`）
 
 `interrupt=True` 用于外部系统在节点边界注入子程序。内部节点调用子程序时**必须**使用 `interrupt=False`，否则触发 `aiologic` 死锁检测。
-
+子程序执行期间 `outer_interpreting` 为 `True`——进入时无条件置位，返回时在 `finally` 块中清除。它让 `PUSH_AND_GOTO` / `INTERRUPT_INTO`（`from_adr` / `ret_to` 为 `None` 时）能从父级的栈条目解析默认返回地址。
 **`call_near(addr: int, \*ag, interrupt=False, **kw) -> Any`\*\*
 
 在当前层级内以近距地址调用子程序。通过 `near_to(addr)` 计算目标地址。

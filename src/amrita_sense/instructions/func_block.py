@@ -111,7 +111,8 @@ def _fn_escape(pc: WorkflowInterpreter):
 
 
 def INTER_FN(
-    entrypoint: str, block: NodeCompose | SelfCompileInstruction
+    entrypoint: str,
+    block: BaseNode | NodeCompose | SelfCompileInstruction,
 ) -> NodeCompose:
     """Define an **interrupt service routine** (Sense interrupt handler).
 
@@ -123,8 +124,9 @@ def INTER_FN(
     from normal execution flow).
 
     Args:
-        block: The body of the interrupt routine (nodes or self-compiling
-            instruction).
+        entrypoint: Alias used to enter the routine.
+        block: The body of the interrupt routine (a single node, nodes or
+            self-compiling instruction).
 
     Returns:
         A :class:`NodeCompose` representing the complete interrupt routine
@@ -137,7 +139,10 @@ def INTER_FN(
     return _fn_escape >> ALIAS(NOP, entrypoint) >> block >> INTERRUPT_RET()
 
 
-def FN(entrypoint: str, block: NodeCompose | SelfCompileInstruction) -> NodeCompose:
+def FN(
+    entrypoint: str,
+    block: BaseNode | NodeCompose | SelfCompileInstruction,
+) -> NodeCompose:
     """Define a **regular function block** (Sense subroutine).
 
     Appends :func:`~amrita_sense.instructions.ret2.RET_FAR` to ``block`` so
@@ -148,8 +153,9 @@ def FN(entrypoint: str, block: NodeCompose | SelfCompileInstruction) -> NodeComp
     execution flow).
 
     Args:
-        block: The body of the function (nodes or self-compiling
-            instruction).
+        entrypoint: Alias used to enter the function.
+        block: The body of the function (a single node, nodes or
+            self-compiling instruction).
 
     Returns:
         A :class:`NodeCompose` representing the complete function (body +

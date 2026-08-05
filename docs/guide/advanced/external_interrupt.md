@@ -77,6 +77,8 @@ interrupt_handlers = ARCHIVED_NODES(
 
 Place `interrupt_handlers` at the end or in a suitable position within the workflow composition.
 
+> **ARCHIVED_NODES vs ARCHIVED_SEGMENT**: `ARCHIVED_NODES` archives a flat list of individual nodes (each alias-addressable, ideal for handler libraries). `ARCHIVED_SEGMENT` archives a whole `NodeCompose` (`[JMP 2, Payload, NOP]`) as one unit — the building block for `FN` / `INTER_FN` function blocks. Use the former for handler libraries, the latter for full routines.
+
 ## 4.4.3 SubprogramJumpNode Execution Logic
 
 `SubprogramJumpNode` is a lightweight node specifically designed to skip the subsequent storage area. Its implementation is very simple:

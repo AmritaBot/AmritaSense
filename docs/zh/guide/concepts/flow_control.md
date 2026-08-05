@@ -63,7 +63,9 @@ def early_exit():
 
 ### continue 的等效实现
 
-Sense 循环没有设计原生的 `continue` 关键字，但提供了零开销的等效实现：只需要在当前节点中执行 `return` 提前结束本轮节点执行，解释器就会自然推进到下一轮循环的条件检查（或循环体开始），实现与 `continue` 完全一致的“跳过剩余逻辑、直接进入下一轮循环”的效果。
+传统 Sense 循环（`WHILE` / `DO`）没有设计原生的 `continue` 关键字，但提供了零开销的等效实现：只需要在当前节点中执行 `return` 提前结束本轮节点执行，解释器就会自然推进到下一轮循环的条件检查（或循环体开始），实现与 `continue` 完全一致的“跳过剩余逻辑、直接进入下一轮循环”的效果。
+
+> 原生循环（`NATIVE_WHILE` / `NATIVE_DO`）提供了显式的 **`CONTINUE()`** 指令——弹栈后直接跳到循环头，详见 [原生控制流](../advanced/native_control_flow.md)。
 
 ## 3.3.3 异常处理
 
@@ -105,6 +107,6 @@ pc = WorkflowPC(nd, exception_ignored=(CriticalError,))
 
 AmritaSense 的流程控制体系，从条件分支、循环结构到异常处理，完整覆盖了结构化编程的所有核心范式。这些能力不是通过外部 DSL 或图拓扑"模拟"出来的，而是直接编码在指令集和解释器中的一等公民。
 
-> **延伸阅读**：v0.5.1 引入了原生控制流指令集（`NATIVE_IF` / `NATIVE_WHILE` / `NATIVE_DO` / `BREAK_LOOP`），作为传统指令的**正交扩展**。详见 [原生控制流](../advanced/native_control_flow.md)。
+> **延伸阅读**：v0.5.1 引入了原生控制流指令集（`NATIVE_IF` / `NATIVE_WHILE` / `NATIVE_DO` / `BREAK_LOOP` / `CONTINUE`），作为传统指令的**正交扩展**——v0.6.0 起围绕 `CONTINUE()` / `BREAK_LOOP()` 工厂函数跳转模型重构。详见 [原生控制流](../advanced/native_control_flow.md)。
 
 在下一章中，我们将探讨这些流程在运行时的执行机制与中断控制。

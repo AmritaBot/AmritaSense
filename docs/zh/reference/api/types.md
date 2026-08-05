@@ -107,16 +107,16 @@ class InterpreterContext:
 class DICache:
     args_hash: int
     hash_trustable: bool
-    payload: LRUCache[int, dict[str, Any]] = field(
+    payload: LRUCache[int, tuple[dict[str, Any], dict[str, Any]]] = field(
         default_factory=lambda: LRUCache(2048)
     )
 ```
 
 字段说明：
 
-- `args_hash`：当前 DI 参数类型的整数哈希，由 `_fingerprint_args()` 计算。作为复合缓存键 `hash((hash(pointer), args_hash))` 的一部分。
-- `hash_trustable`：布尔值，指示 `args_hash` 是否保证与当前 `_ava_args` / `_ava_kwargs` 匹配。修改这些参数时置为 `False`；调用 `rehash_args()` 恢复。
-- `payload`：来自 `cachetools` 的 `LRUCache`，将复合缓存键映射到已解析的关键字参数字典。最大 2048 条，按最近最少使用策略淘汰。
+- `args_hash`：当前 DI 参数类型的整数指纹，由 `_fingerprint_args()` 计算。作为缓存键 `hash((id(node.func), args_hash))` 的一部分。
+- `hash_trustable`：**缓存有效性门闩**（而非哈希正确性断言），指示 `args_hash` 是否保证与当前 `_ava_args` / `_ava_kwargs` 匹配。修改这些参数时置为 `False`；调用 `rehash_args()` 恢复。为 `False` 期间，LRU payload 既不被读取也不被写入。
+- `payload`：来自 `cachetools` 的 `LRUCache`，将缓存键映射到 `(static_kwargs, non_cacheable_factories)` 元组。最大 2048 条，按最近最少使用策略淘汰。`cacheable=True` 工厂的结果合并进 `static_kwargs`；`cacheable=False` 工厂每次调用重新解析。
 
 ## 事件类型
 

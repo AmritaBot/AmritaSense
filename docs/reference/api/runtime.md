@@ -84,21 +84,25 @@ Interpreters form a tree: a top-level interpreter may have child interpreters cr
 
 **`pending_stop: bool`** — `True` if `terminate()` has been called on this interpreter.
 
+**`outer_interpreting: bool`** (v0.6.0+, read-only) — `True` while a subroutine call (`call_sub`) is executing. Set unconditionally at subroutine entry and restored to `False` in the `finally` block when the call returns. `PUSH_AND_GOTO` / `INTERRUPT_INTO` consult this flag to decide the default return address when their `from_adr` / `ret_to` argument is `None`: inside a call (flag `True`) they reuse the top of `_ret_addr_stack` (pushed by the parent), otherwise they use the current pointer.
+
 **`wait: asyncio.Future[None]`** — A future that resolves when the interpreter finishes execution. Raises `IllegalState` if the interpreter is not running.
 
 **`get_exception() -> Exception | None`** (v0.3.1+) — Return the last panic exception, or `None` if the interpreter finished normally or has never crashed. Available immediately after a panic for diagnostic purposes.
 
-**`_di_cache: DICache`** (v0.4.2+) — Internal DI result cache. Stores resolved dependency kwargs keyed by `hash((hash(_pointer), args_hash))`. The payload is an `LRUCache` with max 2048 entries. See `args_hash` and `args_hash_trustable` for cache invalidation.
+**`_di_cache: DICache`** (v0.4.2+) — Internal DI result cache. Stores `(static_kwargs, non_cacheable_factories)` keyed by `hash((id(node.func), args_hash))` (since v0.6.0; the pointer position is no longer part of the key). The payload is an `LRUCache` with max 2048 entries. See `args_hash` and `args_hash_trustable` for cache invalidation.
 
-**`args_hash_trustable: bool`** (v0.4.2+, read-only) — Returns `True` if the cached args hash is known to be valid. Set to `False` whenever `_ava_args` or `_ava_kwargs` are modified. Call `rehash_args()` to restore trust.
+**`args_hash_trustable: bool`** (v0.4.2+, read-only) — A cache-validity gate: returns `True` if the cached args hash is known to be valid. Set to `False` whenever `_ava_args` or `_ava_kwargs` are modified. Call `rehash_args()` to restore trust. While `False`, the LRU payload is neither read nor written.
 
 **`args_hash: int`** (v0.4.2+, read-only) — Returns the current args hash used as part of the DI cache key. Computed by `_fingerprint_args()`.
 
 **`rehash_args() -> None`** (v0.4.2+) — Recompute the args hash from the current `_ava_args` and `_ava_kwargs`. Sets `hash_trustable = True`. If the new hash differs from the old value, the entire DI cache payload is cleared.
 
-**`_rslv_node(node, ava_args, ava_kwargs) -> dict[str, Any]`** (v0.4.2+, internal) — Resolve dependencies for a single node. Calls `MatcherFactory._resolve_dependencies()` and `MatcherFactory._do_runtime_resolve()` in sequence. Returns the resolved keyword arguments dictionary. Raises `DependsResolveFailed` or `DependsInjectFailed` on failure. This is an internal method extracted from `_call()` to be shared between the main loop and the preload mechanism.
+**`_rslv_node(node, ava_args, ava_kwargs) -> dict[str, Any]`** (v0.4.2+, internal) — Resolve dependencies for a single node. Calls `MatcherFactory._resolve_dependencies()` and `MatcherFactory._do_runtime_resolve()` in sequence. Returns the resolved keyword arguments dictionary. Raises `DependsResolveFailed` or `DependsInjectFailed` on failure.
 
-**`_refresh_di_cache_full() -> None`** (v0.4.2+, internal) — Walk the entire workflow graph and pre-resolve DI for every node, storing results in `_di_cache`. Nodes are resolved in concurrent batches of size `WORKFLOW_DI_PRELOAD_BATCH`. Only called during `run()` initialization when `WORKFLOW_DI_PRELOAD_CACHE` is enabled. Raises `DependsResolveFailed` if `hash_trustable` is `False`.
+**`_rslv_node_static(node, ava_args, ava_kwargs) -> tuple[dict[str, Any], dict[str, Any]]`** (v0.6.0+, internal) — Resolve static dependencies and `cacheable=True` factories for a node, returning `(static_kwargs, non_cacheable_factories)`. Used by `_call()` and the preload mechanism. `cacheable=False` factories are returned as-is and re-resolved on every call.
+
+**`_refresh_di_cache_full() -> None`** (v0.4.2+, internal) — Walk the entire workflow graph and pre-resolve DI for every node, storing `(static_kwargs, non_cacheable_factories)` results in `_di_cache` under key `hash((id(node.func), args_hash))`. Nodes are resolved in concurrent batches of size `WORKFLOW_DI_PRELOAD_BATCH`. Only called during `run()` initialization when `WORKFLOW_DI_PRELOAD_CACHE` is enabled. Raises `DependsResolveFailed` if `hash_trustable` is `False`.
 
 ### Important methods
 
@@ -139,7 +143,7 @@ Apply a relative offset at the top level and reset nested dimensions.
 
 #### `jump_far_ptr(offset: list[int])`
 
-Perform a multi-dimensional absolute jump. Replaces the entire `_pointer` with the given address vector via `far_to()`. Used by `RET_FAR` to return from nested scopes.
+Perform a multi-dimensional absolute jump. Replaces the entire `_pointer` with the given address vector via `far_to()`. This is a `@markup`-decorated jump — it sets `_jump_marked` so the main loop does not advance afterwards. Used by `CONTINUE` / `BREAK_LOOP` to jump back to the loop head or sentinel (not by `RET_FAR`, which uses `rebase_ptr` instead).
 
 #### `jump_offset_far(offset: list[int])`
 
@@ -151,6 +155,8 @@ Call a subroutine at the specified address. It pushes the current pointer onto t
 
 - `interrupt=True` acquires the interpreter lock during the call, making it safe for external injection.
 - `interrupt=False` is the normal internal call path.
+
+While the subroutine executes, `outer_interpreting` is `True` — the flag is set unconditionally on entry and cleared in the `finally` block. It lets `PUSH_AND_GOTO` / `INTERRUPT_INTO` (with `from_adr` / `ret_to = None`) resolve the default return address from the parent's stack entry.
 
 #### `async call_near(addr: int, *ag, interrupt: bool = False, **kw)`
 

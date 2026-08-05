@@ -163,10 +163,13 @@ def INTERRUPT_INTO(
 
         # Resolve lazily, cache once
         assert jmp_addr is not None
-        if ret_addr is None and pc.outer_interpreting:
-            ret_addr = pc._ret_addr_stack.stack[-1].base_addr.copy()
-        else:
-            ret_addr = pc._pointer.base_addr.copy()
+        if ret_addr is None:
+            # None default: reuse the parent's return address when inside a
+            # call_sub, otherwise use the current pointer.
+            if pc.outer_interpreting:
+                ret_addr = pc._ret_addr_stack.stack[-1].base_addr.copy()
+            else:
+                ret_addr = pc._pointer.base_addr.copy()
 
         ctx: InterpreterContext = pc.dump_interpreter()
         ctx.ptr = PointerVector(ret_addr)  # override: return here after IRET

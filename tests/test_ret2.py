@@ -186,25 +186,33 @@ from amrita_sense import ALIAS, NOP  # noqa: E402
 
 @pytest.mark.asyncio
 async def test_push_stack_goto_ret_far_roundtrip():
-    """PUSH_STACK + GOTO + RET_FAR pattern with real interpreter."""
+    """PUSH_STACK + GOTO + RET_FAR pattern with real interpreter.
+
+    Since v0.6.0, RET_FAR uses rebase_ptr (no jump flag) and the interpreter
+    advances onto the node AFTER the saved address — so the caller must push
+    the predecessor of the real resume point (the "resume" NOP).
+    """
     from amrita_sense.instructions.jump import GOTO
+
+    executed: list[str] = []
 
     @Node()
     async def start() -> None:
-        pass
+        executed.append("start")
 
     @Node()
     async def work() -> None:
-        pass
+        executed.append("work")
 
     @Node()
     async def returned() -> None:
-        pass
+        executed.append("returned")
 
     comp = (
         start
-        >> PUSH_STACK("after")
+        >> PUSH_STACK("resume")  # push the NOP right before `returned`
         >> GOTO("work")
+        >> ALIAS(NOP, "resume")  # RET_FAR rebases here -> advance lands on returned
         >> ALIAS(returned, "after")
         >> GOTO("end")
         >> ALIAS(work, "work")
@@ -213,30 +221,34 @@ async def test_push_stack_goto_ret_far_roundtrip():
     )
     interpreter = WorkflowInterpreter(comp.render())
     await interpreter.run()
-    # If we reach here without error, the roundtrip succeeded
+    assert executed == ["start", "work", "returned"]
 
 
 @pytest.mark.asyncio
 async def test_push_and_goto_equivalent_to_push_stack_plus_goto():
-    """PUSH_AND_GOTO should behave identically to PUSH_STACK + GOTO."""
+    """PUSH_AND_GOTO(None, ...) should behave identically to PUSH_STACK + GOTO."""
     from amrita_sense.instructions.jump import GOTO
+
+    executed: list[str] = []
 
     @Node()
     async def start() -> None:
-        pass
+        executed.append("start")
 
     @Node()
     async def work() -> None:
-        pass
+        executed.append("work")
 
     @Node()
     async def returned() -> None:
-        pass
+        executed.append("returned")
 
     comp = (
         start
-        >> PUSH_AND_GOTO("after", "work")
-        >> ALIAS(returned, "after")
+        >> PUSH_AND_GOTO(None, "work")  # None in main flow = current pointer
+        >> ALIAS(
+            returned, "after"
+        )  # RET_FAR rebases to PUSH_AND_GOTO -> advance lands here
         >> GOTO("end")
         >> ALIAS(work, "work")
         >> RET_FAR()
@@ -244,3 +256,4 @@ async def test_push_and_goto_equivalent_to_push_stack_plus_goto():
     )
     interpreter = WorkflowInterpreter(comp.render())
     await interpreter.run()
+    assert executed == ["start", "work", "returned"]

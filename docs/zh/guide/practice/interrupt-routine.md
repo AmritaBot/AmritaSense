@@ -29,7 +29,7 @@ AmritaSense v0.4.x+ 引入了一项新能力：**工作流内部的中断式控�
 
 ## 模式一：PUSH_CONTEXT + INTERRUPT_RET（最简上下文保存）
 
-最简洁的模式——保存完整状态，跳转到子例程，恢复并返回。
+最简洁的模式——保存完整状态，跳转到子例程，恢复并返回。v0.6.0 起 `PUSH_CONTEXT` 不再跳转，因此跳入子例程需要显式 `GOTO`。
 
 ```python
 from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
@@ -44,7 +44,9 @@ async def after_restore() -> None: ...
 
 comp = (
     start
-    >> PUSH_CONTEXT("sub_entry")   # 保存状态，跳转到 sub
+    >> PUSH_CONTEXT("resume")      # 保存状态；返回地址 = resume NOP
+    >> GOTO("sub_entry")           # 显式跳入子例程（v0.6.0+）
+    >> ALIAS(NOP, "resume")        # INTERRUPT_RET rebase 到这里 -> advance 落到 after_restore
     >> after_restore                # INTERRUPT_RET 后在此恢复
     >> GOTO("done")
     >> ALIAS(sub_routine, "sub_entry")
@@ -56,9 +58,9 @@ await WorkflowInterpreter(comp.render()).run()
 
 ---
 
-## 模式二：INTERRUPT_INTO + INTERRUPT_RET（显式返回地址的中断）
+## 模式二：INTERRUPT_INTO + INTERRUPT_RET（带返回地址的中断）
 
-`INTERRUPT_INTO(jump_to, ret_to)` 接收**两个**地址：现在去哪里，以及返回哪里。这是 CPU 中断语义的最接近类比。
+`INTERRUPT_INTO(jump_to, ret_to=None)` 接收现在跳转的目标，以及可选的返回目标。这是 CPU 中断语义的最接近类比。主流程中 `ret_to=None` 时，保存的返回地址就是指令自身——`INTERRUPT_RET` 恢复后，解释器推进到下一节点。
 
 ```python
 from amrita_sense import ALIAS, ARCHIVED_NODES, NOP, Node, WorkflowInterpreter
@@ -91,7 +93,7 @@ await WorkflowInterpreter(comp.render()).run()
 **执行过程：**
 
 1. `INTERRUPT_INTO("on_error", "restore_here")` 保存解释器状态，**替换**保存的 ptr 为 `"restore_here"`，设置 `if_flag`，跳转到 `error_handler`。
-2. `error_handler` 运行。`INTERRUPT_RET` 弹出并恢复状态——在 `"restore_here"` 处恢复。
+2. `error_handler` 运行。`INTERRUPT_RET` 弹出并恢复状态——`rebase_context` 把指针放到 `"restore_here"`，随后解释器推进到下一节点（`after_handler`）。
 3. `after_handler` 执行，然后 `GOTO("done")`。
 
 ---
@@ -185,8 +187,8 @@ comp = (
 ## 注意事项
 
 1. **IF 分支内不能使用 INTERRUPT_INTO**：`pc.if_flag == True` 时抛出 `IllegalState`。
-2. **显式 ret_to**：使用 `INTERRUPT_INTO` 时必须始终提供返回目标别名。
+2. **ret_to 可选（v0.6.0+）**：`INTERRUPT_INTO(jump_to)` 无需 `ret_to` 即可工作——`None` 在 `call_sub` 内解析为 `_ret_addr_stack` 栈顶，否则解析为当前指针（恢复后推进到下一节点）。
 3. **返回时 if_flag 被清除**：`INTERRUPT_RET` 后 `pc.if_flag` 始终重置为 `False`。
-4. **INTERRUPT_RET 执行 jump_to**：与其他跳转指令一样，设置 `_jump_marked = True`。
+4. **INTERRUPT_RET 不设跳转标记**：它通过 `rebase_context`（即 `rebase_ptr`）恢复——执行在保存地址的**下一个节点**继续。使用 `PUSH_CONTEXT` / 显式 `ret_to` 时，请保存真正恢复点的前驱。
 5. **依赖注入参数被保留**：`INTERRUPT_INTO` 始终包含 `s_args` 和 `s_kwargs`。
 6. **上下文栈完整性**：确保每个 `PUSH_CONTEXT`/`INTERRUPT_INTO` 都有对应的 `INTERRUPT_RET`。

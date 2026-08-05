@@ -77,6 +77,8 @@ interrupt_handlers = ARCHIVED_NODES(
 
 在工作流编排中，将 `interrupt_handlers` 放在末尾或合适位置即可。
 
+> **ARCHIVED_NODES 与 ARCHIVED_SEGMENT 的区别**：`ARCHIVED_NODES` 归档一组扁平的独立节点（每个节点都可按别名寻址，适合构建处理器库）。`ARCHIVED_SEGMENT` 将整个 `NodeCompose` 归档为一个整体（`[JMP 2, Payload, NOP]`）——它是 `FN` / `INTER_FN` 函数块的构建基础。前者用于处理器库，后者用于完整例程。
+
 ## 4.4.3 SubprogramJumpNode 的执行逻辑
 
 `SubprogramJumpNode` 是一个轻量级节点，专门用于跳过后续的存储区。其实现非常简单：
