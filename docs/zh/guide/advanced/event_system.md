@@ -38,7 +38,7 @@ AmritaSense 的事件系统是与工作流解释器**并行独立**的运行时�
 
 事件处理器**完全复用** AmritaSense 的依赖注入系统。处理器可以通过 `Depends(...)` 声明任意依赖——包括 `POINTER_DEPENDS` 获取当前 `WorkflowInterpreter` 实例——运行时会在调用前自动解析并注入。这意味着事件处理器享有和 `@Node()` 节点完全相同的 DI 能力：类型安全、并发解析、以及 `Depends` 返回 `None` 时终止执行的行为。
 
-> **与 Core 事件系统的关系**：AmritaSense 是 Core 的运行时基石，Sense 的事件系统是 Core 事件系统的底层执行引擎。两者共享完全相同的 API 设计与依赖注入契约——Core 的 `@on_event()` 处理器直接被 Sense 的 `MatcherFactory` 调度执行。
+> **与 Core 事件系统的关系**：AmritaSense 是 Core 的运行时基石，Sense 的事件系统是 Core 事件系统的底层执行引擎。两者共享完全相同的 API 设计与依赖注入契约——Core 的 `@on_event().handle()` 处理器直接被 Sense 的 `MatcherFactory` 调度执行。
 
 ## 自定义事件示例
 
@@ -63,7 +63,7 @@ class TaskCompletedEvent(BaseEvent[str]):
     def get_event_type(self) -> str:
         return self.event_type
 
-@on_event("task.completed")
+@on_event("task.completed").handle()
 async def handle_task_completed(
     event: TaskCompletedEvent,
     pc: WorkflowInterpreter = Depends(POINTER_DEPENDS),
@@ -137,7 +137,7 @@ class OrderPlacedEvent(ConstructableEvent[str]):
     def constructor(cls, order_id: str = "auto-generated") -> "OrderPlacedEvent":
         return cls(order_id=order_id)
 
-@on_event("order.placed")
+@on_event("order.placed").handle()
 async def notify_warehouse(event: OrderPlacedEvent):
     print(f"仓库已收到通知：{event.order_id}")
 
