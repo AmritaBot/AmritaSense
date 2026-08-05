@@ -148,7 +148,8 @@ class NativeIfJumpNode(BaseNode):
 
     **Single-node path:** ``CALL condi`` → True: ``CALL do; jmp_near ret`` | False: ``jmp false``.
 
-    **Bubble path:** ``CALL condi`` → True: ``PUSH ret; jump_far_ptr([do_pos,0])`` | False: ``jmp false``.
+    **Bubble path:** ``CALL condi`` → True: ``jump_far_ptr([do_pos,0])`` (the bubble is a
+    nested container — it flows back to the merge point naturally) | False: ``jmp false``.
     """
 
     tag: str
@@ -208,8 +209,9 @@ class NativeIfJumpNode(BaseNode):
                 await pc.call_offset(self._do_offset)
                 pc.jump_near(self._ret_pos)
             else:
+                # Bubble path: no PUSH / RET_FAR — the nested container flows
+                # back to the merge point naturally via advance_pointer.
                 parent = list(pc._pointer.base_addr[:-1])
-                pc._ret_addr_stack.push(PointerVector([*parent, self._ret_pos]))
                 pc.jump_far_ptr([*parent, self._do_pos, 0])
         else:
             pc.jump_near(self._false_pos)
@@ -347,12 +349,12 @@ class NativeBubbleEnterNode(BaseNode):
     """Helper node that enters a body bubble.
 
     Used when a native instruction's body is reached via a jump
-    (DO body, ELSE body).  Pushes a sentinel onto ``_ret_addr_stack``
-    so that ``CONTINUE()`` and ``BREAK_LOOP()`` can pop it and jump
-    to their configured targets.
-
-    Always pushes — the enclosing loop's ``extract()`` configures
-    ``CONTINUE`` and ``BREAK_LOOP`` targets via the DFS scanner.
+    (DO body, ELSE body).  With ``push=True`` (DO), pushes a sentinel onto
+    ``_ret_addr_stack`` so that ``CONTINUE()`` and ``BREAK_LOOP()`` can pop
+    it and jump to their configured targets.  With ``push=False`` (ELSE,
+    since v0.6.1), no push is performed — the bubble flows back to the
+    merge point naturally via ``advance_pointer``, like a Python ``else``
+    block (no early-return / RET_FAR semantics).
     """
 
     tag: str
@@ -363,9 +365,11 @@ class NativeBubbleEnterNode(BaseNode):
     fun_sign: DependencyMeta
 
     _body_pos: int
+    _push: bool
 
     __slots__ = (
         "_body_pos",
+        "_push",
         "address_able",
         "fun_frame",
         "fun_sign",
@@ -374,7 +378,7 @@ class NativeBubbleEnterNode(BaseNode):
         "wrap_to_async",
     )
 
-    def __init__(self, body_pos: int) -> None:
+    def __init__(self, body_pos: int, push: bool = True) -> None:
         frame = inspect.currentframe()
         if not frame:
             raise RuntimeError("No frame found")
@@ -382,8 +386,10 @@ class NativeBubbleEnterNode(BaseNode):
             self.__call__, tag=None, wrap_to_async=False, address_able=True, frame=frame
         )
         self._body_pos = body_pos
+        self._push = push
 
     def __call__(self, pc: WorkflowInterpreter) -> None:
         parent = list(pc._pointer.base_addr[:-1])
-        pc._ret_addr_stack.push(PointerVector([*parent, 0]))
+        if self._push:
+            pc._ret_addr_stack.push(PointerVector([*parent, 0]))
         pc.jump_far_ptr([*parent, self._body_pos, 0])

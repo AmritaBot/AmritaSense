@@ -119,10 +119,10 @@ class Signal:
                     ):  # guard against next-cycle Future
                         self._shared_future = None
 
-    async def signal(self) -> None:
+    def signal(self) -> None:
         """Fire the signal, waking all waiters.
         Can be called from any event loop."""
-        async with self._lock:
+        with self._lock:
             if self._shared_future and not self._shared_future.done():
                 self._shared_future.set_result(True)
 ```

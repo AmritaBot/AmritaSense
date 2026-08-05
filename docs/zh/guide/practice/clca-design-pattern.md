@@ -117,9 +117,9 @@ class Signal:
                     ):  # 防止清理下一个挂起周期的 Future
                         self._shared_future = None
 
-    async def signal(self) -> None:
+    def signal(self) -> None:
         """发送信号，唤醒所有等待者。可在任意循环中调用。"""
-        async with self._lock:
+        with self._lock:
             if self._shared_future and not self._shared_future.done():
                 self._shared_future.set_result(True)
 ```

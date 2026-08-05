@@ -144,7 +144,7 @@ b = {"arg": MyOtherType()}
 @Node()
 def my_func(arg: MyType):...
 
-interpreter = WorkflowInterpreter(my_func >> NOP, extra_args=a, extra_kwargs=b)
+interpreter = WorkflowInterpreter(my_func.as_compose(), extra_args=a, extra_kwargs=b)
 
 ...
 ```
@@ -154,7 +154,6 @@ In this example, `extra_kwargs` is tried first, but `b["arg"]` has type `MyOther
 Let’s look at a second example:
 
 ```python
-from amrita_sense.instructions import NOP
 # assume you have a tuple a and a dict b
 a = (MyOtherType(),)
 b = {"other_arg": MyType()}
@@ -162,7 +161,7 @@ b = {"other_arg": MyType()}
 @Node()
 def my_func(arg: MyType):...
 
-interpreter = WorkflowInterpreter(my_func >> NOP, extra_args=a, extra_kwargs=b)
+interpreter = WorkflowInterpreter(my_func.as_compose(), extra_args=a, extra_kwargs=b)
 
 ...
 ```

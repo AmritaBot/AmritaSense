@@ -16,7 +16,7 @@ import asyncio
 # __flags__.NO_DEPENDENCY_META_CACHE = True
 # __flags__.NO_SHARED_MIDDLEWARE = True
 # __flags__.SQUASHED_LOOP = True
-from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
+from amrita_sense import Node, WorkflowInterpreter
 
 # ✅ Correct: configure flags at the very top of the entry point
 from amrita_sense._unsafe import __flags__
@@ -40,7 +40,7 @@ async def step_three() -> None:
 async def demo_normal() -> None:
     """Default behavior with all flags at defaults."""
     print("=== Demo 1: Default flags ===")
-    comp = (step_one >> step_two >> step_three >> ALIAS(NOP, "done")).render()
+    comp = (step_one >> step_two >> step_three).render()
     interpreter = WorkflowInterpreter(comp)
     await interpreter.run()
 

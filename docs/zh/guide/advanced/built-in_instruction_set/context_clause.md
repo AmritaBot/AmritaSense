@@ -178,19 +178,17 @@ comp = (
     >> GOTO("sub_entry")        # 显式跳入子流程（v0.6.0+）
     >> ALIAS(NOP, "resume")     # INTERRUPT_RET rebase 到这里 -> advance 落到 after_restore
     >> after_restore
-    >> GOTO("done")
     >> ALIAS(sub_work, "sub_entry")
     >> INTERRUPT_RET()
-    >> ALIAS(NOP, "done")
 )
 await WorkflowInterpreter(comp.render()).run()
 ```
 
-### 中断式处理程序（配合 ARCHIVED_NODES）
+### 中断式处理程序（INTER_FN + ret_to=None）
 
 ```python
-from amrita_sense import ALIAS, ARCHIVED_NODES, NOP, Node, WorkflowInterpreter
-from amrita_sense.instructions import GOTO, INTERRUPT_INTO, INTERRUPT_RET
+from amrita_sense import Node, WorkflowInterpreter
+from amrita_sense.instructions import INTER_FN, INTERRUPT_INTO
 
 @Node()
 async def main_start() -> None:
@@ -204,19 +202,13 @@ async def handler() -> None:
 async def back() -> None:
     print("[主流程] 从中断返回")
 
-handler_block = ARCHIVED_NODES(
-    ALIAS(handler, "int_handler"),
-    INTERRUPT_RET(),
-)
+handler_block = INTER_FN("int_handler", handler)
 
 comp = (
     main_start
-    >> INTERRUPT_INTO("int_handler", "restore_here")
-    >> ALIAS(NOP, "restore_here")
+    >> INTERRUPT_INTO("int_handler", None)   # None = 返回本节点之后
     >> back
-    >> GOTO("done")
-    >> handler_block
-    >> ALIAS(NOP, "done")
+    >> handler_block                          # 正常流跳过
 )
 await WorkflowInterpreter(comp.render()).run()
 ```

@@ -116,17 +116,12 @@ class RetryClause(SelfCompileInstruction):
 
         retry_body = TRY(self._node).CATCH(Exception, on_error)
 
+        # SelfCompileInstruction 直接支持 `>>`；末尾无需 NOP——
+        # 工作流到达末尾时解释器自然结束。
         if self._fallback:
-            return NodeCompose(
-                WHILE(lambda: retries < self._max).ACTION(retry_body),
-                self._fallback,
-                NOP
-            )
+            return WHILE(lambda: retries < self._max).ACTION(retry_body) >> self._fallback
         else:
-            return NodeCompose(
-                WHILE(lambda: retries < self._max).ACTION(retry_body),
-                NOP
-            )
+            return WHILE(lambda: retries < self._max).ACTION(retry_body).extract()
 ```
 
 使用：
@@ -138,7 +133,7 @@ RetryClause(call_api, max_retries=3, fallback=use_cache)
 展开后等价于：
 
 ```python
-WHILE(condition).ACTION(TRY(call_api).CATCH(Exception, on_error)) >> use_cache >> NOP
+WHILE(condition).ACTION(TRY(call_api).CATCH(Exception, on_error)) >> use_cache
 ```
 
 ### 关键点
@@ -160,9 +155,8 @@ class ExecuteWhen(SelfCompileInstruction):
         self._action = action
 
     def extract(self) -> NodeCompose:
-        return NodeCompose(
-            IF(self._cond, self._action).ELSE(NOP)
-        )
+        # IF 不带 ELSE 完全合法——条件为假时分支自然跳过，无需 ELSE(NOP)
+        return IF(self._cond, self._action).extract()
 ```
 
 使用：
@@ -171,7 +165,7 @@ class ExecuteWhen(SelfCompileInstruction):
 ExecuteWhen(has_data, process_data)
 ```
 
-等价于 `IF(has_data, process_data).ELSE(NOP)`，但语义更明确——“当条件满足时执行”。
+等价于 `IF(has_data, process_data)`——条件为假时工作流直接跳过该动作（v0.6.0 起无需 `ELSE(NOP)`）。
 
 ### 扩展：带否则分支的版本
 

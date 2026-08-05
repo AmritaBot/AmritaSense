@@ -1196,20 +1196,14 @@ class WorkflowInterpreter(Generic[io_T]):
         Raises:
             DependsResolveFailed: If node dependencies cannot be resolved.
             DependsInjectFailed: If dependency injection fails at runtime.
-            RuntimeError: If attempting to call a NodeCompose directly.
         """
         addr_getter = addr_getter or self.get_graph().calc.find_addr
         node: BaseNode | NodeComposeRendered = addr_getter(self._pointer.base_addr)
-        if isinstance(node, NodeComposeRendered):
+        while isinstance(node, NodeComposeRendered):
             if not node:
                 return
             self._pointer.append(0)
-            return await self._call(
-                addr_getter=addr_getter,
-                *extra_args,
-                no_cache=no_cache,
-                **extra_kwargs,
-            )
+            node = addr_getter(self._pointer.base_addr)
         await self.object_io._wait_for_continue(node.tag)
 
         ava_args = self.__ava_args

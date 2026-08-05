@@ -6,13 +6,13 @@
 
 ```python
 import asyncio
-from amrita_sense import Node, WorkflowInterpreter, NOP
+from amrita_sense import Node, WorkflowInterpreter
 
 @Node()
 async def my_fun():
     print("hello world")
 
-comp = my_fun >> NOP
+comp = my_fun.as_compose()   # 单个节点通过 as_compose() 组合
 graph = comp.render()
 
 interpreter = WorkflowInterpreter(graph)
@@ -25,7 +25,7 @@ if __name__ == "__main__":
 
 在这个示例中，我们使用`@Node()`装饰器来创建了一个名为`my_fun`的节点。`Node`接受同步和异步函数，有关详细使用我们会在之后的篇章中提及。
 
-但是单个节点不能直接运行，我们需要将它们组合成一个完整的工作流。在示例，我们在末尾添加了一个空节点的引用，并使用`>>`运算符将其链接到`NOP`节点。
+但是单个节点不能直接运行，我们需要将它包装成工作流。单个节点用 `as_compose()`，组合多个节点用 `>>` 运算符。末尾**不需要** `NOP` 哨兵——工作流到达末尾时解释器自然结束。
 
 我们使用`render()`方法将工作流转换为可执行的数据结构，并创建一个`WorkflowInterpreter`对象，将数据传递给它。
 

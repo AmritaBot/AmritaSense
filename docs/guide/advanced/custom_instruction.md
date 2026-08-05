@@ -116,17 +116,12 @@ class RetryClause(SelfCompileInstruction):
 
         retry_body = TRY(self._node).CATCH(Exception, on_error)
 
+        # SelfCompileInstruction supports `>>` directly; no trailing NOP needed
+        # — the interpreter finishes when the workflow reaches its end.
         if self._fallback:
-            return NodeCompose(
-                WHILE(lambda: retries < self._max).ACTION(retry_body),
-                self._fallback,
-                NOP
-            )
+            return WHILE(lambda: retries < self._max).ACTION(retry_body) >> self._fallback
         else:
-            return NodeCompose(
-                WHILE(lambda: retries < self._max).ACTION(retry_body),
-                NOP
-            )
+            return WHILE(lambda: retries < self._max).ACTION(retry_body).extract()
 ```
 
 Usage:
@@ -138,7 +133,7 @@ RetryClause(call_api, max_retries=3, fallback=use_cache)
 This expands into:
 
 ```python
-WHILE(lambda: retries < self._max).ACTION(TRY(call_api).CATCH(Exception, on_error)) >> use_cache >> NOP
+WHILE(lambda: retries < self._max).ACTION(TRY(call_api).CATCH(Exception, on_error)) >> use_cache
 ```
 
 ### Key points
@@ -160,9 +155,9 @@ class ExecuteWhen(SelfCompileInstruction):
         self._action = action
 
     def extract(self) -> NodeCompose:
-        return NodeCompose(
-            IF(self._cond, self._action).ELSE(NOP)
-        )
+        # IF without ELSE is perfectly valid — when the condition is false
+        # the branch simply falls through. No ELSE(NOP) needed.
+        return IF(self._cond, self._action).extract()
 
 
 # Usage:
@@ -170,7 +165,7 @@ class ExecuteWhen(SelfCompileInstruction):
 ExecuteWhen(has_data, process_data)
 ```
 
-This is equivalent to `IF(has_data, process_data).ELSE(NOP)`, but the semantic intent is clearer: “execute when the condition is met.”
+This is equivalent to `IF(has_data, process_data)` — when the condition is false the workflow just skips the action (no `ELSE(NOP)` needed since v0.6.0).
 
 ### Extended version with else branch
 

@@ -4,14 +4,16 @@ The native control flow instruction set introduced in AmritaSense v0.5.1 is base
 
 ## Overview
 
-Traditional instructions (`IF` / `WHILE` / `DO`) use `call_sub` to enter branch bodies, which involves lock acquisition, middleware invocation, and DI resolution. Native instructions replace this with lightweight pointer jumps:
+Traditional instructions (`IF` / `WHILE` / `DO`) use `call_sub` to enter branch bodies — an extra nested call layer. Native instructions replace this with lightweight pointer jumps:
 
 ```
-call_sub path:      lock → middleware → DI → execute → return
+call_sub path:      call_sub → execute → auto-return
 native loop path:   push → jump → execute → CONTINUE → pop → jump loop head
 ```
 
 Loop bodies always end with `CONTINUE()` (auto-appended by the compiler) which pops the stack and jumps back to the loop head for the next iteration.
+
+> **DI & middleware are interpreter-level** — both paths execute every node through `_call()`, so dependency injection and the middleware hook apply identically. Native instructions only save the `call_sub` nesting layer; they do **not** bypass DI or middleware.
 
 ### CONTINUE vs BREAK_LOOP
 
@@ -31,7 +33,7 @@ The key difference: `CONTINUE()` pops the stack and jumps back to the loop head 
 | payload type                             | `NATIVE_IF` path                              | `NATIVE_WHILE` / `NATIVE_DO` path            |
 | ---------------------------------------- | --------------------------------------------- | ------------------------------------------- |
 | `BaseNode`                               | `call_offset` (auto-return)                   | Auto-wrapped `NodeCompose(body, CONTINUE())` |
-| `NodeCompose` / `SelfCompileInstruction` | Wrap in bubble (compiler auto-appends `RET_FAR`) | Wrap as `NodeCompose(*body._graph, CONTINUE())` |
+| `NodeCompose` / `SelfCompileInstruction` | Wrap in bubble (natural flow-back, no return instruction) | Wrap as `NodeCompose(*body._graph, CONTINUE())` |
 
 ## NATIVE_IF
 
@@ -86,16 +88,16 @@ graph LR
     elif0 --> elif_cond
     if0 -.->|false| elif0
     elif0 -.->|false| else_body
-    if_body -.->|RET_FAR| nop
-    elif_body -.->|RET_FAR| nop
+    if_body --> nop
+    elif_body --> nop
     else_body --> nop
 ```
 
-The ELSE branch body does not append `RET_FAR`; it flows naturally to the merge point.
+Every branch (IF, ELIF, ELSE) is a plain nested container with **no return instruction** — each flows naturally to the merge point via `advance_pointer`, matching Python's `if`/`elif`/`else` semantics (since v0.6.0).
 
 ### Underlying Nodes
 
-- `NativeIfJumpNode` (`_core.py`): Condition jump node for IF/ELIF. The `_is_single` flag determines the single-node (`call_offset`) vs bubble (`PUSH + jump_far_ptr`) path. Bubble bodies end with `RET_FAR` (compiler-appended).
+- `NativeIfJumpNode` (`_core.py`): Condition jump node for IF/ELIF. The `_is_single` flag determines the single-node (`call_offset`) vs bubble (`jump_far_ptr` only — no PUSH / no RET_FAR) path.
 
 ## NATIVE_WHILE
 
@@ -256,16 +258,16 @@ NATIVE_DO(
 
 |               | `IF`              | `NATIVE_IF`                         | `WHILE`           | `NATIVE_WHILE`                      | `DO`              | `NATIVE_DO`                         |
 | ------------- | ----------------- | ----------------------------------- | ----------------- | ----------------------------------- | ----------------- | ----------------------------------- |
-| Entry         | `call_sub`        | `PUSH+JMP` or `call_offset`         | `call_sub`        | `PUSH+JMP`                         | `call_sub`        | `PUSH+JMP`                         |
-| Return        | auto (`call_sub`) | `RET_FAR` (bubble) or auto (single) | auto (`call_sub`) | `CONTINUE()` (auto)                | auto (`call_sub`) | `CONTINUE()` (auto)                |
+| Entry         | `call_sub`        | `jump_far_ptr` or `call_offset`     | `call_sub`        | `PUSH+JMP`                         | `call_sub`        | `PUSH+JMP`                         |
+| Return        | auto (`call_sub`) | natural flow-back (bubble) / auto (single) | auto (`call_sub`) | `CONTINUE()` (auto)                | auto (`call_sub`) | `CONTINUE()` (auto)                |
 | Break         | `raise BreakLoop` | `BREAK_LOOP()`                      | `raise BreakLoop` | `BREAK_LOOP()`                     | `raise BreakLoop` | `BREAK_LOOP()`                     |
 | Continue      | —                | —                                   | —                 | `CONTINUE()`                       | —                 | `CONTINUE()`                       |
-| Middleware    | invoked           | not invoked                         | invoked           | not invoked                         | invoked           | not invoked                         |
-| DI resolution | invoked           | not invoked                         | invoked           | not invoked                         | invoked           | not invoked                         |
+| Middleware    | invoked           | invoked (interpreter-level)         | invoked           | invoked (interpreter-level)        | invoked           | invoked (interpreter-level)        |
+| DI resolution | invoked           | invoked (interpreter-level)         | invoked           | invoked (interpreter-level)        | invoked           | invoked (interpreter-level)        |
 
 ## Notes
 
 1. **Loop bodies always end with CONTINUE()**: the compiler auto-appends `CONTINUE()`. If you manually construct a `NodeCompose` as a loop body, place `CONTINUE()` at the end (or rely on auto-wrapping).
 2. **BREAK_LOOP / CONTINUE are not exceptions**: they are synchronous pointer operations (`wrap_to_async=False`) and do not trigger exception handling
 3. **Native instructions are composable**: fully interoperable with `>>`, `NodeCompose`, and traditional instructions
-4. **ELSE appends no return instruction**: `NATIVE_IF`'s ELSE branch flows naturally to the merge point via `NativeBubbleEnterNode` — unlike IF/ELIF bubbles, it has no trailing `RET_FAR`
+4. **Branches flow back naturally**: since v0.6.0, `NATIVE_IF` / `ELIF` / `ELSE` bubbles carry no return instruction — they are plain nested containers that flow back to the merge point via `advance_pointer`, exactly like Python `if`/`elif`/`else` blocks. There is **no early-return** mechanism (no manual `RET_FAR` inside a branch body).

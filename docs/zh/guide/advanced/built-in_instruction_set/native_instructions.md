@@ -4,14 +4,16 @@ AmritaSense v0.5.1 引入的原生控制流指令集，基于 `PUSH / JMP / CONT
 
 ## 概述
 
-传统指令（`IF` / `WHILE` / `DO`）使用 `call_sub` 进入分支体，这涉及解释锁获取、中间件调用和依赖注入解析。原生指令用轻量的指针跳转模式替代：
+传统指令（`IF` / `WHILE` / `DO`）使用 `call_sub` 进入分支体——多一层嵌套调用。原生指令用轻量的指针跳转模式替代：
 
 ```
-call_sub 路径：     锁 → 中间件 → DI → 执行 → 返回
+call_sub 路径：     call_sub → 执行 → 自动返回
 原生循环路径：     压栈 → 跳转 → 执行 → CONTINUE → 弹栈 → 跳回循环头
 ```
 
 循环体总是以 `CONTINUE()` 结尾（编译器自动追加），它弹栈并跳回循环头，开始下一轮迭代。
+
+> **DI 与中间件是解释器级别的**——两条路径都会让每个节点经由 `_call()` 执行，依赖注入与中间件钩子同样生效。原生指令只省去 `call_sub` 嵌套层，**不会**绕过 DI 或中间件。
 
 ### CONTINUE 与 BREAK_LOOP
 
@@ -31,7 +33,7 @@ call_sub 路径：     锁 → 中间件 → DI → 执行 → 返回
 | payload 类型                             | `NATIVE_IF` 路径                                | `NATIVE_WHILE` / `NATIVE_DO` 路径                    |
 | ---------------------------------------- | ------------------------------------------------ | ---------------------------------------------------- |
 | `BaseNode`                               | `call_offset` 调用（自动返回）                   | 自动包装 `NodeCompose(body, CONTINUE())`             |
-| `NodeCompose` / `SelfCompileInstruction` | 包裹 Bubble（编译器自动末尾追加 `RET_FAR`）      | 包装为 `NodeCompose(*body._graph, CONTINUE())`       |
+| `NodeCompose` / `SelfCompileInstruction` | 包裹 Bubble（自然回退，无返回指令）              | 包装为 `NodeCompose(*body._graph, CONTINUE())`       |
 
 ## NATIVE_IF
 
@@ -86,16 +88,16 @@ graph LR
     elif0 --> elif_cond
     if0 -.->|false| elif0
     elif0 -.->|false| else_body
-    if_body -.->|RET_FAR| nop
-    elif_body -.->|RET_FAR| nop
+    if_body --> nop
+    elif_body --> nop
     else_body --> nop
 ```
 
-ELSE 分支体不追加 `RET_FAR`，自然流入汇合点。
+所有分支（IF、ELIF、ELSE）都是不带返回指令的普通嵌套容器——各自通过 `advance_pointer` 自然流入汇合点，与 Python 的 `if`/`elif`/`else` 语义一致（v0.6.0 起）。
 
 ### 底层节点
 
-- `NativeIfJumpNode`（`_core.py`）：IF/ELIF 的条件跳转节点。`_is_single` 标志决定单节点（`call_offset`）还是 Bubble（`PUSH + jump_far_ptr`）路径。Bubble 体末尾带 `RET_FAR`（编译器追加）。
+- `NativeIfJumpNode`（`_core.py`）：IF/ELIF 的条件跳转节点。`_is_single` 标志决定单节点（`call_offset`）还是 Bubble（仅 `jump_far_ptr`——无 PUSH、无 RET_FAR）路径。
 
 ## NATIVE_WHILE
 
@@ -256,16 +258,16 @@ NATIVE_DO(
 
 |          | `IF`                | `NATIVE_IF`                         | `WHILE`             | `NATIVE_WHILE`                      | `DO`                | `NATIVE_DO`                         |
 | -------- | ------------------- | ----------------------------------- | ------------------- | ----------------------------------- | ------------------- | ----------------------------------- |
-| 进入方式 | `call_sub`          | `PUSH+JMP` 或 `call_offset`         | `call_sub`          | `PUSH+JMP`                         | `call_sub`          | `PUSH+JMP`                         |
-| 返回方式 | `call_sub` 自动返回 | `RET_FAR`（Bubble）或自动（单节点） | `call_sub` 自动返回 | `CONTINUE()`（自动）               | `call_sub` 自动返回 | `CONTINUE()`（自动）               |
+| 进入方式 | `call_sub`          | `jump_far_ptr` 或 `call_offset`     | `call_sub`          | `PUSH+JMP`                         | `call_sub`          | `PUSH+JMP`                         |
+| 返回方式 | `call_sub` 自动返回 | 自然回退（Bubble）/ 自动（单节点）  | `call_sub` 自动返回 | `CONTINUE()`（自动）               | `call_sub` 自动返回 | `CONTINUE()`（自动）               |
 | Break    | `raise BreakLoop`   | `BREAK_LOOP()`                      | `raise BreakLoop`   | `BREAK_LOOP()`                     | `raise BreakLoop`   | `BREAK_LOOP()`                     |
 | Continue | —                   | —                                   | —                   | `CONTINUE()`                       | —                   | `CONTINUE()`                       |
-| 中间件   | 触发                | 不触发                              | 触发                | 不触发                              | 触发                | 不触发                              |
-| DI 解析  | 触发                | 不触发                              | 触发                | 不触发                              | 触发                | 不触发                              |
+| 中间件   | 触发                | 触发（解释器级）                    | 触发                | 触发（解释器级）                   | 触发                | 触发（解释器级）                   |
+| DI 解析  | 触发                | 触发（解释器级）                    | 触发                | 触发（解释器级）                   | 触发                | 触发（解释器级）                   |
 
 ## 注意事项
 
 1. **循环体总是以 CONTINUE() 结尾**：编译器自动在循环体末尾追加 `CONTINUE()`。如果你手动构造 `NodeCompose` 作为循环体，请把 `CONTINUE()` 放在末尾（或依赖自动包装）
 2. **BREAK_LOOP / CONTINUE 不是异常**：它们是同步指针操作指令，`wrap_to_async=False`，不会触发异常处理流程
 3. **原生指令可混用**：与 `>>`、`NodeCompose` 和传统指令完全互操作
-4. **ELSE 不追加返回指令**：`NATIVE_IF` 的 ELSE 分支通过 `NativeBubbleEnterNode` 自然流入汇合点——与 IF/ELIF 的 Bubble 不同，它末尾没有 `RET_FAR`
+4. **分支自然回退**：v0.6.0 起，`NATIVE_IF` / `ELIF` / `ELSE` 的 Bubble 都不带返回指令——它们是普通嵌套容器，通过 `advance_pointer` 自然流回汇合点，与 Python 的 `if`/`elif`/`else` 块一致。分支体内**没有提前返回**机制（不能手动 `RET_FAR`）

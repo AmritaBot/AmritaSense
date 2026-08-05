@@ -178,19 +178,17 @@ comp = (
     >> GOTO("sub_entry")        # explicit jump into the sub-flow (v0.6.0+)
     >> ALIAS(NOP, "resume")     # INTERRUPT_RET rebases here -> advance onto after_restore
     >> after_restore
-    >> GOTO("done")
     >> ALIAS(sub_work, "sub_entry")
     >> INTERRUPT_RET()
-    >> ALIAS(NOP, "done")
 )
 await WorkflowInterpreter(comp.render()).run()
 ```
 
-### Interrupt-style handler with explicit return address
+### Interrupt-style handler (INTER_FN + ret_to=None)
 
 ```python
-from amrita_sense import ALIAS, ARCHIVED_NODES, NOP, Node, WorkflowInterpreter
-from amrita_sense.instructions import GOTO, INTERRUPT_INTO, INTERRUPT_RET
+from amrita_sense import Node, WorkflowInterpreter
+from amrita_sense.instructions import INTER_FN, INTERRUPT_INTO
 
 @Node()
 async def main_start() -> None:
@@ -204,19 +202,13 @@ async def handler() -> None:
 async def back() -> None:
     print("[main] Back from interrupt")
 
-handler_block = ARCHIVED_NODES(
-    ALIAS(handler, "int_handler"),
-    INTERRUPT_RET(),
-)
+handler_block = INTER_FN("int_handler", handler)
 
 comp = (
     main_start
-    >> INTERRUPT_INTO("int_handler", "restore_here")
-    >> ALIAS(NOP, "restore_here")
+    >> INTERRUPT_INTO("int_handler", None)   # None = return after this node
     >> back
-    >> GOTO("done")
-    >> handler_block
-    >> ALIAS(NOP, "done")
+    >> handler_block                          # skipped by normal flow
 )
 await WorkflowInterpreter(comp.render()).run()
 ```

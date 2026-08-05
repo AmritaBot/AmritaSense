@@ -126,7 +126,7 @@ interpreter.pending_stop  # 是否已被调用 terminate()
 
 ```python
 import asyncio
-from amrita_sense import ALIAS, NOP, Node, NodeCompose, WorkflowInterpreter
+from amrita_sense import Node, NodeCompose, WorkflowInterpreter
 from amrita_sense.instructions import FUN_BLOCK
 
 ### 定义子工作流 ###
@@ -138,7 +138,7 @@ async def sub_start() -> None:
 async def sub_work() -> None:
     print("  [子] 工作中...")
 
-sub_comp = (sub_start >> sub_work >> ALIAS(NOP, "done")).render()
+sub_comp = (sub_start >> sub_work).render()
 
 ### 定义主工作流 ###
 @Node()
@@ -153,7 +153,6 @@ main_comp = (
     main_start
     >> FUN_BLOCK(sub_comp, one_time_interp=True)
     >> main_after
-    >> ALIAS(NOP, "done")
 )
 
 ### 执行 ###
@@ -186,7 +185,6 @@ comp = (
         FUN_BLOCK(sub_comp),
         CATCH=(ValueError, handle_value_error)
     )
-    >> ALIAS(NOP, "done")
 )
 ```
 

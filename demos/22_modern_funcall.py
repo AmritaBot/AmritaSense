@@ -23,11 +23,11 @@ jumps over the whole block (rebase_ptr + offset(3)).
 
 import asyncio
 
-from amrita_sense import ALIAS, Node, WorkflowInterpreter
+from amrita_sense import Node, WorkflowInterpreter
 from amrita_sense.instructions import (
     FN,
-    INTERRUPT_INTO,
     INTER_FN,
+    INTERRUPT_INTO,
     PUSH_AND_GOTO,
 )
 
@@ -82,10 +82,14 @@ async def main() -> None:
 
     comp = (
         main_start
-        >> PUSH_AND_GOTO(None, "fn_entry")  # call fn_block; None = return after this node
+        >> PUSH_AND_GOTO(
+            None, "fn_entry"
+        )  # call fn_block; None = return after this node
         >> after_fn
         >> fn_block  # skipped by normal flow via _fn_escape
-        >> INTERRUPT_INTO("isr_entry", None)  # dispatch interrupt; None = return after this node
+        >> INTERRUPT_INTO(
+            "isr_entry", None
+        )  # dispatch interrupt; None = return after this node
         >> after_isr
         >> isr_block  # skipped by normal flow via _fn_escape
     )

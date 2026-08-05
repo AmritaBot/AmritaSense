@@ -126,7 +126,7 @@ Each interpreter in the tree can have its own middleware. By default, a forked i
 
 ```python
 import asyncio
-from amrita_sense import ALIAS, NOP, Node, NodeCompose, WorkflowInterpreter
+from amrita_sense import Node, NodeCompose, WorkflowInterpreter
 from amrita_sense.instructions import FUN_BLOCK
 
 ### Define a sub-workflow ###
@@ -138,7 +138,7 @@ async def sub_start() -> None:
 async def sub_work() -> None:
     print("  [sub] working...")
 
-sub_comp = (sub_start >> sub_work >> ALIAS(NOP, "done")).render()
+sub_comp = (sub_start >> sub_work).render()
 
 ### Define the main workflow ###
 @Node()
@@ -153,7 +153,6 @@ main_comp = (
     main_start
     >> FUN_BLOCK(sub_comp, one_time_interp=True)
     >> main_after
-    >> ALIAS(NOP, "done")
 )
 
 ### Execute ###
@@ -186,7 +185,6 @@ comp = (
         FUN_BLOCK(sub_comp),
         CATCH=(ValueError, handle_value_error)
     )
-    >> ALIAS(NOP, "done")
 )
 ```
 

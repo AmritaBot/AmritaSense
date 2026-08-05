@@ -6,7 +6,7 @@ Usage:
 
 import asyncio
 
-from amrita_sense import NOP, Node, WorkflowInterpreter
+from amrita_sense import Node, WorkflowInterpreter
 from amrita_sense.node.core import BaseNode
 from amrita_sense.node.self_compile import SelfCompileInstruction
 
@@ -39,8 +39,9 @@ async def do_work() -> str:
 
 
 async def main() -> None:
-    comp = (TimedWrapper(do_work) >> NOP).render()
-    await WorkflowInterpreter(comp).run()
+    # SelfCompileInstruction can be passed straight to the interpreter
+    # (it extracts + renders internally) — no trailing NOP needed.
+    await WorkflowInterpreter(TimedWrapper(do_work)).run()
 
 
 if __name__ == "__main__":

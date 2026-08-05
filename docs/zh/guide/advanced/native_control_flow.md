@@ -10,12 +10,14 @@ v0.6.0 起循环机制被重新设计：循环体统一以 `CONTINUE()`（工厂
 
 |                 | 传统指令 (`IF`/`WHILE`/`DO`)        | 原生指令 (`NATIVE_IF`/`NATIVE_WHILE`/`NATIVE_DO`) |
 | --------------- | ----------------------------------- | ------------------------------------------------- |
-| 底层机制        | `call_sub`（锁 + 中间件 + DI 解析） | `PUSH / JMP / CONTINUE / BREAK_LOOP`（纯指针操作） |
+| 底层机制        | `call_sub`（嵌套调用 + 自动栈管理） | `PUSH / JMP / CONTINUE / BREAK_LOOP`（指针操作） |
 | 分支体进入      | 解释器自动管理调用栈                | 开发者显式控制跳转和返回                          |
-| Bubble 体返回   | 自动（`call_sub` 自带返回）         | 编译器自动追加 `CONTINUE` 到循环体末尾           |
+| Bubble 体返回   | 自动（`call_sub` 自带返回）         | IF/ELSE 自然回退（`advance_pointer`）；循环用 `CONTINUE` |
 | 循环跳出        | 抛出 `BreakLoop` 异常               | `BREAK_LOOP()` 指令（弹栈 + 跳到出口哨兵）       |
 | 跳过本轮剩余    | N/A                                 | `CONTINUE()` 指令（弹栈 + 跳到循环头）           |
-| 适用场景        | 常规控制流，开箱即用                | 需要精确控制指针、跳过中间件/DI 的场景            |
+| 适用场景        | 常规控制流，开箱即用                | 精确指针控制、更少的 call_sub 嵌套层级            |
+
+> **DI 与中间件是解释器级别的**——原生指令**不会**绕过它们。无论节点是通过 `call_sub` 还是原生指针跳转到达，都会经由 `_call()` 执行，依赖注入与中间件钩子在两条路径上同样生效。原生指令省去的是 *`call_sub` 的额外嵌套层*（锁/栈簿记），而不是 DI 或中间件。
 
 > **CONTINUE 与 BREAK_LOOP 的职责分离**：
 >
@@ -56,7 +58,7 @@ graph LR
 
 ### Bubble 分支体
 
-当 `body` 是 `NodeCompose` 时，编译器将其包裹为 **Bubble**，自动在末尾追加 `RET_FAR` 作为兜底（你无需手动编写）：
+当 `body` 是 `NodeCompose` 时，编译器将其包裹为 **Bubble**（嵌套容器）。v0.6.0 起 Bubble **不再带 `RET_FAR`**——它通过 `advance_pointer` 自然回退到汇合点，与 Python 的 `if`/`else` 块完全一致（没有提前返回语义）：
 
 ```python
 NATIVE_IF(cond, step_a >> step_b).ELSE(fallback_a >> fallback_b)
@@ -73,11 +75,11 @@ graph LR
     jump --> cond --> body --> nop
 ```
 
-执行流程：条件为真 → `PUSH` 汇合点地址 → `JMP` 进入 Bubble → 执行完毕后 `RET_FAR` 弹栈回到汇合点。
+执行流程：条件为真 → `JMP` 进入 Bubble → Bubble 执行完毕 → `advance_pointer` 弹回汇合点（`[3]` NOP）。
 
 ### ELIF / ELSE 链展开
 
-每个 `ELIF` 在编译期追加一组 `[NativeIfJumpNode, cond, body_slot]` 三元组。`ELSE` 分支体通过 `NativeBubbleEnterNode` 进入，自然流入汇合点——它不追加任何返回指令（与 IF/ELIF 分支体不同，后者的 Bubble 末尾带 `RET_FAR`）。
+每个 `ELIF` 在编译期追加一组 `[NativeIfJumpNode, cond, body_slot]` 三元组。IF/ELIF 的 Bubble 与 `ELSE` 的 Bubble 都是不带返回指令的普通嵌套容器——所有分支自然流入汇合点，与 Python 的 `if`/`elif`/`else` 语义一致。
 
 ## NATIVE_WHILE
 
@@ -180,8 +182,8 @@ graph LR
 
 | 场景                                | 推荐                                         |
 | ----------------------------------- | -------------------------------------------- |
-| 常规控制流，需要依赖注入/中间件     | 传统 `IF` / `WHILE` / `DO`                   |
-| 高性能敏感路径，跳过多余开销        | `NATIVE_WHILE` / `NATIVE_DO` / `NATIVE_IF`   |
+| 常规控制流，开箱即用                | 传统 `IF` / `WHILE` / `DO`                   |
+| 性能敏感路径，减少嵌套层级          | `NATIVE_WHILE` / `NATIVE_DO` / `NATIVE_IF`   |
 | 需要精确控制指针跳转行为            | `NATIVE_*`（纯跳转模型）                     |
 | 需要异常穿透（`exception_ignored`） | 传统指令                                     |
 | 循环内需要条件跳出                  | 传统：`raise BreakLoop` / 原生：`BREAK_LOOP()`|

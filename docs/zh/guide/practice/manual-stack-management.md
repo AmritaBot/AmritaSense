@@ -60,10 +60,8 @@ comp = (
     >> GOTO("work")            # 跳入工作区
     >> ALIAS(NOP, "resume")    # RET_FAR rebase 到这里；advance 落到 after_return
     >> after_return
-    >> GOTO("end")
     >> ALIAS(doing_work, "work")
     >> RET_FAR()
-    >> ALIAS(NOP, "end")
 )
 await WorkflowInterpreter(comp.render()).run()
 ```
@@ -126,13 +124,13 @@ comp_b = (
 | 多级栈展开          | 压入多个地址，每级一个 `RET_FAR`  |
 | 非线性控制流        | 结合 `GOTO` 实现任意跳转模式      |
 
-## 子图式调用：配合 ARCHIVED_NODES 使用
+## 子图式调用：配合 FN 使用
 
-`PUSH_STACK` + `GOTO` + `RET_FAR` 可以与 `ARCHIVED_NODES` 结合，创建自包含的"子程序"——正常流跳过，通过 `GOTO` 进入：
+v0.6.0 起，编写自包含"子程序"的现代方式是 **`FN(entrypoint, block)`**——它内嵌跳过机制（`_fn_escape`）并自动追加 `RET_FAR()`。用 `PUSH_AND_GOTO(None, entrypoint)` 调用即可，无需手动 `PUSH_STACK` / `GOTO` / `RET_FAR` 管线：
 
 ```python
-from amrita_sense import ALIAS, ARCHIVED_NODES, NOP, Node, WorkflowInterpreter
-from amrita_sense.instructions import GOTO, PUSH_STACK, RET_FAR
+from amrita_sense import Node, WorkflowInterpreter
+from amrita_sense.instructions import FN, PUSH_AND_GOTO
 
 @Node()
 async def start() -> None:
@@ -148,23 +146,16 @@ async def step2() -> None:
 
 @Node()
 async def after_return() -> None:
-    print("回到这里（通过 RET_FAR）")
+    print("回到这里（通过 FN）")
 
-# 自包含子程序：正常流跳过，GOTO 进入。
-# 内部执行: step1 >> step2 >> RET_FAR() -> 弹栈 -> 返回。
-subroutine = ARCHIVED_NODES(
-    ALIAS(NOP, "sub_entry"),  # 入口标记
-    step1,
-    step2,
-    RET_FAR(),
-)
+# 自包含子程序：正常流经 _fn_escape 跳过，
+# PUSH_AND_GOTO 进入；FN 自动在末尾追加 RET_FAR()。
+subroutine = FN("sub_entry", step1 >> step2)
 
 comp = (
     start
-    >> PUSH_STACK("resume")    # 压入 after_return 前面的 NOP
-    >> GOTO("sub_entry")       # 通过别名进入子程序入口（NOP 标记）
-    >> ALIAS(NOP, "resume")    # 返回地址：RET_FAR rebase 到这里，advance 落到 after_return
-    >> after_return
+    >> PUSH_AND_GOTO(None, "sub_entry")   # None = 返回本节点之后
+    >> after_return                         # RET_FAR rebase 到调用点 -> advance 落到这里
     >> subroutine
 )
 await WorkflowInterpreter(comp.render()).run()
@@ -172,12 +163,11 @@ await WorkflowInterpreter(comp.render()).run()
 
 **执行流程**（新 `RET_FAR` 语义）：
 
-1. `PUSH_STACK("resume")` 保存返回地址（`after_return` 前面的 `NOP`）
-2. `GOTO("sub_entry")` 通过别名进入子程序入口（即 `NOP`）
-3. `step1 >> step2` 顺序执行
-4. `RET_FAR()` 弹出保存的地址，`rebase_ptr` 到那里，解释器随后推进到 `after_return`
+1. `PUSH_AND_GOTO(None, "sub_entry")` 压入当前指针并跳入子程序
+2. `step1 >> step2` 顺序执行
+3. 自动追加的 `RET_FAR()` 弹出保存的地址，`rebase_ptr` 到调用点，解释器随后推进到 `after_return`
 
-别名标记为 `"sub_entry"` 的 `NOP` 作为命名入口——`GOTO` 以别名定位，节点本身不执行任何操作。
+> **FN 与手动栈操作**：`PUSH_STACK` / `GOTO` / `RET_FAR` 仍可用于完全手动栈控制（非线性流、多级展开）。普通"调用例程并返回"场景推荐 `FN` + `PUSH_AND_GOTO`——更不易出错。
 
 > 对于完整函数体或中断服务例程，优先使用 `ARCHIVED_SEGMENT`（配合 `FN` / `INTER_FN` 或在末尾显式 `RET_FAR`），而不是 `ARCHIVED_NODES`——后者面向归档单个节点或很短序列。
 

@@ -60,10 +60,8 @@ comp = (
     >> GOTO("work")            # jump into the work section
     >> ALIAS(NOP, "resume")    # RET_FAR rebases here; advance lands on after_return
     >> after_return
-    >> GOTO("end")
     >> ALIAS(doing_work, "work")
     >> RET_FAR()
-    >> ALIAS(NOP, "end")
 )
 await WorkflowInterpreter(comp.render()).run()
 ```
@@ -126,13 +124,13 @@ comp_b = (
 | Multi-level stack unwinding   | Push multiple addresses, `RET_FAR` once per level |
 | Non-linear control flow       | Combine with `GOTO` for arbitrary jump patterns   |
 
-## Subroutine-like Pattern with ARCHIVED_NODES
+## Subroutine-like Pattern with FN
 
-`PUSH_STACK` + `GOTO` + `RET_FAR` can be combined with `ARCHIVED_NODES` to create self-contained "subroutines" that are skipped during normal execution but can be entered via `GOTO`:
+Since v0.6.0, the modern way to write a self-contained "subroutine" is **`FN(entrypoint, block)`** — it embeds its own skip mechanism (`_fn_escape`) and auto-appends `RET_FAR()`. Call it with `PUSH_AND_GOTO(None, entrypoint)`; no manual `PUSH_STACK` / `GOTO` / `RET_FAR` plumbing is needed:
 
 ```python
-from amrita_sense import ALIAS, ARCHIVED_NODES, NOP, Node, WorkflowInterpreter
-from amrita_sense.instructions import GOTO, PUSH_STACK, RET_FAR
+from amrita_sense import Node, WorkflowInterpreter
+from amrita_sense.instructions import FN, PUSH_AND_GOTO
 
 @Node()
 async def start() -> None:
@@ -148,23 +146,16 @@ async def step2() -> None:
 
 @Node()
 async def after_return() -> None:
-    print("Back here (via RET_FAR)")
+    print("Back here (via FN)")
 
-# Self-contained subroutine: normal flow skips it, GOTO enters it.
-# Execution inside: step1 >> step2 >> RET_FAR() -> pop stack -> return.
-subroutine = ARCHIVED_NODES(
-    ALIAS(NOP, "sub_entry"),  # entry point marker
-    step1,
-    step2,
-    RET_FAR(),
-)
+# Self-contained subroutine: normal flow skips it (via _fn_escape),
+# PUSH_AND_GOTO enters it; FN auto-appends RET_FAR() at the end.
+subroutine = FN("sub_entry", step1 >> step2)
 
 comp = (
     start
-    >> PUSH_STACK("resume")    # push the NOP right before after_return
-    >> GOTO("sub_entry")       # enter the subroutine at the NOP marker
-    >> ALIAS(NOP, "resume")    # return address: RET_FAR rebases here, advance -> after_return
-    >> after_return
+    >> PUSH_AND_GOTO(None, "sub_entry")   # None = return after this node
+    >> after_return                         # RET_FAR rebases to the call site -> advance lands here
     >> subroutine
 )
 await WorkflowInterpreter(comp.render()).run()
@@ -172,14 +163,11 @@ await WorkflowInterpreter(comp.render()).run()
 
 **Flow** (new `RET_FAR` semantics):
 
-1. `PUSH_STACK("resume")` saves the return address (the `NOP` before `after_return`)
-2. `GOTO("sub_entry")` enters the subroutine at `NOP` (the entry marker)
-3. `step1 >> step2` execute sequentially
-4. `RET_FAR()` pops the saved address, `rebase_ptr`s there, and the interpreter advances onto `after_return`
+1. `PUSH_AND_GOTO(None, "sub_entry")` pushes the current pointer and jumps into the subroutine
+2. `step1 >> step2` execute sequentially
+3. The auto-appended `RET_FAR()` pops the saved address, `rebase_ptr`s to the call site, and the interpreter advances onto `after_return`
 
-The `NOP` aliased as `"sub_entry"` acts as the named entry point — `GOTO` targets the alias, and the node itself is a no-op.
-
-> For full function bodies or interrupt service routines, prefer `ARCHIVED_SEGMENT` (with `FN` / `INTER_FN` or an explicit `RET_FAR` at the end) over `ARCHIVED_NODES`, which is meant for archiving a single node or short sequence.
+> **FN vs manual stack ops**: `PUSH_STACK` / `GOTO` / `RET_FAR` remain available for fully manual stack control (non-linear flow, multi-level unwinding). For ordinary "call a routine and come back", `FN` + `PUSH_AND_GOTO` is the recommended, less error-prone form.
 
 ## Caution
 

@@ -10,12 +10,14 @@ Native instructions are **not** performance replacements for traditional ones �
 
 |                   | Traditional (`IF`/`WHILE`/`DO`)                | Native (`NATIVE_IF`/`NATIVE_WHILE`/`NATIVE_DO`)               |
 | ----------------- | ---------------------------------------------- | ------------------------------------------------------------- |
-| Mechanism         | `call_sub` (lock + middleware + DI resolution) | `PUSH / JMP / CONTINUE / BREAK_LOOP` (pure pointer ops)       |
+| Mechanism         | `call_sub` (nested call + auto stack manage)   | `PUSH / JMP / CONTINUE / BREAK_LOOP` (pointer ops)             |
 | Branch entry      | Interpreter auto-manages call stack            | Developer explicitly controls jumps and returns               |
-| Bubble return     | Automatic (`call_sub` has built-in return)     | Compiler auto-appends `CONTINUE` to loop bodies               |
+| Bubble return     | Automatic (`call_sub` has built-in return)     | Natural flow-back via `advance_pointer` (IF/ELSE) / `CONTINUE` (loops) |
 | Loop break        | Raise `BreakLoop` exception                    | `BREAK_LOOP()` instruction (pop stack + jump to sentinel)     |
 | Skip to next iter | N/A                                            | `CONTINUE()` instruction (pop stack + jump to loop head)      |
-| Use case          | General control flow, works out of box         | Precise pointer control, bypass middleware/DI                 |
+| Use case          | General control flow, works out of box         | Precise pointer control, fewer call-sub nesting layers         |
+
+> **DI & middleware are interpreter-level** — they are **not** bypassed by native instructions. Every node — whether reached via `call_sub` or a native pointer jump — is executed through `_call()`, so dependency injection and the middleware hook apply identically in both paths. What native instructions save is the *extra `call_sub` nesting layer* (lock/stack bookkeeping), not DI or middleware.
 
 > **CONTINUE vs BREAK_LOOP**:
 >
@@ -56,7 +58,7 @@ graph LR
 
 ### Bubble Branch Body
 
-When `body` is a `NodeCompose`, the compiler wraps it as a **bubble** and auto-appends `RET_FAR` as a fallback (you never need to write it):
+When `body` is a `NodeCompose`, the compiler wraps it as a **bubble** (a nested container). Since v0.6.0 the bubble has **no `RET_FAR`** — it flows back to the merge point naturally via `advance_pointer`, exactly like a Python `if`/`else` block (no early-return semantics):
 
 ```python
 NATIVE_IF(cond, step_a >> step_b).ELSE(fallback_a >> fallback_b)
@@ -73,11 +75,11 @@ graph LR
     jump --> cond --> body --> nop
 ```
 
-Execution: condition true → `PUSH` merge address → `JMP` into bubble → after execution `RET_FAR` pops stack back to merge.
+Execution: condition true → `JMP` into the bubble → the bubble runs to completion → `advance_pointer` pops back to the merge point (`[3]` NOP).
 
 ### ELIF / ELSE Chain Expansion
 
-Each `ELIF` appends a `[NativeIfJumpNode, cond, body_slot]` triplet at compile time. The `ELSE` branch body enters via `NativeBubbleEnterNode` and flows naturally to the merge point — it appends no return instruction (unlike IF/ELIF bodies, whose bubbles end with `RET_FAR`).
+Each `ELIF` appends a `[NativeIfJumpNode, cond, body_slot]` triplet at compile time. Both IF/ELIF bubbles and the `ELSE` bubble are plain nested containers with no return instruction — every branch flows naturally to the merge point, matching Python's `if`/`elif`/`else` semantics.
 
 ## NATIVE_WHILE
 
@@ -180,8 +182,8 @@ Loop exit: condition false → `jump_near(4)` to NOP exit. Or `BREAK_LOOP()` for
 
 | Scenario                                         | Recommendation                                        |
 | ------------------------------------------------ | ----------------------------------------------------- |
-| General control flow, need DI/middleware         | Traditional `IF` / `WHILE` / `DO`                     |
-| Performance-sensitive paths, skip overhead       | `NATIVE_WHILE` / `NATIVE_DO` / `NATIVE_IF`            |
+| General control flow, works out of box           | Traditional `IF` / `WHILE` / `DO`                     |
+| Performance-sensitive paths, fewer nesting layers | `NATIVE_WHILE` / `NATIVE_DO` / `NATIVE_IF`            |
 | Need precise pointer jump control                | `NATIVE_*` (pure jump model)                          |
 | Need exception penetration (`exception_ignored`) | Traditional instructions                              |
 | Conditional break inside loop                    | Traditional: `raise BreakLoop` / Native: `BREAK_LOOP()`|

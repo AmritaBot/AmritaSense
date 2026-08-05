@@ -6,13 +6,13 @@
 
 ```python
 import asyncio
-from amrita_sense import Node, WorkflowInterpreter, NOP
+from amrita_sense import Node, WorkflowInterpreter
 
 @Node()
 async def my_fun():
     print("hello world")
 
-comp = my_fun >> NOP
+comp = my_fun.as_compose()   # a single node is composed via as_compose()
 graph = comp.render()
 
 interpreter = WorkflowInterpreter(graph)
@@ -25,7 +25,7 @@ if __name__ == "__main__":
 
 In this example, we use the `@Node()` decorator to create a node named `my_fun`. `Node` accepts both synchronous and asynchronous functions; we will cover its usage in detail later.
 
-A single node cannot run by itself, so we need to compose nodes into a complete workflow. In the example, we append a reference to an empty node and use the `>>` operator to link it to the `NOP` node.
+A single node cannot run by itself, so we wrap it with `as_compose()` to turn it into a workflow. When composing multiple nodes, use the `>>` operator (`node1 >> node2`). No trailing `NOP` sentinel is needed — the interpreter simply finishes when the workflow reaches its end.
 
 We use the `render()` method to convert the workflow into an executable data structure, then create a `WorkflowInterpreter` object and pass that data to it.
 
