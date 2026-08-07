@@ -24,7 +24,8 @@ class BaseEvent(ABC, Generic[stringSub_T]):
 
 
 @dataclass
-class ConstructableEvent(BaseEvent):
+class ConstructableEvent(BaseEvent[stringSub_T], Generic[stringSub_T]):
+    """Event, but provide a constructor for TRIGGER_EVENT node to construct the event from args-pool."""
     @classmethod
     @abstractmethod
     def constructor(cls, *args, **kwargs) -> Self | Awaitable[Self]: ...

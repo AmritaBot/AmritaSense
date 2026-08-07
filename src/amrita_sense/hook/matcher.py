@@ -27,7 +27,7 @@ from amrita_sense.hook import fun_typing
 from amrita_sense.logging import debug_log, logger
 from amrita_sense.weakcache import WeakValueLRUCache
 
-from .event import BaseEvent
+from .event import BaseEvent, ConstructableEvent
 from .exception import (
     CancelException,
     MatcherException,
@@ -529,6 +529,13 @@ class MatcherFactory:
                 event = i
         if not event:
             raise RuntimeError("No event found in args")
+        if isinstance(event, type) and issubclass(
+            event, ConstructableEvent
+        ):  # In the future, we will support constructable event class directly.
+            raise TypeError(
+                f"Cannot trigger ConstructableEvent class {event!r} directly; "
+                "please use a constructable event in TRIGGER_EVENT node."
+            )
         session_kwargs = kwargs
         event_type: str = event.get_event_type()  # Get event type
         if __flags__.DISABLE_EXC_IGNORED:
@@ -573,7 +580,7 @@ class MatcherFactory:
                     ):
                         break
             else:
-                logger.warning(
+                logger.info(
                     f"No registered Matcher for {event_type} event, skipping processing."
                 )
 
