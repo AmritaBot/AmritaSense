@@ -533,7 +533,8 @@ class MatcherFactory:
             event, ConstructableEvent
         ):  # In the future, we will support constructable event class directly.
             raise TypeError(
-                "Cannot trigger ConstructableEvent class directly, please use constructable event in TRIGGER_EVENT node."
+                f"Cannot trigger ConstructableEvent class {event!r} directly; "
+                "please use a constructable event in TRIGGER_EVENT node."
             )
         session_kwargs = kwargs
         event_type: str = event.get_event_type()  # Get event type
