@@ -42,10 +42,10 @@ graph TD
 from amrita_sense.instructions import FUN_BLOCK
 
 FUN_BLOCK(
-    sub_comp,              # NodeComposeRendered — 子工作流图
-    middleware=UNSET,      # Callable | None | UNSET — 子解释器的中间件
-    object_io=None,        # SuspendObjectStream | None — 子解释器的 I/O 流
-    one_time_interp=False, # bool — 是否每次调用创建新解释器？
+    sub_comp,  # NodeComposeRendered — 子工作流图
+    middleware=UNSET,  # Callable | None | UNSET — 子解释器的中间件
+    object_io=None,  # SuspendObjectStream | None — 子解释器的 I/O 流
+    one_time_interp=False,  # bool — 是否每次调用创建新解释器？
 )
 ```
 
@@ -110,7 +110,7 @@ await top_interpreter.terminate_all(eol=True)
 ### 状态
 
 ```python
-interpreter.is_running    # 当前是否正在执行
+interpreter.is_running  # 当前是否正在执行
 interpreter.pending_stop  # 是否已被调用 terminate()
 ```
 
@@ -129,36 +129,40 @@ import asyncio
 from amrita_sense import Node, NodeCompose, WorkflowInterpreter
 from amrita_sense.instructions import FUN_BLOCK
 
+
 ### 定义子工作流 ###
 @Node()
 async def sub_start() -> None:
     print("  [子] 开始")
 
+
 @Node()
 async def sub_work() -> None:
     print("  [子] 工作中...")
 
+
 sub_comp = (sub_start >> sub_work).render()
+
 
 ### 定义主工作流 ###
 @Node()
 async def main_start() -> None:
     print("[主] 开始")
 
+
 @Node()
 async def main_after() -> None:
     print("[主] 子工作流已完成")
 
-main_comp = (
-    main_start
-    >> FUN_BLOCK(sub_comp, one_time_interp=True)
-    >> main_after
-)
+
+main_comp = main_start >> FUN_BLOCK(sub_comp, one_time_interp=True) >> main_after
+
 
 ### 执行 ###
 async def main():
     interpreter = WorkflowInterpreter(main_comp.render())
     await interpreter.run()
+
 
 asyncio.run(main())
 ```
@@ -179,13 +183,7 @@ asyncio.run(main())
 ```python
 from amrita_sense.instructions import Try
 
-comp = (
-    main_start
-    >> Try(
-        FUN_BLOCK(sub_comp),
-        CATCH=(ValueError, handle_value_error)
-    )
-)
+comp = main_start >> Try(FUN_BLOCK(sub_comp), CATCH=(ValueError, handle_value_error))
 ```
 
 ## 何时使用子图隔离

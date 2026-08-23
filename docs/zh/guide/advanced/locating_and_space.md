@@ -28,9 +28,11 @@
 from amrita_sense.instructions import ALIAS, IF, GOTO
 from amrita_sense.node import Node
 
+
 @Node()
 def action():
     print("Executing action")
+
 
 # ALIAS 将 action 节点绑定到符号 "main_action"
 # 此后 GOTO("main_action") 或 CALL("main_action") 即可直接引用
@@ -108,9 +110,7 @@ Bubble 的核心价值在于**作用域隔离**：
 
 ```python
 complex_flow = (
-    IF(cond1, GOTO("exit"))
-    >> ALIAS(nested_workflow, "branch_a")
-    >> ALIAS(NOP, "exit")
+    IF(cond1, GOTO("exit")) >> ALIAS(nested_workflow, "branch_a") >> ALIAS(NOP, "exit")
 )
 ```
 

@@ -66,6 +66,7 @@ The `CallNode` corresponding to the `CALL` instruction inherits directly from `B
 ```python
 class LoggedNode(SelfCompileInstruction):
     """Add a log message before and after a node's execution."""
+
     def __init__(self, node: BaseNode, name: str):
         self._node = node
         self._name = name

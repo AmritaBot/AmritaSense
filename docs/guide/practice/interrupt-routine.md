@@ -35,6 +35,7 @@ The simplest pattern — save full state, jump to a sub-routine, restore and ret
 from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
 from amrita_sense.instructions import GOTO, INTERRUPT_RET, PUSH_CONTEXT
 
+
 @Node()
 async def start() -> None: ...
 @Node()
@@ -42,14 +43,15 @@ async def sub_routine() -> None: ...
 @Node()
 async def after_restore() -> None: ...
 
+
 comp = (
     start
-    >> PUSH_CONTEXT("resume")      # save state; return address = resume NOP
-    >> GOTO("sub_entry")           # explicit jump to sub (v0.6.0+)
-    >> ALIAS(NOP, "resume")        # INTERRUPT_RET rebases here -> advance onto after_restore
-    >> after_restore                # resumed here after INTERRUPT_RET
+    >> PUSH_CONTEXT("resume")  # save state; return address = resume NOP
+    >> GOTO("sub_entry")  # explicit jump to sub (v0.6.0+)
+    >> ALIAS(NOP, "resume")  # INTERRUPT_RET rebases here -> advance onto after_restore
+    >> after_restore  # resumed here after INTERRUPT_RET
     >> ALIAS(sub_routine, "sub_entry")
-    >> INTERRUPT_RET()              # pop & restore
+    >> INTERRUPT_RET()  # pop & restore
 )
 await WorkflowInterpreter(comp.render()).run()
 ```
@@ -66,19 +68,21 @@ The modern way: define the handler with **`INTER_FN(entrypoint, block)`** — it
 from amrita_sense import Node, WorkflowInterpreter
 from amrita_sense.instructions import INTER_FN, INTERRUPT_INTO
 
+
 @Node()
 async def main_logic() -> None: ...
 @Node()
 async def error_handler() -> None:
     print("Handling error")
 
+
 handler_block = INTER_FN("on_error", error_handler)
 
 comp = (
     main_logic
-    >> INTERRUPT_INTO("on_error", None)   # jump to handler; return after this node
-    >> after_handler                        # resumed here after INTERRUPT_RET
-    >> handler_block                        # skipped by normal flow (_fn_escape)
+    >> INTERRUPT_INTO("on_error", None)  # jump to handler; return after this node
+    >> after_handler  # resumed here after INTERRUPT_RET
+    >> handler_block  # skipped by normal flow (_fn_escape)
 )
 await WorkflowInterpreter(comp.render()).run()
 ```
@@ -99,18 +103,24 @@ Build a library of named interrupt handlers that normal execution skips — just
 from amrita_sense import Node, WorkflowInterpreter
 from amrita_sense.instructions import INTER_FN, INTERRUPT_INTO
 
+
 @Node()
 async def main_flow() -> None: ...
+
 
 @Node()
 async def handle_timeout() -> None:
     print("[timeout] Cleaning up...")
 
+
 @Node()
 async def handle_auth_failure() -> None:
     print("[auth] Refreshing credentials...")
 
-handler_library = INTER_FN("timeout", handle_timeout) >> INTER_FN("auth", handle_auth_failure)
+
+handler_library = INTER_FN("timeout", handle_timeout) >> INTER_FN(
+    "auth", handle_auth_failure
+)
 
 comp = (
     main_flow
@@ -131,13 +141,16 @@ The context stack supports **nested** save/restore — like a CPU handling neste
 from amrita_sense import Node, WorkflowInterpreter
 from amrita_sense.instructions import INTER_FN, INTERRUPT_INTO
 
+
 @Node()
 async def outer_func() -> None:
     print("  [outer] Starting...")
 
+
 @Node()
 async def inner_func() -> None:
     print("    [inner] Deep handler")
+
 
 outer = INTER_FN(
     "outer_handler",
@@ -146,11 +159,7 @@ outer = INTER_FN(
 inner = INTER_FN("inner_handler", inner_func)
 
 comp = (
-    main_start
-    >> INTERRUPT_INTO("outer_handler", None)
-    >> after_all
-    >> outer
-    >> inner
+    main_start >> INTERRUPT_INTO("outer_handler", None) >> after_all >> outer >> inner
 )
 await WorkflowInterpreter(comp.render()).run()
 ```

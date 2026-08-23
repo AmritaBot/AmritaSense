@@ -31,9 +31,9 @@ Native instructions are **not** performance replacements for traditional ones �
 `NATIVE_IF` has an API identical to traditional `IF`, supporting `ELIF` / `ELSE` chaining:
 
 ```python
-NATIVE_IF(cond, body)                          # plain IF
-NATIVE_IF(cond, body).ELSE(else_body)          # IF-ELSE
-NATIVE_IF(cond, body).ELIF(cond2, body2)       # IF-ELIF chain
+NATIVE_IF(cond, body)  # plain IF
+NATIVE_IF(cond, body).ELSE(else_body)  # IF-ELSE
+NATIVE_IF(cond, body).ELIF(cond2, body2)  # IF-ELIF chain
 NATIVE_IF(cond, body).ELIF(cond2, body2).ELSE(else_body)  # full chain
 ```
 
@@ -92,8 +92,8 @@ NATIVE_WHILE(condition).ACTION(body)
 ### Loop Body (single node or bubble — same path)
 
 ```python
-NATIVE_WHILE(check_alive).ACTION(heartbeat)          # single node
-NATIVE_WHILE(cond).ACTION(step_a >> step_b)          # bubble
+NATIVE_WHILE(check_alive).ACTION(heartbeat)  # single node
+NATIVE_WHILE(cond).ACTION(step_a >> step_b)  # bubble
 ```
 
 Since v0.6.0, single-node and bubble bodies take the **same code path**: the body is always wrapped as `NodeCompose(body, CONTINUE())`, and the loop iterates via the trailing `CONTINUE()`.
@@ -116,11 +116,7 @@ At runtime, `NativeWhileNode` is a pure jump: condition true → `PUSH` its own 
 Inside a `WHILE` loop body you cannot throw `BreakLoop` like the traditional `WHILE` — native instructions have no try/except wrapping. Instead use the **`BREAK_LOOP()` instruction**:
 
 ```python
-NATIVE_WHILE(cond).ACTION(
-    step_a
-    >> BREAK_LOOP()
-    >> step_b
-)
+NATIVE_WHILE(cond).ACTION(step_a >> BREAK_LOOP() >> step_b)
 ```
 
 How `BREAK_LOOP()` works:
@@ -136,7 +132,7 @@ To skip the rest of the current iteration and jump straight to the loop head (re
 ```python
 NATIVE_WHILE(cond).ACTION(
     step_a
-    >> CONTINUE()   # skip step_b, start next iteration
+    >> CONTINUE()  # skip step_b, start next iteration
     >> step_b
 )
 ```
@@ -154,8 +150,8 @@ NATIVE_DO(body).WHILE(condition)
 ### Loop Body (single node or bubble — same path)
 
 ```python
-NATIVE_DO(send_request).WHILE(should_retry)         # single node
-NATIVE_DO(step_a >> step_b).WHILE(cond)             # bubble
+NATIVE_DO(send_request).WHILE(should_retry)  # single node
+NATIVE_DO(step_a >> step_b).WHILE(cond)  # bubble
 ```
 
 As with `NATIVE_WHILE`, the body is always wrapped as `NodeCompose(body, CONTINUE())`.

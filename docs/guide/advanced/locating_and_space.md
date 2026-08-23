@@ -28,9 +28,11 @@ These constraints ensure the alias table remains clean and resolvable at runtime
 from amrita_sense.instructions import ALIAS, IF, GOTO
 from amrita_sense.node import Node
 
+
 @Node()
 def action():
     print("Executing action")
+
 
 # ALIAS binds action to the symbol "main_action"
 # After that, GOTO("main_action") or CALL("main_action") can reference it directly.
@@ -108,9 +110,7 @@ In complex conditional chains, different branches may each contain nested workfl
 
 ```python
 complex_flow = (
-    IF(cond1, GOTO("exit"))
-    >> ALIAS(nested_workflow, "branch_a")
-    >> ALIAS(NOP, "exit")
+    IF(cond1, GOTO("exit")) >> ALIAS(nested_workflow, "branch_a") >> ALIAS(NOP, "exit")
 )
 ```
 

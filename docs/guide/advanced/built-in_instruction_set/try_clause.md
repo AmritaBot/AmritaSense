@@ -29,7 +29,9 @@ async def fetch_data():
 When exception handling is an independent, reusable workflow step, or when you want to leverage AmritaSense capabilities like dependency injection, suspension, and exception penetration, use instruction-based orchestration:
 
 ```python
-TRY(call_api).CATCH(TimeoutError, use_cache).CATCH(AuthError, refresh_token).FINALLY(cleanup)
+TRY(call_api).CATCH(TimeoutError, use_cache).CATCH(AuthError, refresh_token).FINALLY(
+    cleanup
+)
 ```
 
 **Use this when**:
@@ -112,8 +114,7 @@ When the `WorkflowInterpreter` is initialized with `exception_ignored`, those ex
 
 ```python
 pc = WorkflowInterpreter(
-    workflow,
-    exception_ignored=(CriticalError, InterruptNotice, BreakLoop)
+    workflow, exception_ignored=(CriticalError, InterruptNotice, BreakLoop)
 )
 ```
 
@@ -134,13 +135,16 @@ When `TryNode` encounters one of these exceptions, it re-raises it immediately, 
 async def call_api():
     return await http_get("/api")
 
+
 @Node()
 async def use_cache():
     return get_cached()
 
+
 @Node()
 async def cleanup():
     http_client.close()
+
 
 api_flow = TRY(call_api).CATCH(TimeoutError, use_cache).FINALLY(cleanup)
 ```
@@ -159,11 +163,9 @@ async def call_api_simple():
 ### Multiple exception handling
 
 ```python
-TRY(risky_op)\
-    .CATCH(ValueError, handle_value)\
-    .CATCH(TypeError, handle_type)\
-    .CATCH(Exception, handle_unknown)\
-    .FINALLY(cleanup)
+TRY(risky_op).CATCH(ValueError, handle_value).CATCH(TypeError, handle_type).CATCH(
+    Exception, handle_unknown
+).FINALLY(cleanup)
 ```
 
 ### Ensure cleanup even without exceptions

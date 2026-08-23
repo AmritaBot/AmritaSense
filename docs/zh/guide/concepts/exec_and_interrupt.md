@@ -114,6 +114,7 @@ except Exception as e:
 ```python
 class InterruptNotice(BaseException):
     """Exception raised to signal an interrupt in workflow execution."""
+
     def __init__(self, message: str | None = None):
         self.message = message
 ```
@@ -130,6 +131,7 @@ class InterruptNotice(BaseException):
 
    ```python
    from amrita_sense.exceptions import InterruptNotice
+
    raise InterruptNotice("Timeout: workflow exceeded time limit")
    ```
 
@@ -138,10 +140,8 @@ class InterruptNotice(BaseException):
 2. **工作流中插入 `INTERRUPT` 节点**：
    ```python
    from amrita_sense.instructions import INTERRUPT
-   workflow = Sequence(
-       StepA(),
-       Branch(If(condition=is_error, then=INTERRUPT), Else(...))
-   )
+
+   workflow = Sequence(StepA(), Branch(If(condition=is_error, then=INTERRUPT), Else(...)))
    ```
    `INTERRUPT` 是一个 `address_able=False` 的特殊节点，执行时直接抛出 `InterruptNotice("Interrupt Node")`。
 
@@ -191,8 +191,8 @@ except InterruptNotice as e:
 while True:
     await self.object_io._wait_for_continue(PC_CHECKPOINT)  # 协作挂起点（锁外）
     # ...
-    async with self._interpret_lock:   # 进入中断安全区
-        yield await self._call()       # 执行节点
+    async with self._interpret_lock:  # 进入中断安全区
+        yield await self._call()  # 执行节点
 ```
 
 外部调用 `call_sub(interrupt=True)` 时，调用方与主循环围绕 `_interpret_lock` 的竞争关系：

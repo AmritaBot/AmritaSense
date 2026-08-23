@@ -90,9 +90,11 @@ from amrita_sense.instructions import WHILE, DO
 from amrita_sense.exceptions import BreakLoop
 from amrita_sense.node import Node
 
+
 @Node()
 def has_more() -> bool:
     return len(queue) > 0
+
 
 @Node()
 def process_one():
@@ -103,8 +105,10 @@ def process_one():
         return
     handle(item)
 
+
 # WHILE: check before executing
 loop = WHILE(has_more).ACTION(process_one)
+
 
 # DO-WHILE: execute at least once
 @Node()
@@ -113,6 +117,7 @@ def fetch():
     if data is None:
         raise BreakLoop
     store(data)
+
 
 retry = DO(fetch).WHILE(has_more)
 ```

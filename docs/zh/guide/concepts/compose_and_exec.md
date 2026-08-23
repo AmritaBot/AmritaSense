@@ -6,7 +6,7 @@
 
 ```python
 @Node()
-def my_fun():...
+def my_fun(): ...
 ```
 
 `Node()`装饰器接受三个参数：
@@ -16,7 +16,7 @@ def Node(
     tag: str | None = None,
     wrap_to_async: bool = True,
     address_able: bool = True,
-):...
+): ...
 ```
 
 **这里分别作出解释：**
@@ -59,8 +59,8 @@ def __init__(
     extra_args: tuple = (),
     extra_kwargs: dict[str, Any] | None = None,
     context_stack: Stack[InterpreterContext] | None = None,
-    middleware: Callable[['WorkflowInterpreter'], Awaitable[Any]] | None = None,
-):...
+    middleware: Callable[["WorkflowInterpreter"], Awaitable[Any]] | None = None,
+): ...
 ```
 
 ### `'*'`前参数
@@ -89,8 +89,10 @@ def __init__(
 
 ```python
 inter = WorkflowInterpreter(...)
-if __name__ == '__main__':
+if __name__ == "__main__":
     inter.run()
+
+
 # 或者是：
 async def main():
     inter = WorkflowInterpreter(...)
@@ -98,7 +100,8 @@ async def main():
         # resp事实上能得到各个节点的输出
         ...
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     asyncio.run(main())
 ```
 
@@ -138,13 +141,16 @@ async def my_fun(a: int, b: int) -> int:
 
 ```python
 # 假设你现在有一个叫a的参数元组,和一个叫b的参数字典
-a = (MyType(),MyOtherType())
-b = {"arg":MyOtherType()}
+a = (MyType(), MyOtherType())
+b = {"arg": MyOtherType()}
+
+
 # 定义一个节点my_func
 @Node()
-def my_func(arg: MyType):...
+def my_func(arg: MyType): ...
 
-interpreter = WorkflowInterpreter(my_func.as_compose(),extra_args=a,extra_kwargs=b)
+
+interpreter = WorkflowInterpreter(my_func.as_compose(), extra_args=a, extra_kwargs=b)
 
 ...
 ```
@@ -156,12 +162,15 @@ interpreter = WorkflowInterpreter(my_func.as_compose(),extra_args=a,extra_kwargs
 ```python
 # 假设你现在有一个叫a的参数元组,和一个叫b的参数字典
 a = (MyOtherType(),)
-b = {"other_arg":MyType()}
+b = {"other_arg": MyType()}
+
+
 # 定义一个节点my_func
 @Node()
-def my_func(arg: MyType):...
+def my_func(arg: MyType): ...
 
-interpreter = WorkflowInterpreter(my_func.as_compose(),extra_args=a,extra_kwargs=b)
+
+interpreter = WorkflowInterpreter(my_func.as_compose(), extra_args=a, extra_kwargs=b)
 
 ...
 ```

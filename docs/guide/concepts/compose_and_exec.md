@@ -6,7 +6,7 @@ In AmritaSense, the common way to declare a node is using the `@Node()` decorato
 
 ```python
 @Node()
-def my_fun():...
+def my_fun(): ...
 ```
 
 The `Node()` decorator accepts three parameters:
@@ -16,7 +16,7 @@ def Node(
     tag: str | None = None,
     wrap_to_async: bool = True,
     address_able: bool = True,
-):...
+): ...
 ```
 
 **Explanation:**
@@ -59,8 +59,8 @@ def __init__(
     extra_args: tuple = (),
     extra_kwargs: dict[str, Any] | None = None,
     context_stack: Stack[InterpreterContext] | None = None,
-    middleware: Callable[['WorkflowInterpreter'], Awaitable[Any]] | None = None,
-):...
+    middleware: Callable[["WorkflowInterpreter"], Awaitable[Any]] | None = None,
+): ...
 ```
 
 ### Parameters before `*`
@@ -91,8 +91,10 @@ Example:
 
 ```python
 inter = WorkflowInterpreter(...)
-if __name__ == '__main__':
+if __name__ == "__main__":
     inter.run()
+
+
 # or:
 async def main():
     inter = WorkflowInterpreter(...)
@@ -100,7 +102,8 @@ async def main():
         # resp can actually obtain the output of each node
         ...
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     asyncio.run(main())
 ```
 
@@ -140,9 +143,12 @@ This may still feel abstract, so here is an example:
 # assume you have a tuple a and a dict b
 a = (MyType(), MyOtherType())
 b = {"arg": MyOtherType()}
+
+
 # define a node my_func
 @Node()
-def my_func(arg: MyType):...
+def my_func(arg: MyType): ...
+
 
 interpreter = WorkflowInterpreter(my_func.as_compose(), extra_args=a, extra_kwargs=b)
 
@@ -157,9 +163,12 @@ Let’s look at a second example:
 # assume you have a tuple a and a dict b
 a = (MyOtherType(),)
 b = {"other_arg": MyType()}
+
+
 # define a node my_func
 @Node()
-def my_func(arg: MyType):...
+def my_func(arg: MyType): ...
+
 
 interpreter = WorkflowInterpreter(my_func.as_compose(), extra_args=a, extra_kwargs=b)
 

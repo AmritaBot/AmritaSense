@@ -35,6 +35,7 @@ AmritaSense v0.4.x+ 引入了一项新能力：**工作流内部的中断式控�
 from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
 from amrita_sense.instructions import GOTO, INTERRUPT_RET, PUSH_CONTEXT
 
+
 @Node()
 async def start() -> None: ...
 @Node()
@@ -42,14 +43,15 @@ async def sub_routine() -> None: ...
 @Node()
 async def after_restore() -> None: ...
 
+
 comp = (
     start
-    >> PUSH_CONTEXT("resume")      # 保存状态；返回地址 = resume NOP
-    >> GOTO("sub_entry")           # 显式跳入子例程（v0.6.0+）
-    >> ALIAS(NOP, "resume")        # INTERRUPT_RET rebase 到这里 -> advance 落到 after_restore
-    >> after_restore                # INTERRUPT_RET 后在此恢复
+    >> PUSH_CONTEXT("resume")  # 保存状态；返回地址 = resume NOP
+    >> GOTO("sub_entry")  # 显式跳入子例程（v0.6.0+）
+    >> ALIAS(NOP, "resume")  # INTERRUPT_RET rebase 到这里 -> advance 落到 after_restore
+    >> after_restore  # INTERRUPT_RET 后在此恢复
     >> ALIAS(sub_routine, "sub_entry")
-    >> INTERRUPT_RET()              # 弹出并恢复
+    >> INTERRUPT_RET()  # 弹出并恢复
 )
 await WorkflowInterpreter(comp.render()).run()
 ```
@@ -66,19 +68,21 @@ await WorkflowInterpreter(comp.render()).run()
 from amrita_sense import Node, WorkflowInterpreter
 from amrita_sense.instructions import INTER_FN, INTERRUPT_INTO
 
+
 @Node()
 async def main_logic() -> None: ...
 @Node()
 async def error_handler() -> None:
     print("处理错误")
 
+
 handler_block = INTER_FN("on_error", error_handler)
 
 comp = (
     main_logic
-    >> INTERRUPT_INTO("on_error", None)   # 跳转到处理器；返回本节点之后
-    >> after_handler                        # INTERRUPT_RET 后在此恢复
-    >> handler_block                        # 正常流经 _fn_escape 跳过
+    >> INTERRUPT_INTO("on_error", None)  # 跳转到处理器；返回本节点之后
+    >> after_handler  # INTERRUPT_RET 后在此恢复
+    >> handler_block  # 正常流经 _fn_escape 跳过
 )
 await WorkflowInterpreter(comp.render()).run()
 ```
@@ -99,18 +103,24 @@ await WorkflowInterpreter(comp.render()).run()
 from amrita_sense import Node, WorkflowInterpreter
 from amrita_sense.instructions import INTER_FN, INTERRUPT_INTO
 
+
 @Node()
 async def main_flow() -> None: ...
+
 
 @Node()
 async def handle_timeout() -> None:
     print("[超时处理] 正在清理...")
 
+
 @Node()
 async def handle_auth_failure() -> None:
     print("[认证处理] 正在刷新凭据...")
 
-handler_library = INTER_FN("timeout", handle_timeout) >> INTER_FN("auth", handle_auth_failure)
+
+handler_library = INTER_FN("timeout", handle_timeout) >> INTER_FN(
+    "auth", handle_auth_failure
+)
 
 comp = (
     main_flow
@@ -131,13 +141,16 @@ await WorkflowInterpreter(comp.render()).run()
 from amrita_sense import Node, WorkflowInterpreter
 from amrita_sense.instructions import INTER_FN, INTERRUPT_INTO
 
+
 @Node()
 async def outer_func() -> None:
     print("  [外层] 开始...")
 
+
 @Node()
 async def inner_func() -> None:
     print("    [内层] 深度处理")
+
 
 outer = INTER_FN(
     "outer_handler",
@@ -146,11 +159,7 @@ outer = INTER_FN(
 inner = INTER_FN("inner_handler", inner_func)
 
 comp = (
-    main_start
-    >> INTERRUPT_INTO("outer_handler", None)
-    >> after_all
-    >> outer
-    >> inner
+    main_start >> INTERRUPT_INTO("outer_handler", None) >> after_all >> outer >> inner
 )
 await WorkflowInterpreter(comp.render()).run()
 ```

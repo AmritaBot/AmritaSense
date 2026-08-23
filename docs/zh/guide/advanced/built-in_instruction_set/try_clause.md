@@ -15,7 +15,7 @@ async def fetch_data():
         response = await http_get("/api/data")
         return response.json()
     except TimeoutError:
-        return get_cached_data()   # 降级逻辑，与 fetch 逻辑紧密相关
+        return get_cached_data()  # 降级逻辑，与 fetch 逻辑紧密相关
 ```
 
 **适用场景**：
@@ -29,7 +29,9 @@ async def fetch_data():
 当异常处理是一个**独立的、可复用的流程步骤**，或者需要利用 AmritaSense 的能力（如依赖注入、挂起中断、异常穿透）时，使用指令编排：
 
 ```python
-TRY(call_api).CATCH(TimeoutError, use_cache).CATCH(AuthError, refresh_token).FINALLY(cleanup)
+TRY(call_api).CATCH(TimeoutError, use_cache).CATCH(AuthError, refresh_token).FINALLY(
+    cleanup
+)
 ```
 
 **适用场景**：
@@ -59,11 +61,11 @@ TRY(call_api).CATCH(TimeoutError, use_cache).CATCH(AuthError, refresh_token).FIN
 ### 完整语法
 
 ```python
-TRY(do).CATCH(exc, handler)                              # 捕获特定异常
-TRY(do).FINALLY(cleanup)                                  # 仅清理块
-TRY(do).CATCH(exc, handler).FINALLY(cleanup)              # 捕获 + 清理
-TRY(do).THEN(success).CATCH(exc, handler).FINALLY(cleanup) # 完整四段式
-TRY(do).CATCH(exc, handler).THEN(success)                 # 捕获 + 成功分支
+TRY(do).CATCH(exc, handler)  # 捕获特定异常
+TRY(do).FINALLY(cleanup)  # 仅清理块
+TRY(do).CATCH(exc, handler).FINALLY(cleanup)  # 捕获 + 清理
+TRY(do).THEN(success).CATCH(exc, handler).FINALLY(cleanup)  # 完整四段式
+TRY(do).CATCH(exc, handler).THEN(success)  # 捕获 + 成功分支
 TRY(do).CATCH(exc1, handler1).CATCH(exc2, handler2).FINALLY(cleanup)  # 多异常
 ```
 
@@ -112,8 +114,7 @@ TRY(do).CATCH(exc1, handler1).CATCH(exc2, handler2).FINALLY(cleanup)  # 多异�
 
 ```python
 pc = WorkflowInterpreter(
-    workflow,
-    exception_ignored=(CriticalError, InterruptNotice, BreakLoop)
+    workflow, exception_ignored=(CriticalError, InterruptNotice, BreakLoop)
 )
 ```
 
@@ -151,11 +152,9 @@ async def call_api_simple():
 ### 多异常分类处理
 
 ```python
-TRY(risky_op)\
-    .CATCH(ValueError, handle_value)\
-    .CATCH(TypeError, handle_type)\
-    .CATCH(Exception, handle_unknown)\
-    .FINALLY(cleanup)
+TRY(risky_op).CATCH(ValueError, handle_value).CATCH(TypeError, handle_type).CATCH(
+    Exception, handle_unknown
+).FINALLY(cleanup)
 ```
 
 ### 确保资源清理（即使无异常）

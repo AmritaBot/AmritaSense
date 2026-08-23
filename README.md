@@ -53,20 +53,27 @@ pip install amrita-sense
 import asyncio
 from amrita_sense import Node, WorkflowInterpreter as WorkflowPC, IF
 
-@Node()
-def condition() -> bool: return True
 
 @Node()
-def action(): print("Done")
+def condition() -> bool:
+    return True
+
 
 @Node()
-def end(): print("End of workflow")
+def action():
+    print("Done")
+
+
+@Node()
+def end():
+    print("End of workflow")
+
 
 flow = IF(condition, action) >> end
 pc = WorkflowPC(flow.render())
 
 if __name__ == "__main__":
-  asyncio.run(pc.run())
+    asyncio.run(pc.run())
 ```
 
 See more demos in `demos/`

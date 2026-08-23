@@ -45,7 +45,10 @@ class JumpNode(BaseNode):
     @override
     def _post_compile(self, compose: NodeComposeRendered) -> None:
         if self._node_addr:
-            return
+            raise RuntimeError(
+                "GOTO node has already been compiled; "
+                "a compose-bound node can only be compiled once"
+            )
         if isinstance(self._alias_or_idata, str):
             if self._alias_or_idata not in compose.alias2vector_map:
                 str_keys = list(compose.alias2vector_map.keys())

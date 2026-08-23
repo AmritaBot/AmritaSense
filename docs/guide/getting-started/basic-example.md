@@ -10,22 +10,28 @@ After reviewing the minimal example, let’s look at a more complete basic usage
 import asyncio
 from amrita_sense import Node, WorkflowInterpreter, IF
 
+
 @Node()
 async def condition() -> bool:
     ...  # assume this is your decision logic
     return True
+
 
 @Node()
 def my_logic_sync():
     ...  # business logic here
     print("I'm a sync node")
 
+
 @Node()
 async def my_logic_async():
     ...  # business logic here
     print("I'm an async node")
 
-comp = IF(condition, my_logic_sync) >> my_logic_async  # IF can accept both sync and async functions; this is just an example
+
+comp = (
+    IF(condition, my_logic_sync) >> my_logic_async
+)  # IF can accept both sync and async functions; this is just an example
 graph = comp.render()
 
 interpreter = WorkflowInterpreter(graph)

@@ -312,13 +312,16 @@ def __init__(
 from amrita_sense.node.core import Node
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 
+
 @Node()
 async def a():
     return 1
 
+
 @Node()
 async def b():
     return 2
+
 
 compose = a >> b
 rendered = compose.render()

@@ -94,9 +94,9 @@ Simply raise it inside the `ACTION` or `DO` node of a loop body:
 @Node()
 def process_item():
     if item is None:
-        raise BreakLoop   # No more data; exit the loop
+        raise BreakLoop  # No more data; exit the loop
     if item.should_skip:
-        return            # Equivalent to continue
+        return  # Equivalent to continue
     handle(item)
 ```
 

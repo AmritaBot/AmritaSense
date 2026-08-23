@@ -22,10 +22,9 @@ Dependency injection is implemented through `Depends()`. `Depends()` accepts a d
 from amrita_sense.hook.matcher import Depends
 from amrita_sense.runtime.deps import POINTER_DEPENDS, ADDR, NEAR_OFFSET
 
+
 @Node()
-def my_node(
-    dependency_value: ReturnType = Depends(dependency_provider_function)
-):
+def my_node(dependency_value: ReturnType = Depends(dependency_provider_function)):
     # use dependency_value
     pass
 ```
@@ -46,11 +45,12 @@ from amrita_sense.runtime.deps import POINTER_DEPENDS, ADDR, NEAR_OFFSET
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 from amrita_sense.types import PointerVector
 
+
 @Node()
 def navigation_node(
     pc: WorkflowInterpreter = Depends(POINTER_DEPENDS),
     target_addr: PointerVector = Depends(ADDR("my_target")),
-    offset: int = Depends(NEAR_OFFSET("my_target"))
+    offset: int = Depends(NEAR_OFFSET("my_target")),
 ):
     # Use the interpreter to jump
     pc.jump_to(target_addr)
@@ -75,6 +75,7 @@ async def async_dependency():
     await asyncio.sleep(0.1)
     return "async_result"
 
+
 @Node()
 def async_node(result: str = Depends(async_dependency)):
     print(f"Received: {result}")
@@ -86,6 +87,7 @@ AmritaSense uses the same dependency matcher for workflow nodes and hook/event h
 
 ```python
 from amrita_sense.hook.matcher import Depends
+
 
 async def on_event(event: Any, pc: WorkflowInterpreter = Depends(POINTER_DEPENDS)):
     # Event handlers can also receive runtime context via Depends
@@ -115,6 +117,7 @@ def optional_dependency():
     else:
         return OptionalValue(None)
 
+
 class OptionalValue:
     def __init__(self, value):
         self.value = value
@@ -127,6 +130,7 @@ def get_maybe_value():
     if some_condition:
         return "value"
     return "default_value"
+
 
 @Node()
 def safe_node(value: str = Depends(get_maybe_value)):
@@ -141,9 +145,10 @@ If a dependency provider returns `None`, the workflow raises a `DependsResolveFa
 def failing_dependency():
     return None
 
-TRY(
-    NodeType(lambda: print("This won't execute"))
-).CATCH(DependsResolveFailed, NodeType(lambda: print("Caught dependency failure")))
+
+TRY(NodeType(lambda: print("This won't execute"))).CATCH(
+    DependsResolveFailed, NodeType(lambda: print("Caught dependency failure"))
+)
 ```
 
 This design ensures that dependency injection remains robust and predictable while giving developers a clear error handling mechanism.
@@ -167,7 +172,9 @@ The utility function `_fingerprint_args()` generates the args fingerprint by:
 
 ```python
 # Simplified illustration of the cache key
-code = _fingerprint_args(ava_args, ava_kwargs)  # or the cached args_hash when no extra args
+code = _fingerprint_args(
+    ava_args, ava_kwargs
+)  # or the cached args_hash when no extra args
 cache_key = hash((id(node.func), code))
 ```
 

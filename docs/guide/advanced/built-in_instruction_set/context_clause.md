@@ -160,23 +160,27 @@ The counterpart to `INTERRUPT_INTO`. Pops the top `InterpreterContext` from the 
 from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
 from amrita_sense.instructions import GOTO, INTERRUPT_RET, PUSH_CONTEXT
 
+
 @Node()
 async def start() -> None:
     print("Start — saving context")
+
 
 @Node()
 async def sub_work() -> None:
     print("  [sub] Doing work in isolated context")
 
+
 @Node()
 async def after_restore() -> None:
     print("Back — restored by INTERRUPT_RET")
 
+
 comp = (
     start
-    >> PUSH_CONTEXT("resume")   # snapshot; return address = the resume NOP
-    >> GOTO("sub_entry")        # explicit jump into the sub-flow (v0.6.0+)
-    >> ALIAS(NOP, "resume")     # INTERRUPT_RET rebases here -> advance onto after_restore
+    >> PUSH_CONTEXT("resume")  # snapshot; return address = the resume NOP
+    >> GOTO("sub_entry")  # explicit jump into the sub-flow (v0.6.0+)
+    >> ALIAS(NOP, "resume")  # INTERRUPT_RET rebases here -> advance onto after_restore
     >> after_restore
     >> ALIAS(sub_work, "sub_entry")
     >> INTERRUPT_RET()
@@ -190,25 +194,29 @@ await WorkflowInterpreter(comp.render()).run()
 from amrita_sense import Node, WorkflowInterpreter
 from amrita_sense.instructions import INTER_FN, INTERRUPT_INTO
 
+
 @Node()
 async def main_start() -> None:
     print("[main] Triggering interrupt...")
+
 
 @Node()
 async def handler() -> None:
     print("  [handler] Processing interrupt")
 
+
 @Node()
 async def back() -> None:
     print("[main] Back from interrupt")
+
 
 handler_block = INTER_FN("int_handler", handler)
 
 comp = (
     main_start
-    >> INTERRUPT_INTO("int_handler", None)   # None = return after this node
+    >> INTERRUPT_INTO("int_handler", None)  # None = return after this node
     >> back
-    >> handler_block                          # skipped by normal flow
+    >> handler_block  # skipped by normal flow
 )
 await WorkflowInterpreter(comp.render()).run()
 ```

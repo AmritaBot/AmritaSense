@@ -42,7 +42,7 @@ async def caller_node(pc: WorkflowInterpreter):
     result = await pc.call_sub(
         pc.get_graph().calc.resolve_alias("target_sub"),
         "positional_arg",
-        custom_kw="value"
+        custom_kw="value",
     )
     # result is the return value of the subroutine’s final node
 ```

@@ -11,9 +11,9 @@ AmritaSense is natively Turing-complete, and it includes a first-class condition
 The `IF` primitive supports the following patterns:
 
 ```python
-IF(condi, do)                        # basic IF, execute do when condition is true
-IF(condi, do).ELSE(else_do)          # IF-ELSE branch
-IF(condi, do).ELIF(condi2, do2)      # IF-ELIF chain
+IF(condi, do)  # basic IF, execute do when condition is true
+IF(condi, do).ELSE(else_do)  # IF-ELSE branch
+IF(condi, do).ELIF(condi2, do2)  # IF-ELIF chain
 IF(condi, do).ELIF(condi2, do2).ELSE(else_do)  # full IF-ELIF-ELSE chain
 ```
 
@@ -74,11 +74,11 @@ AmritaSense natively provides a **node-domain TRY/CATCH exception handling syste
 ### Full usage
 
 ```python
-TRY(do).CATCH(exc, handler)                              # catch a specific exception
-TRY(do).FINALLY(cleanup)                                  # finally block only
-TRY(do).CATCH(exc, handler).FINALLY(cleanup)              # catch + cleanup
-TRY(do).THEN(success).CATCH(exc, handler).FINALLY(cleanup) # full four-part structure
-TRY(do).CATCH(exc, handler).THEN(success)                 # catch + success branch
+TRY(do).CATCH(exc, handler)  # catch a specific exception
+TRY(do).FINALLY(cleanup)  # finally block only
+TRY(do).CATCH(exc, handler).FINALLY(cleanup)  # catch + cleanup
+TRY(do).THEN(success).CATCH(exc, handler).FINALLY(cleanup)  # full four-part structure
+TRY(do).CATCH(exc, handler).THEN(success)  # catch + success branch
 TRY(do).CATCH(exc1, handler1).CATCH(exc2, handler2).FINALLY(cleanup)  # multiple catches
 ```
 

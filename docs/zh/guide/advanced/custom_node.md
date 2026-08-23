@@ -10,9 +10,9 @@
 
 ```python
 @Node(
-    tag="custom_tag",        # 可选：挂起点标签，默认自动生成
-    wrap_to_async=True,      # 可选：是否将同步函数包装为异步执行
-    address_able=True        # 可选：是否可被 ALIAS 引用
+    tag="custom_tag",  # 可选：挂起点标签，默认自动生成
+    wrap_to_async=True,  # 可选：是否将同步函数包装为异步执行
+    address_able=True,  # 可选：是否可被 ALIAS 引用
 )
 def my_function():
     pass
@@ -122,11 +122,12 @@ def quick_check():
 from amrita_sense.runtime.deps import POINTER_DEPENDS
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 
+
 @Node()
 def my_node(pc: WorkflowInterpreter = Depends(POINTER_DEPENDS)):
-    current_addr = pc._pointer                         # 读取当前位置
+    current_addr = pc._pointer  # 读取当前位置
     target = pc.get_graph().calc.resolve_alias("foo")  # 解析别名
-    await pc.call_sub(target, arg=42)                  # 调用子程序
+    await pc.call_sub(target, arg=42)  # 调用子程序
 ```
 
 ### 节点获得了什么？

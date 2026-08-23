@@ -86,13 +86,16 @@ That means:
 from amrita_sense.instructions import GOTO, CALL, ALIAS, ARCHIVED_NODES
 from amrita_sense.node import Node
 
+
 @Node()
 def error_handler():
     print("Handling error")
 
+
 @Node()
 def reusable_step():
     print("Executing reusable logic")
+
 
 # GOTO: jump to error cleanup
 workflow = (
@@ -107,14 +110,7 @@ subprogram = ARCHIVED_NODES(
     ALIAS(reusable_step, "reusable"),
 )
 
-main = (
-    init
-    >> CALL("reusable")
-    >> process
-    >> CALL("reusable")
-    >> end
-    >> subprogram
-)
+main = init >> CALL("reusable") >> process >> CALL("reusable") >> end >> subprogram
 ```
 
 > **Manual stack management**: `PUSH_STACK` + `GOTO` + `RET_FAR` give you explicit control over the return address stack, and can be combined with `ARCHIVED_NODES` for subroutine-like patterns. See [Advanced Topic: Manual Stack Space Management](/guide/practice/manual-stack-management) for full details.

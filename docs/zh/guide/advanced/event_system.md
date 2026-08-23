@@ -52,6 +52,7 @@ from amrita_sense.node.core import Node
 from amrita_sense.runtime.deps import POINTER_DEPENDS
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 
+
 @dataclass
 class TaskCompletedEvent(BaseEvent[str]):
     task_id: str
@@ -63,12 +64,14 @@ class TaskCompletedEvent(BaseEvent[str]):
     def get_event_type(self) -> str:
         return self.event_type
 
+
 @on_event("task.completed").handle()
 async def handle_task_completed(
     event: TaskCompletedEvent,
     pc: WorkflowInterpreter = Depends(POINTER_DEPENDS),
 ):
     print(f"任务完成：{event.task_id}")
+
 
 @Node()
 async def complete_task_node() -> str:
@@ -122,6 +125,7 @@ from amrita_sense.hook.on import on_event
 from amrita_sense.instructions import TRIGGER_EVENT
 from amrita_sense.node.core import Node
 
+
 @dataclass
 class OrderPlacedEvent(ConstructableEvent[str]):
     order_id: str
@@ -137,13 +141,16 @@ class OrderPlacedEvent(ConstructableEvent[str]):
     def constructor(cls, order_id: str = "auto-generated") -> "OrderPlacedEvent":
         return cls(order_id=order_id)
 
+
 @on_event("order.placed").handle()
 async def notify_warehouse(event: OrderPlacedEvent):
     print(f"仓库已收到通知：{event.order_id}")
 
+
 @Node()
 async def checkout() -> str:
     return "结账完成"
+
 
 # 编排：结账后触发事件
 workflow = checkout >> TRIGGER_EVENT(OrderPlacedEvent)

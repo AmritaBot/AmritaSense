@@ -10,23 +10,28 @@
 import asyncio
 from amrita_sense import Node, WorkflowInterpreter, IF
 
+
 @Node()
 async def condition() -> bool:
-    ... # 假设这里是你的判断逻辑
+    ...  # 假设这里是你的判断逻辑
     return True
+
 
 @Node()
 def my_logic_sync():
-    ... # 这里是逻辑
+    ...  # 这里是逻辑
     print("I'm a sync node")
+
 
 @Node()
 async def my_logic_async():
-    ... # 这里是逻辑
+    ...  # 这里是逻辑
     print("I'm an async node")
 
 
-comp = IF(condition, my_logic_sync) >> my_logic_async  # IF其实可以接受同步和异步两种函数，这里只是为了演示
+comp = (
+    IF(condition, my_logic_sync) >> my_logic_async
+)  # IF其实可以接受同步和异步两种函数，这里只是为了演示
 graph = comp.render()
 
 interpreter = WorkflowInterpreter(graph)

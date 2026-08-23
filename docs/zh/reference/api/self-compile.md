@@ -66,6 +66,7 @@ AmritaSense 的内置指令集全部是 `SelfCompileInstruction` 的子类。以
 ```python
 class LoggedNode(SelfCompileInstruction):
     """在执行节点前后各加一条日志"""
+
     def __init__(self, node: BaseNode, name: str):
         self._node = node
         self._name = name

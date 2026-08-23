@@ -86,13 +86,16 @@
 from amrita_sense.instructions import GOTO, CALL, ALIAS, ARCHIVED_NODES
 from amrita_sense.node import Node
 
+
 @Node()
 def error_handler():
     print("Handling error")
 
+
 @Node()
 def reusable_step():
     print("Executing reusable logic")
+
 
 # GOTO：错误时直接跳转
 workflow = (
@@ -109,11 +112,11 @@ subprogram = ARCHIVED_NODES(
 
 main = (
     init
-    >> CALL("reusable")   # 第一次调用
+    >> CALL("reusable")  # 第一次调用
     >> process
-    >> CALL("reusable")   # 第二次复用
+    >> CALL("reusable")  # 第二次复用
     >> end
-    >> subprogram         # 子程序放在末尾，正常流程跳过
+    >> subprogram  # 子程序放在末尾，正常流程跳过
 )
 ```
 

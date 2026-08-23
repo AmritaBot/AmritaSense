@@ -22,10 +22,9 @@ AmritaSense 工作流引擎集成了依赖注入（Dependency Injection, DI）�
 from amrita_sense.hook.matcher import Depends
 from amrita_sense.runtime.deps import POINTER_DEPENDS, ADDR, NEAR_OFFSET
 
+
 @Node()
-def my_node(
-    dependency_value: ReturnType = Depends(dependency_provider_function)
-):
+def my_node(dependency_value: ReturnType = Depends(dependency_provider_function)):
     # 使用 dependency_value
     pass
 ```
@@ -46,11 +45,12 @@ from amrita_sense.runtime.deps import POINTER_DEPENDS, ADDR, NEAR_OFFSET
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 from amrita_sense.types import PointerVector
 
+
 @Node()
 def navigation_node(
     pc: WorkflowInterpreter = Depends(POINTER_DEPENDS),
     target_addr: PointerVector = Depends(ADDR("my_target")),
-    offset: int = Depends(NEAR_OFFSET("my_target"))
+    offset: int = Depends(NEAR_OFFSET("my_target")),
 ):
     # 使用解释器进行跳转操作
     pc.jump_to(target_addr)
@@ -76,6 +76,7 @@ async def async_dependency():
     await asyncio.sleep(0.1)
     return "async_result"
 
+
 @Node()
 def async_node(result: str = Depends(async_dependency)):
     print(f"Received: {result}")
@@ -87,6 +88,7 @@ AmritaSense 对节点和事件处理器使用相同的依赖匹配机制。这�
 
 ```python
 from amrita_sense.hook.matcher import Depends
+
 
 async def on_event(event: Any, pc: WorkflowInterpreter = Depends(POINTER_DEPENDS)):
     # 事件处理器同样可以通过 Depends 获取运行时上下文
@@ -117,6 +119,7 @@ def optional_dependency():
     else:
         return OptionalValue(None)  # 使用包装类或其他非 None 值
 
+
 class OptionalValue:
     def __init__(self, value):
         self.value = value
@@ -129,6 +132,7 @@ def get_maybe_value():
     if some_condition:
         return "value"
     return "default_value"  # 不返回 None
+
 
 @Node()
 def safe_node(value: str = Depends(get_maybe_value)):
@@ -144,9 +148,10 @@ def safe_node(value: str = Depends(get_maybe_value)):
 def failing_dependency():
     return None  # 这会导致工作流终止
 
-TRY(
-    NodeType(lambda: print("This won't execute"))
-).CATCH(DependsResolveFailed, NodeType(lambda: print("Caught dependency failure")))
+
+TRY(NodeType(lambda: print("This won't execute"))).CATCH(
+    DependsResolveFailed, NodeType(lambda: print("Caught dependency failure"))
+)
 ```
 
 这种设计确保了依赖注入系统的健壮性和可预测性，同时为开发者提供了清晰的错误处理机制。

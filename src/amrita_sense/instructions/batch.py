@@ -86,6 +86,13 @@ class BatchRun(BaseNode):
         self._interpreters = []
 
     def _post_compile(self, compose: NodeComposeRendered) -> None:
+        # ``_origin`` is consumed (``del``) on first compile; its absence marks
+        # this node as already compiled, so a second compile must be rejected.
+        if not hasattr(self, "_origin"):
+            raise RuntimeError(
+                "BATCH_RUN node has already been compiled; "
+                "a compose-bound node can only be compiled once"
+            )
         nodes = []
         self._graphs = []
         for pl in self._origin:

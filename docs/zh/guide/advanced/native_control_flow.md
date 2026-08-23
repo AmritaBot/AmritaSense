@@ -31,9 +31,9 @@ v0.6.0 起循环机制被重新设计：循环体统一以 `CONTINUE()`（工厂
 `NATIVE_IF` 的 API 与传统 `IF` 完全一致，支持 `ELIF` / `ELSE` 链式调用：
 
 ```python
-NATIVE_IF(cond, body)                          # 纯 IF
-NATIVE_IF(cond, body).ELSE(else_body)          # IF-ELSE
-NATIVE_IF(cond, body).ELIF(cond2, body2)       # IF-ELIF 链
+NATIVE_IF(cond, body)  # 纯 IF
+NATIVE_IF(cond, body).ELSE(else_body)  # IF-ELSE
+NATIVE_IF(cond, body).ELIF(cond2, body2)  # IF-ELIF 链
 NATIVE_IF(cond, body).ELIF(cond2, body2).ELSE(else_body)  # 完整链
 ```
 
@@ -92,8 +92,8 @@ NATIVE_WHILE(condition).ACTION(body)
 ### 循环体（单节点与 Bubble 同一路径）
 
 ```python
-NATIVE_WHILE(check_alive).ACTION(heartbeat)          # 单节点
-NATIVE_WHILE(cond).ACTION(step_a >> step_b)          # Bubble
+NATIVE_WHILE(check_alive).ACTION(heartbeat)  # 单节点
+NATIVE_WHILE(cond).ACTION(step_a >> step_b)  # Bubble
 ```
 
 v0.6.0 起，单节点与 Bubble 循环体走**同一代码路径**：循环体总是被包装为 `NodeCompose(body, CONTINUE())`，通过末尾的 `CONTINUE()` 完成迭代。
@@ -116,11 +116,7 @@ graph LR
 `WHILE` 循环体内不能像传统 `WHILE` 那样抛 `BreakLoop` 异常——原生指令没有包裹 try/except。取而代之的是 **`BREAK_LOOP()` 指令**：
 
 ```python
-NATIVE_WHILE(cond).ACTION(
-    step_a
-    >> BREAK_LOOP()
-    >> step_b
-)
+NATIVE_WHILE(cond).ACTION(step_a >> BREAK_LOOP() >> step_b)
 ```
 
 `BREAK_LOOP()` 的工作原理：
@@ -136,7 +132,7 @@ NATIVE_WHILE(cond).ACTION(
 ```python
 NATIVE_WHILE(cond).ACTION(
     step_a
-    >> CONTINUE()   # 跳过 step_b，开始下一轮
+    >> CONTINUE()  # 跳过 step_b，开始下一轮
     >> step_b
 )
 ```
@@ -154,8 +150,8 @@ NATIVE_DO(body).WHILE(condition)
 ### 循环体（单节点与 Bubble 同一路径）
 
 ```python
-NATIVE_DO(send_request).WHILE(should_retry)         # 单节点
-NATIVE_DO(step_a >> step_b).WHILE(cond)             # Bubble
+NATIVE_DO(send_request).WHILE(should_retry)  # 单节点
+NATIVE_DO(step_a >> step_b).WHILE(cond)  # Bubble
 ```
 
 与 `NATIVE_WHILE` 相同，循环体总是被包装为 `NodeCompose(body, CONTINUE())`。

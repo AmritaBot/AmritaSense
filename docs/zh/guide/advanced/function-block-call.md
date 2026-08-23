@@ -24,8 +24,8 @@ AmritaSense 提供了 `FN` / `INTER_FN` —— 看起来像高级语言**函数�
 from amrita_sense.instructions import FN
 
 fn_block = FN(
-    "fn_entry",          # 必填：入口别名
-    fn_body,             # NodeCompose 或 SelfCompileInstruction
+    "fn_entry",  # 必填：入口别名
+    fn_body,  # NodeCompose 或 SelfCompileInstruction
 )
 ```
 
@@ -47,9 +47,9 @@ from amrita_sense.instructions import PUSH_AND_GOTO
 
 comp = (
     start
-    >> PUSH_AND_GOTO(None, "fn_entry")   # 调用：None = 返回调用点之后的节点
-    >> after_fn                           # RET_FAR 之后在这里恢复执行
-    >> fn_block                           # 正常流经 _fn_escape 跳过
+    >> PUSH_AND_GOTO(None, "fn_entry")  # 调用：None = 返回调用点之后的节点
+    >> after_fn  # RET_FAR 之后在这里恢复执行
+    >> fn_block  # 正常流经 _fn_escape 跳过
 )
 ```
 
@@ -82,8 +82,8 @@ from amrita_sense.instructions import INTERRUPT_INTO
 comp = (
     main_start
     >> INTERRUPT_INTO("isr_entry", None)  # 派发：None = 返回调用点之后的节点
-    >> after_isr                          # INTERRUPT_RET 之后在这里恢复执行
-    >> isr                                # 正常流经 _fn_escape 跳过
+    >> after_isr  # INTERRUPT_RET 之后在这里恢复执行
+    >> isr  # 正常流经 _fn_escape 跳过
 )
 ```
 
@@ -98,7 +98,7 @@ comp = (
     start
     >> PUSH_AND_GOTO(None, "fn_entry")
     >> after_fn
-    >> FN("fn_entry", fn_body)   # 可以——不需要 ARCHIVED_SEGMENT
+    >> FN("fn_entry", fn_body)  # 可以——不需要 ARCHIVED_SEGMENT
 )
 ```
 
@@ -110,8 +110,7 @@ comp = (
 
 ```python
 @Node()
-async def fn_body(ctx: WorkflowContext) -> None:
-    ...  # DI 从解释器参数池解析 `ctx`
+async def fn_body(ctx: WorkflowContext) -> None: ...  # DI 从解释器参数池解析 `ctx`
 ```
 
 解释器从同一份 `_ava_args` / `_ava_kwargs` 池解析函数体的参数——函数块在**调用方的上下文**中执行，而不是一个全新的上下文。

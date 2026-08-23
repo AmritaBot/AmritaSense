@@ -40,8 +40,7 @@ class BaseNode:
 `Node` is the generic concrete implementation of `BaseNode` and the node type developers interact with most frequently. Nodes created with the `@Node()` decorator are `Node` instances. It wraps an ordinary Python function or coroutine into a basic workflow execution unit.
 
 ```python
-class Node(BaseNode, Generic[NODE_T]):
-    ...
+class Node(BaseNode, Generic[NODE_T]): ...
 ```
 
 ### Creation

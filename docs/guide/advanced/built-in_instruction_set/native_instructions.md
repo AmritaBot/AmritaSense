@@ -211,11 +211,7 @@ Since v0.6.0, `BREAK_LOOP` is a **factory function** — call it: `BREAK_LOOP()`
 ```python
 from amrita_sense.instructions.native import BREAK_LOOP, NATIVE_WHILE
 
-NATIVE_WHILE(cond).ACTION(
-    process_item
-    >> BREAK_LOOP()
-    >> log_item
-)
+NATIVE_WHILE(cond).ACTION(process_item >> BREAK_LOOP() >> log_item)
 ```
 
 ## CONTINUE
@@ -249,7 +245,7 @@ from amrita_sense.instructions.native import CONTINUE, NATIVE_DO
 
 NATIVE_DO(
     step_a
-    >> CONTINUE()   # skip step_b, re-check condition
+    >> CONTINUE()  # skip step_b, re-check condition
     >> step_b
 ).WHILE(cond)
 ```
