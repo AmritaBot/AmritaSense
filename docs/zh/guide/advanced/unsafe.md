@@ -25,6 +25,7 @@ from amrita_sense._unsafe import __flags__
 ```python
 # ✅ 正确：在 main.py / __main__.py 最顶部
 from amrita_sense._unsafe import __flags__
+
 __flags__.DISABLE_EXC_IGNORED = True
 
 # ... 后续应用程序代码

@@ -13,6 +13,7 @@
 def _no_operation() -> None:
     pass
 
+
 NOP: _Node[None] = _no_operation
 ```
 
@@ -45,6 +46,7 @@ NOP: _Node[None] = _no_operation
 @_node_fun(wrap_to_async=False, address_able=False)
 def _interrput_operation() -> NoReturn:
     raise InterruptNotice("Interrupt Node")
+
 
 INTERRUPT: _Node[NoReturn] = _interrput_operation
 ```
@@ -85,6 +87,7 @@ INTERRUPT: _Node[NoReturn] = _interrput_operation
 @_node_fun(wrap_to_async=False, address_able=True)
 def _interrupt_keep_ctx() -> NoReturn:
     raise InterruptKeepContext("Interrupt Node with context retention")
+
 
 INTERRUPT_KEEP_CTX: _Node[NoReturn] = _interrupt_keep_ctx
 ```

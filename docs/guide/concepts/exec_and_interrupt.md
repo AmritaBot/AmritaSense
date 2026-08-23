@@ -132,6 +132,7 @@ Python's `except Exception` does not catch `BaseException` subclasses. Therefore
 2. **Insert `INTERRUPT` node in workflow**:
    ```python
    from amrita_sense.instructions import INTERRUPT
+
    workflow = Sequence(StepA(), Branch(If(condition=is_error, then=INTERRUPT), ...))
    ```
 
@@ -179,9 +180,11 @@ The interpreter main loop acquires `_interpret_lock` before each node:
 
 ```python
 while True:
-    await self.object_io._wait_for_continue(PC_CHECKPOINT)  # Suspend check (outside lock)
-    async with self._interpret_lock:   # Enter interrupt-safe zone
-        yield await self._call()       # Execute node
+    await self.object_io._wait_for_continue(
+        PC_CHECKPOINT
+    )  # Suspend check (outside lock)
+    async with self._interpret_lock:  # Enter interrupt-safe zone
+        yield await self._call()  # Execute node
 ```
 
 When external code calls `call_sub(interrupt=True)`, the caller and main loop compete for `_interpret_lock`:

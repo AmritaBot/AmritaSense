@@ -4,6 +4,11 @@ Breakpoints are checked inside a composite middleware that wraps the
 user's original middleware.  When a breakpoint matches the current node,
 a :class:`BreakpointHit` exception is raised, which propagates out of
 ``run_step_by()`` and is caught by :func:`cont`.
+
+Module-level state is kept in ``_debug_state``, keyed by interpreter id;
+each value is a dict with ``breakpoints`` (list[Breakpoint]),
+``saved_user_mw`` (the original middleware), ``stepping`` (True skips
+breakpoint checks) and ``debug_active`` (True after ``_ensure_debug_mw``).
 """
 
 from __future__ import annotations
@@ -17,12 +22,6 @@ from amrita_sense.node.core import BaseNode
 if TYPE_CHECKING:
     from amrita_sense.runtime.workflow import WorkflowInterpreter
 
-#  module‑level state
-# Keyed by interpreter id.  Each value is a dict:
-#   breakpoints : list[Breakpoint]
-#   saved_user_mw : callable | None   (the original _middleware)
-#   stepping : bool                   (True → skip breakpoint checks)
-#   debug_active : bool               (True after _ensure_debug_mw)
 _debug_state: dict[str, dict] = {}
 
 

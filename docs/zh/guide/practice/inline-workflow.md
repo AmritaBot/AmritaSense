@@ -33,6 +33,7 @@ AmritaSense 工作流通常由顶层 `@Node()` 函数编排而成，通过独立
 from amrita_sense.node.core import Node
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 
+
 class SimpleWorkflow:
     """一个自包含的工作流：将值翻倍，然后格式化结果。"""
 

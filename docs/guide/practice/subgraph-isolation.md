@@ -42,9 +42,9 @@ Key properties:
 from amrita_sense.instructions import FUN_BLOCK
 
 FUN_BLOCK(
-    sub_comp,          # NodeComposeRendered — the sub-workflow graph
+    sub_comp,  # NodeComposeRendered — the sub-workflow graph
     middleware=UNSET,  # Callable | None | UNSET — middleware for the child
-    object_io=None,    # SuspendObjectStream | None — I/O stream for the child
+    object_io=None,  # SuspendObjectStream | None — I/O stream for the child
     one_time_interp=False,  # bool — create a fresh interpreter each call?
 )
 ```
@@ -110,7 +110,7 @@ await top_interpreter.terminate_all(eol=True)
 ### Status
 
 ```python
-interpreter.is_running    # True if currently executing
+interpreter.is_running  # True if currently executing
 interpreter.pending_stop  # True if terminate() was called
 ```
 
@@ -129,36 +129,40 @@ import asyncio
 from amrita_sense import Node, NodeCompose, WorkflowInterpreter
 from amrita_sense.instructions import FUN_BLOCK
 
+
 ### Define a sub-workflow ###
 @Node()
 async def sub_start() -> None:
     print("  [sub] start")
 
+
 @Node()
 async def sub_work() -> None:
     print("  [sub] working...")
 
+
 sub_comp = (sub_start >> sub_work).render()
+
 
 ### Define the main workflow ###
 @Node()
 async def main_start() -> None:
     print("[main] start")
 
+
 @Node()
 async def main_after() -> None:
     print("[main] sub-workflow finished")
 
-main_comp = (
-    main_start
-    >> FUN_BLOCK(sub_comp, one_time_interp=True)
-    >> main_after
-)
+
+main_comp = main_start >> FUN_BLOCK(sub_comp, one_time_interp=True) >> main_after
+
 
 ### Execute ###
 async def main():
     interpreter = WorkflowInterpreter(main_comp.render())
     await interpreter.run()
+
 
 asyncio.run(main())
 ```
@@ -179,13 +183,7 @@ If the sub-workflow raises an exception, `FUN_BLOCK` collects all exceptions (in
 ```python
 from amrita_sense.instructions import Try
 
-comp = (
-    main_start
-    >> Try(
-        FUN_BLOCK(sub_comp),
-        CATCH=(ValueError, handle_value_error)
-    )
-)
+comp = main_start >> Try(FUN_BLOCK(sub_comp), CATCH=(ValueError, handle_value_error))
 ```
 
 ## When to Use Subgraph Isolation

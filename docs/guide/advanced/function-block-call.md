@@ -24,8 +24,8 @@ Think of a function block as a **named, archived jump target**: entering it chan
 from amrita_sense.instructions import FN
 
 fn_block = FN(
-    "fn_entry",          # required entrypoint alias
-    fn_body,             # NodeCompose or SelfCompileInstruction
+    "fn_entry",  # required entrypoint alias
+    fn_body,  # NodeCompose or SelfCompileInstruction
 )
 ```
 
@@ -47,9 +47,9 @@ from amrita_sense.instructions import PUSH_AND_GOTO
 
 comp = (
     start
-    >> PUSH_AND_GOTO(None, "fn_entry")   # call: None = return after this node
-    >> after_fn                           # resumed here after RET_FAR
-    >> fn_block                           # skipped by normal flow via _fn_escape
+    >> PUSH_AND_GOTO(None, "fn_entry")  # call: None = return after this node
+    >> after_fn  # resumed here after RET_FAR
+    >> fn_block  # skipped by normal flow via _fn_escape
 )
 ```
 
@@ -82,8 +82,8 @@ from amrita_sense.instructions import INTERRUPT_INTO
 comp = (
     main_start
     >> INTERRUPT_INTO("isr_entry", None)  # dispatch: None = return after this node
-    >> after_isr                          # resumed here after INTERRUPT_RET
-    >> isr                                # skipped by normal flow via _fn_escape
+    >> after_isr  # resumed here after INTERRUPT_RET
+    >> isr  # skipped by normal flow via _fn_escape
 )
 ```
 
@@ -98,7 +98,7 @@ comp = (
     start
     >> PUSH_AND_GOTO(None, "fn_entry")
     >> after_fn
-    >> FN("fn_entry", fn_body)   # fine — no ARCHIVED_SEGMENT needed
+    >> FN("fn_entry", fn_body)  # fine — no ARCHIVED_SEGMENT needed
 )
 ```
 
@@ -110,8 +110,9 @@ Because there is no argument passing, share data through the workflow's **depend
 
 ```python
 @Node()
-async def fn_body(ctx: WorkflowContext) -> None:
-    ...  # DI resolves `ctx` from the interpreter's arg pool at the call site
+async def fn_body(
+    ctx: WorkflowContext,
+) -> None: ...  # DI resolves `ctx` from the interpreter's arg pool at the call site
 ```
 
 The interpreter resolves the body's parameters from the same `_ava_args` / `_ava_kwargs` pool — the block executes in the caller's context, not a fresh one.

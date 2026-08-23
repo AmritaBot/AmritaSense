@@ -5,8 +5,7 @@ The runtime system executes compiled workflow graphs, manages the program counte
 ## WorkflowInterpreter
 
 ```python
-class WorkflowInterpreter(Generic[io_T]):
-    ...
+class WorkflowInterpreter(Generic[io_T]): ...
 ```
 
 `WorkflowInterpreter` is the main engine for executing a rendered workflow graph. It tracks the current execution pointer using `PointerVector`, manages subroutine calls through a return address stack, and supports external interruption and streaming via a generic `object_io` interface.
@@ -302,13 +301,16 @@ The `object_io` implementation is responsible for coordinating suspension and re
 from amrita_sense.node.core import Node
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 
+
 @Node()
 async def a():
     return 1
 
+
 @Node()
 async def b():
     return 2
+
 
 compose = a >> b
 rendered = compose.render()

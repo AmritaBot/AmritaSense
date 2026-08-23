@@ -211,11 +211,7 @@ v0.6.0 起，`BREAK_LOOP` 是**工厂函数**——需要调用：`BREAK_LOOP()`
 ```python
 from amrita_sense.instructions.native import BREAK_LOOP, NATIVE_WHILE
 
-NATIVE_WHILE(cond).ACTION(
-    process_item
-    >> BREAK_LOOP()
-    >> log_item
-)
+NATIVE_WHILE(cond).ACTION(process_item >> BREAK_LOOP() >> log_item)
 ```
 
 ## CONTINUE
@@ -249,7 +245,7 @@ from amrita_sense.instructions.native import CONTINUE, NATIVE_DO
 
 NATIVE_DO(
     step_a
-    >> CONTINUE()   # 跳过 step_b，重新检查条件
+    >> CONTINUE()  # 跳过 step_b，重新检查条件
     >> step_b
 ).WHILE(cond)
 ```

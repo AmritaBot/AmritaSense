@@ -56,6 +56,11 @@ def PUSH_STACK(alias_or_idata: str | list[int]) -> NodeType[None]:
 
     def _post_compile(compose: NodeComposeRendered):
         nonlocal addr
+        if addr is not None:
+            raise RuntimeError(
+                f"{call.tag} node has already been compiled; "
+                "a compose-bound node can only be compiled once"
+            )
         if isinstance(alias_or_idata, str):
             addr = compose.calc.resolve_alias(alias_or_idata)
         else:
@@ -94,8 +99,7 @@ def PUSH_AND_GOTO(
         nonlocal frm_addr, to_addr
         assert to_addr is not None
         if frm_addr is None:
-            # None default: reuse the parent's return address when inside a
-            # call_sub, otherwise use the current pointer.
+            # None default: reuse parent's return addr (inside call_sub) or current pointer.
             if pc.outer_interpreting:
                 frm_addr = pc._ret_addr_stack.stack[-1].base_addr.copy()
             else:
@@ -105,6 +109,11 @@ def PUSH_AND_GOTO(
 
     def _post_compile(compose: NodeComposeRendered):
         nonlocal frm_addr, to_addr
+        if frm_addr is not None or to_addr is not None:
+            raise RuntimeError(
+                f"{call.tag} node has already been compiled; "
+                "a compose-bound node can only be compiled once"
+            )
         if isinstance(from_adr, str):
             frm_addr = compose.calc.resolve_alias(from_adr)
         else:

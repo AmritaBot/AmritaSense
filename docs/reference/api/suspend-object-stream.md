@@ -166,9 +166,11 @@ stream = SuspendObjectStream[str]()
 # Custom buffer size and timeout
 stream = SuspendObjectStream[str](queue_size=100, queue_timeout=30.0)
 
+
 # Pre-configured callback
 async def my_callback(response: str):
     print(f"Received: {response}")
+
 
 stream = SuspendObjectStream[str](callback=my_callback)
 ```
@@ -200,6 +202,7 @@ A decorator for coroutine functions that automatically inserts a suspend point b
 ```python
 from amrita_sense.streaming import SuspendObjectStream
 
+
 class MyProcessor:
     @SuspendObjectStream.suspend
     async def process(self, stream: SuspendObjectStream, data: str):
@@ -229,6 +232,7 @@ Returns a `suspend` decorator factory with a fixed tag.
 # Equivalent forms
 @SuspendObjectStream.suspend_with_tag("my_tag")
 async def foo(self, stream, x): ...
+
 
 # Is equivalent to
 @SuspendObjectStream.suspend(tag="my_tag")
@@ -340,9 +344,12 @@ Pushes an object into the stream's send queue, or handles it directly via callba
 # Default mode — pushes to queue
 await stream.push_object("User input data")
 
+
 # Callback mode — object handled directly by callback
 async def handle_input(obj: str):
     print(f"Received input: {obj}")
+
+
 stream.set_callback_fun_sending(handle_input)
 await stream.push_object("This won't enter the queue")
 ```
@@ -370,9 +377,12 @@ Sends a response object to the consumer. **This is the primary data exit point f
 # Queue mode — object goes into buffer
 await stream.yield_response("Hello, World!")
 
+
 # Callback mode — object is handled directly by callback
 async def handle(response: str):
     print(f"Callback received: {response}")
+
+
 stream.set_callback_func(handle)
 await stream.yield_response("This won't enter the queue")
 ```
@@ -390,6 +400,7 @@ async def my_generator():
     for i in range(5):
         yield f"Chunk {i}"
         await asyncio.sleep(0.1)
+
 
 await stream.yield_response_iteration(my_generator())
 # Equivalent to:
@@ -418,6 +429,7 @@ async def monitor(response: str):
     if "error" in response.lower():
         await send_alert(response)
     print(response, end="", flush=True)
+
 
 stream.set_callback_func(monitor)
 # All subsequent yield_response() calls are handled by monitor
@@ -571,15 +583,18 @@ The most common consumption pattern, ideal for chunked output to terminals or We
 import asyncio
 from amrita_sense.streaming import SuspendObjectStream
 
+
 async def producer(stream: SuspendObjectStream[str]):
     for i in range(5):
         await stream.yield_response(f"Data chunk {i}\n")
         await asyncio.sleep(0.5)
     await stream.set_queue_done()
 
+
 async def consumer(stream: SuspendObjectStream[str]):
     async for chunk in stream.get_response_generator():
         print(chunk, end="", flush=True)
+
 
 async def controller(stream: SuspendObjectStream[str]):
     # External control: pause after the second data chunk
@@ -589,12 +604,14 @@ async def controller(stream: SuspendObjectStream[str]):
     stream.resume()
     print("[Resumed]")
 
+
 async def main():
     stream = SuspendObjectStream[str]()
     prod = asyncio.create_task(producer(stream))
     ctrl = asyncio.create_task(controller(stream))
     await consumer(stream)
     await prod
+
 
 asyncio.run(main())
 ```
@@ -607,13 +624,16 @@ Ideal for intercepting every piece of data without writing manual loops.
 async def handle_chunk(chunk: str):
     print(chunk, end="", flush=True)
 
+
 stream = SuspendObjectStream[str](callback=handle_chunk)
+
 
 # Producer sends data normally
 async def producer():
     for i in range(5):
         await stream.yield_response(f"Chunk {i}\n")
     await stream.set_queue_done()
+
 
 # Wait for producer to finish
 await producer()
@@ -629,13 +649,16 @@ async def monitor(response: str):
     if "error" in response.lower():
         print("[Alert] Error detected!")
 
+
 stream = SuspendObjectStream[str](callback=monitor)
+
 
 async def controller():
     """Outer suspend: pause at key points"""
     await stream.wait_to_suspend("before_llm_call", timeout=10.0)
     print("\nAbout to call LLM, continue?")
     stream.resume()
+
 
 # Launch producer and controller
 asyncio.create_task(producer(stream))
@@ -651,6 +674,7 @@ Using the second independent channel pair, the consumer can actively send data b
 import asyncio
 from amrita_sense.streaming import SuspendObjectStream
 
+
 async def producer(stream: SuspendObjectStream[str]):
     # Start reverse stream listener
     async def handle_input():
@@ -665,6 +689,7 @@ async def producer(stream: SuspendObjectStream[str]):
         await asyncio.sleep(0.3)
     await stream.set_queue_done()
 
+
 async def consumer(stream: SuspendObjectStream[str]):
     async for response in stream.get_response_generator():
         print(response, end="")
@@ -673,11 +698,13 @@ async def consumer(stream: SuspendObjectStream[str]):
             await stream.send_to_producer("Need more context")
     await stream.send_done_to_producer()
 
+
 async def main():
     stream = SuspendObjectStream[str]()
     prod = asyncio.create_task(producer(stream))
     await consumer(stream)
     await prod
+
 
 asyncio.run(main())
 ```

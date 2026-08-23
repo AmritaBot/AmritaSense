@@ -11,9 +11,9 @@ AmritaSense 是原生图灵完备的运行时，因此拥有原生设计的完�
 `IF` 指令支持以下标准写法：
 
 ```python
-IF(condi, do)                        # 纯 IF，条件成立则执行 do
-IF(condi, do).ELSE(else_do)          # IF-ELSE 双分支
-IF(condi, do).ELIF(condi2, do2)      # IF-ELIF 链
+IF(condi, do)  # 纯 IF，条件成立则执行 do
+IF(condi, do).ELSE(else_do)  # IF-ELSE 双分支
+IF(condi, do).ELIF(condi2, do2)  # IF-ELIF 链
 IF(condi, do).ELIF(condi2, do2).ELSE(else_do)  # 完整 IF-ELIF-ELSE 链
 ```
 
@@ -74,11 +74,11 @@ AmritaSense 原生提供了**节点域的 TRY/CATCH 异常捕获体系**。这�
 ### 完整用法
 
 ```python
-TRY(do).CATCH(exc, handler)                              # 捕获特定异常
-TRY(do).FINALLY(cleanup)                                  # 仅定义清理块
-TRY(do).CATCH(exc, handler).FINALLY(cleanup)              # 捕获 + 清理
-TRY(do).THEN(success).CATCH(exc, handler).FINALLY(cleanup) # 完整四段式
-TRY(do).CATCH(exc, handler).THEN(success)                 # 捕获 + 成功分支
+TRY(do).CATCH(exc, handler)  # 捕获特定异常
+TRY(do).FINALLY(cleanup)  # 仅定义清理块
+TRY(do).CATCH(exc, handler).FINALLY(cleanup)  # 捕获 + 清理
+TRY(do).THEN(success).CATCH(exc, handler).FINALLY(cleanup)  # 完整四段式
+TRY(do).CATCH(exc, handler).THEN(success)  # 捕获 + 成功分支
 TRY(do).CATCH(exc1, handler1).CATCH(exc2, handler2).FINALLY(cleanup)  # 多异常捕获
 ```
 

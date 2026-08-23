@@ -92,21 +92,25 @@ from amrita_sense.instructions import WHILE, DO
 from amrita_sense.exceptions import BreakLoop
 from amrita_sense.node import Node
 
+
 @Node()
 def has_more() -> bool:
     return len(queue) > 0
+
 
 @Node()
 def process_one():
     item = queue.pop(0)
     if item == "stop":
-        raise BreakLoop      # 跳出循环
+        raise BreakLoop  # 跳出循环
     if item == "skip":
-        return               # 等效 continue
+        return  # 等效 continue
     handle(item)
+
 
 # WHILE：先判断，再执行
 loop = WHILE(has_more).ACTION(process_one)
+
 
 # DO-WHILE：至少执行一次
 @Node()
@@ -115,6 +119,7 @@ def fetch():
     if data is None:
         raise BreakLoop
     store(data)
+
 
 retry = DO(fetch).WHILE(has_more)
 ```

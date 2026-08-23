@@ -28,12 +28,13 @@
 ```python
 from amrita_sense.instructions.batch import BATCH_RUN
 
+
 def BATCH_RUN(
     *nodes: BaseNode | NodeCompose | SelfCompileInstruction,
     sos_io: SuspendObjectStream | None = None,
     middleware: Callable[[WorkflowInterpreter], Awaitable[Any]] | None | object = UNSET,
     fail_fast: bool = True,
-) -> BatchRun:...
+) -> BatchRun: ...
 ```
 
 ### 参数
@@ -87,17 +88,21 @@ sequenceDiagram
 from amrita_sense import Node, WorkflowInterpreter
 from amrita_sense.instructions.batch import BATCH_RUN
 
+
 @Node()
 async def fetch_users() -> str:
     return "users"
+
 
 @Node()
 async def fetch_orders() -> str:
     return "orders"
 
+
 @Node()
 async def fetch_products() -> str:
     return "products"
+
 
 workflow = BATCH_RUN(fetch_users, fetch_orders, fetch_products)
 await WorkflowInterpreter(workflow.as_compose().render()).run()
@@ -110,17 +115,22 @@ await WorkflowInterpreter(workflow.as_compose().render()).run()
 ```python
 from amrita_sense.node.core import NodeCompose
 
+
 @Node()
 async def validate(): ...
+
 
 @Node()
 async def enrich(): ...
 
+
 @Node()
 async def clean(): ...
 
+
 @Node()
 async def transform(): ...
+
 
 branch_a = validate >> enrich
 branch_b = clean >> transform
@@ -134,17 +144,21 @@ await WorkflowInterpreter(workflow.as_compose().render()).run()
 ```python
 from amrita_sense.instructions import IF
 
+
 @Node()
 async def check():
     return True
+
 
 @Node()
 async def action():
     print("condition met")
 
+
 @Node()
 async def side_task():
     print("side task")
+
 
 workflow = BATCH_RUN(
     IF(check, action).ELIF(lambda: False, action).ELSE(action),
@@ -178,12 +192,15 @@ workflow = BATCH_RUN(risky_node, safe_node, fail_fast=False)
 ```python
 from amrita_sense.instructions import TRY
 
+
 @Node()
 def handle_error(exc: ExceptionGroup):
     print(f"批量执行出错: {exc.exceptions}")
 
-workflow = TRY(BATCH_RUN(risky_node, safe_node, fail_fast=False)) \
-    .CATCH(ExceptionGroup, handle_error)
+
+workflow = TRY(BATCH_RUN(risky_node, safe_node, fail_fast=False)).CATCH(
+    ExceptionGroup, handle_error
+)
 ```
 
 > **注意**：`BATCH_RUN` 抛出的是 `exceptiongroup.BaseExceptionGroup`（Python 标准库），请确保 `CATCH` 的类型注解与之匹配。

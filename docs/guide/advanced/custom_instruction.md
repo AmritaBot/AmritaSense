@@ -10,6 +10,7 @@ AmritaSense’s built-in instruction set already covers core control flow such a
 from abc import ABC, abstractmethod
 from amrita_sense.node.core import NodeCompose
 
+
 class SelfCompileInstruction(ABC):
     @abstractmethod
     def extract(self) -> NodeCompose:
@@ -94,8 +95,11 @@ Wrapping a potentially failing node with retry logic is a typical use case for s
 from amrita_sense.instructions import IF, TRY
 from amrita_sense.exceptions import BreakLoop
 
+
 class RetryClause(SelfCompileInstruction):
-    def __init__(self, node: BaseNode, max_retries: int = 3, fallback: BaseNode | None = None):
+    def __init__(
+        self, node: BaseNode, max_retries: int = 3, fallback: BaseNode | None = None
+    ):
         self._node = node
         self._max = max_retries
         self._fallback = fallback
@@ -119,7 +123,9 @@ class RetryClause(SelfCompileInstruction):
         # SelfCompileInstruction supports `>>` directly; no trailing NOP needed
         # — the interpreter finishes when the workflow reaches its end.
         if self._fallback:
-            return WHILE(lambda: retries < self._max).ACTION(retry_body) >> self._fallback
+            return (
+                WHILE(lambda: retries < self._max).ACTION(retry_body) >> self._fallback
+            )
         else:
             return WHILE(lambda: retries < self._max).ACTION(retry_body).extract()
 ```
@@ -133,7 +139,10 @@ RetryClause(call_api, max_retries=3, fallback=use_cache)
 This expands into:
 
 ```python
-WHILE(lambda: retries < self._max).ACTION(TRY(call_api).CATCH(Exception, on_error)) >> use_cache
+(
+    WHILE(lambda: retries < self._max).ACTION(TRY(call_api).CATCH(Exception, on_error))
+    >> use_cache
+)
 ```
 
 ### Key points
@@ -177,9 +186,7 @@ class ExecuteWhenElse(SelfCompileInstruction):
         self._other = otherwise
 
     def extract(self) -> NodeCompose:
-        return NodeCompose(
-            IF(self._cond, self._action).ELSE(self._other)
-        )
+        return NodeCompose(IF(self._cond, self._action).ELSE(self._other))
 ```
 
 ## Design principles for custom instructions

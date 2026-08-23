@@ -8,11 +8,13 @@
 import asyncio
 from amrita_sense import Node, WorkflowInterpreter
 
+
 @Node()
 async def my_fun():
     print("hello world")
 
-comp = my_fun.as_compose()   # 单个节点通过 as_compose() 组合
+
+comp = my_fun.as_compose()  # 单个节点通过 as_compose() 组合
 graph = comp.render()
 
 interpreter = WorkflowInterpreter(graph)

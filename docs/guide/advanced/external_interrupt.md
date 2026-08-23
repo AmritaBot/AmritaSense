@@ -26,7 +26,7 @@ External systems call directly through the interpreter object:
 await interpreter.call_sub(
     interpreter.get_graph().calc.resolve_alias("my_handler"),
     interrupt=True,
-    some_arg="value"
+    some_arg="value",
 )
 ```
 
@@ -61,17 +61,19 @@ from amrita_sense.instructions.subprogram import ARCHIVED_NODES
 from amrita_sense.instructions.alias import ALIAS
 from amrita_sense.node import Node
 
+
 @Node()
 def on_error(pc: WorkflowInterpreter):
     print("Handling error...")
+
 
 @Node()
 def cleanup(pc: WorkflowInterpreter):
     print("Cleaning up...")
 
+
 interrupt_handlers = ARCHIVED_NODES(
-    ALIAS(on_error, "on_error"),
-    ALIAS(cleanup, "cleanup")
+    ALIAS(on_error, "on_error"), ALIAS(cleanup, "cleanup")
 )
 ```
 

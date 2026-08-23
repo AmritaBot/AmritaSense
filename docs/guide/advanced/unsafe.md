@@ -25,6 +25,7 @@ The recommended practice is to configure flags at the very top of your applicati
 ```python
 # ✅ Correct: at the top of main.py / __main__.py
 from amrita_sense._unsafe import __flags__
+
 __flags__.DISABLE_EXC_IGNORED = True
 
 # ... rest of your application

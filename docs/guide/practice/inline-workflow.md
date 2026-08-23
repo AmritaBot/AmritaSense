@@ -33,6 +33,7 @@ Three rules define the pattern:
 from amrita_sense.node.core import Node
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 
+
 class SimpleWorkflow:
     """A self-contained workflow: double a value, then format the result."""
 

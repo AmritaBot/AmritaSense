@@ -160,23 +160,27 @@ def INTERRUPT_RET() -> NodeType[None]
 from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
 from amrita_sense.instructions import GOTO, INTERRUPT_RET, PUSH_CONTEXT
 
+
 @Node()
 async def start() -> None:
     print("Start — 保存上下文")
+
 
 @Node()
 async def sub_work() -> None:
     print("  [子流程] 在隔离上下文中工作")
 
+
 @Node()
 async def after_restore() -> None:
     print("Back — 由 INTERRUPT_RET 恢复")
 
+
 comp = (
     start
-    >> PUSH_CONTEXT("resume")   # 快照；返回地址 = resume NOP
-    >> GOTO("sub_entry")        # 显式跳入子流程（v0.6.0+）
-    >> ALIAS(NOP, "resume")     # INTERRUPT_RET rebase 到这里 -> advance 落到 after_restore
+    >> PUSH_CONTEXT("resume")  # 快照；返回地址 = resume NOP
+    >> GOTO("sub_entry")  # 显式跳入子流程（v0.6.0+）
+    >> ALIAS(NOP, "resume")  # INTERRUPT_RET rebase 到这里 -> advance 落到 after_restore
     >> after_restore
     >> ALIAS(sub_work, "sub_entry")
     >> INTERRUPT_RET()
@@ -190,25 +194,29 @@ await WorkflowInterpreter(comp.render()).run()
 from amrita_sense import Node, WorkflowInterpreter
 from amrita_sense.instructions import INTER_FN, INTERRUPT_INTO
 
+
 @Node()
 async def main_start() -> None:
     print("[主流程] 触发中断...")
+
 
 @Node()
 async def handler() -> None:
     print("  [处理程序] 正在处理中断")
 
+
 @Node()
 async def back() -> None:
     print("[主流程] 从中断返回")
+
 
 handler_block = INTER_FN("int_handler", handler)
 
 comp = (
     main_start
-    >> INTERRUPT_INTO("int_handler", None)   # None = 返回本节点之后
+    >> INTERRUPT_INTO("int_handler", None)  # None = 返回本节点之后
     >> back
-    >> handler_block                          # 正常流跳过
+    >> handler_block  # 正常流跳过
 )
 await WorkflowInterpreter(comp.render()).run()
 ```

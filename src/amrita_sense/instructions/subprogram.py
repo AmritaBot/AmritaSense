@@ -83,10 +83,16 @@ class CallNode(BaseNode):
 
     def __init__(self, alias: str, tag: str | None = None):
         self._alias = alias
+        self._addr = []
         self._init(self.__call__, tag, False, True)
 
     @override
     def _post_compile(self, compose: NodeComposeRendered) -> None:
+        if self._addr:
+            raise RuntimeError(
+                "CALL node has already been compiled; "
+                "a compose-bound node can only be compiled once"
+            )
         if (addr := compose.alias2vector_map.get(self._alias)) is None:
             str_keys = list(compose.alias2vector_map.keys())
             matches = difflib.get_close_matches(self._alias, str_keys, n=1, cutoff=0.6)

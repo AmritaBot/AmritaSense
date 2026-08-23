@@ -197,7 +197,7 @@ class CheckpointSignal:
 
     def __init__(self):
         self._suspend_signal: asyncio.Future | None = None  # 外部等待“挂起确认”
-        self._resume_signal: asyncio.Future | None = None   # 协程等待“恢复”
+        self._resume_signal: asyncio.Future | None = None  # 协程等待“恢复”
         self._lock = aiologic.Lock()
 
     async def arm(self) -> None:
@@ -265,15 +265,18 @@ class CheckpointSignal:
 ```python
 signal = Signal()
 
+
 async def worker(name):
     print(f"Worker {name} 挂起...")
     await signal.wait()
     print(f"Worker {name} 收到信号，继续执行!")
 
+
 async def controller():
     await asyncio.sleep(1)
     print("控制器发出信号!")
     await signal.signal()
+
 
 async def main():
     await asyncio.gather(worker("A"), worker("B"), controller())
@@ -284,12 +287,14 @@ async def main():
 ```python
 checkpoint = CheckpointSignal()
 
+
 async def stage(name):
     print(f"Stage {name} 开始...")
     await asyncio.sleep(0.5)
     print(f"Stage {name} 到达检查点，等待外部指令...")
     await checkpoint.wait()
     print(f"Stage {name} 继续完成!")
+
 
 async def controller():
     # 设置检查点并等待协程到达
@@ -299,6 +304,7 @@ async def controller():
     await asyncio.sleep(1)
     print("控制器：恢复执行!")
     checkpoint.resume()
+
 
 async def main():
     await asyncio.gather(stage("A"), controller())
@@ -313,16 +319,20 @@ import threading
 
 checkpoint = CheckpointSignal()
 
+
 async def worker_in_loop():
     print("另一个循环的协程到达检查点...")
     await checkpoint.wait()
     print("另一个循环的协程被唤醒!")
 
+
 def run_loop():
     asyncio.run(worker_in_loop())
 
+
 thread = threading.Thread(target=run_loop)
 thread.start()
+
 
 async def main():
     await asyncio.sleep(0.5)
@@ -330,6 +340,7 @@ async def main():
     await checkpoint.arm()
     print("主循环：检查点已激活，发送恢复信号")
     checkpoint.resume()
+
 
 asyncio.run(main())
 thread.join()

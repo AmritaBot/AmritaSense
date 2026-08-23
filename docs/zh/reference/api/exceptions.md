@@ -94,9 +94,9 @@ class BreakLoop(Exception):
 @Node()
 def process_item():
     if item is None:
-        raise BreakLoop   # 无更多数据，跳出循环
+        raise BreakLoop  # 无更多数据，跳出循环
     if item.should_skip:
-        return            # 等效 continue
+        return  # 等效 continue
     handle(item)
 ```
 

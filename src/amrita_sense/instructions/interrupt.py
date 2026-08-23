@@ -67,6 +67,11 @@ def PUSH_CONTEXT(
 
     def _post_compile(compose: NodeComposeRendered):
         nonlocal addr
+        if addr is not None:
+            raise RuntimeError(
+                f"{call.tag} node has already been compiled; "
+                "a compose-bound node can only be compiled once"
+            )
         if isinstance(alias_or_idata, str):
             addr = compose.calc.resolve_alias(alias_or_idata)
         else:
@@ -164,8 +169,7 @@ def INTERRUPT_INTO(
         # Resolve lazily, cache once
         assert jmp_addr is not None
         if ret_addr is None:
-            # None default: reuse the parent's return address when inside a
-            # call_sub, otherwise use the current pointer.
+            # None default: reuse parent's return addr (inside call_sub) or current pointer.
             if pc.outer_interpreting:
                 ret_addr = pc._ret_addr_stack.stack[-1].base_addr.copy()
             else:
@@ -178,13 +182,15 @@ def INTERRUPT_INTO(
 
     def _post_compile(compose: NodeComposeRendered):
         nonlocal jmp_addr, ret_addr
-        if jmp_addr is None:
-            jmp_addr = (
-                compose.calc.resolve_alias(jump_to)
-                if isinstance(jump_to, str)
-                else jump_to
+        if jmp_addr is not None:
+            raise RuntimeError(
+                f"{call.tag} node has already been compiled; "
+                "a compose-bound node can only be compiled once"
             )
-        if ret_addr is None:
+        jmp_addr = (
+            compose.calc.resolve_alias(jump_to) if isinstance(jump_to, str) else jump_to
+        )
+        if ret_to is not None:
             ret_addr = (
                 compose.calc.resolve_alias(ret_to)
                 if isinstance(ret_to, str)

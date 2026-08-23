@@ -40,25 +40,29 @@ Neither instruction should be `return`-ed from inside a `@Node()` function — p
 from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
 from amrita_sense.instructions import GOTO, PUSH_STACK, RET_FAR
 
+
 @Node()
 async def start() -> None:
     print("Start")
+
 
 @Node()
 async def doing_work() -> None:
     """The section we GOTO into."""
     print("  Doing work")
 
+
 @Node()
 async def after_return() -> None:
     """RET_FAR pops _ret_addr_stack and resumes here."""
     print("Back here (via RET_FAR)")
 
+
 comp = (
     start
-    >> PUSH_STACK("resume")    # push the return address (NOP right before after_return)
-    >> GOTO("work")            # jump into the work section
-    >> ALIAS(NOP, "resume")    # RET_FAR rebases here; advance lands on after_return
+    >> PUSH_STACK("resume")  # push the return address (NOP right before after_return)
+    >> GOTO("work")  # jump into the work section
+    >> ALIAS(NOP, "resume")  # RET_FAR rebases here; advance lands on after_return
     >> after_return
     >> ALIAS(doing_work, "work")
     >> RET_FAR()
@@ -132,21 +136,26 @@ Since v0.6.0, the modern way to write a self-contained "subroutine" is **`FN(ent
 from amrita_sense import Node, WorkflowInterpreter
 from amrita_sense.instructions import FN, PUSH_AND_GOTO
 
+
 @Node()
 async def start() -> None:
     print("Start")
+
 
 @Node()
 async def step1() -> None:
     print("  Step 1")
 
+
 @Node()
 async def step2() -> None:
     print("  Step 2")
 
+
 @Node()
 async def after_return() -> None:
     print("Back here (via FN)")
+
 
 # Self-contained subroutine: normal flow skips it (via _fn_escape),
 # PUSH_AND_GOTO enters it; FN auto-appends RET_FAR() at the end.
@@ -154,8 +163,8 @@ subroutine = FN("sub_entry", step1 >> step2)
 
 comp = (
     start
-    >> PUSH_AND_GOTO(None, "sub_entry")   # None = return after this node
-    >> after_return                         # RET_FAR rebases to the call site -> advance lands here
+    >> PUSH_AND_GOTO(None, "sub_entry")  # None = return after this node
+    >> after_return  # RET_FAR rebases to the call site -> advance lands here
     >> subroutine
 )
 await WorkflowInterpreter(comp.render()).run()

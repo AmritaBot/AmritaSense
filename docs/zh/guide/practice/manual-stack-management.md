@@ -40,25 +40,29 @@ sequenceDiagram
 from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
 from amrita_sense.instructions import GOTO, PUSH_STACK, RET_FAR
 
+
 @Node()
 async def start() -> None:
     print("开始")
+
 
 @Node()
 async def doing_work() -> None:
     """GOTO 跳入的工作区。"""
     print("  执行工作")
 
+
 @Node()
 async def after_return() -> None:
     """RET_FAR 弹栈后在此恢复执行。"""
     print("回到这里（通过 RET_FAR）")
 
+
 comp = (
     start
-    >> PUSH_STACK("resume")    # 压入返回地址（after_return 前面的 NOP）
-    >> GOTO("work")            # 跳入工作区
-    >> ALIAS(NOP, "resume")    # RET_FAR rebase 到这里；advance 落到 after_return
+    >> PUSH_STACK("resume")  # 压入返回地址（after_return 前面的 NOP）
+    >> GOTO("work")  # 跳入工作区
+    >> ALIAS(NOP, "resume")  # RET_FAR rebase 到这里；advance 落到 after_return
     >> after_return
     >> ALIAS(doing_work, "work")
     >> RET_FAR()
@@ -132,21 +136,26 @@ v0.6.0 起，编写自包含"子程序"的现代方式是 **`FN(entrypoint, bloc
 from amrita_sense import Node, WorkflowInterpreter
 from amrita_sense.instructions import FN, PUSH_AND_GOTO
 
+
 @Node()
 async def start() -> None:
     print("开始")
+
 
 @Node()
 async def step1() -> None:
     print("  步骤 1")
 
+
 @Node()
 async def step2() -> None:
     print("  步骤 2")
 
+
 @Node()
 async def after_return() -> None:
     print("回到这里（通过 FN）")
+
 
 # 自包含子程序：正常流经 _fn_escape 跳过，
 # PUSH_AND_GOTO 进入；FN 自动在末尾追加 RET_FAR()。
@@ -154,8 +163,8 @@ subroutine = FN("sub_entry", step1 >> step2)
 
 comp = (
     start
-    >> PUSH_AND_GOTO(None, "sub_entry")   # None = 返回本节点之后
-    >> after_return                         # RET_FAR rebase 到调用点 -> advance 落到这里
+    >> PUSH_AND_GOTO(None, "sub_entry")  # None = 返回本节点之后
+    >> after_return  # RET_FAR rebase 到调用点 -> advance 落到这里
     >> subroutine
 )
 await WorkflowInterpreter(comp.render()).run()

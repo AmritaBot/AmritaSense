@@ -200,8 +200,10 @@ class CheckpointSignal:
     on arrival and wait for external resumption."""
 
     def __init__(self):
-        self._suspend_signal: asyncio.Future | None = None  # external awaits "suspend confirmed"
-        self._resume_signal: asyncio.Future | None = None   # coroutines await "resume"
+        self._suspend_signal: asyncio.Future | None = (
+            None  # external awaits "suspend confirmed"
+        )
+        self._resume_signal: asyncio.Future | None = None  # coroutines await "resume"
         self._lock = aiologic.Lock()
 
     async def arm(self) -> None:
@@ -270,15 +272,18 @@ class CheckpointSignal:
 ```python
 signal = Signal()
 
+
 async def worker(name):
     print(f"Worker {name} suspending...")
     await signal.wait()
     print(f"Worker {name} received signal, resuming!")
 
+
 async def controller():
     await asyncio.sleep(1)
     print("Controller firing signal!")
     await signal.signal()
+
 
 async def main():
     await asyncio.gather(worker("A"), worker("B"), controller())
@@ -289,6 +294,7 @@ async def main():
 ```python
 checkpoint = CheckpointSignal()
 
+
 async def stage(name):
     print(f"Stage {name} starting...")
     await asyncio.sleep(0.5)
@@ -296,14 +302,18 @@ async def stage(name):
     await checkpoint.wait()
     print(f"Stage {name} completing!")
 
+
 async def controller():
     # Arm the checkpoint and wait for coroutine arrival
     print("Controller: arming checkpoint...")
     await checkpoint.arm()
-    print("Controller: checkpoint active, coroutine suspended. Performing other work...")
+    print(
+        "Controller: checkpoint active, coroutine suspended. Performing other work..."
+    )
     await asyncio.sleep(1)
     print("Controller: resuming execution!")
     checkpoint.resume()
+
 
 async def main():
     await asyncio.gather(stage("A"), controller())
@@ -318,16 +328,20 @@ import threading
 
 checkpoint = CheckpointSignal()
 
+
 async def worker_in_loop():
     print("Coroutine in another loop reached checkpoint...")
     await checkpoint.wait()
     print("Coroutine in another loop has been woken!")
 
+
 def run_loop():
     asyncio.run(worker_in_loop())
 
+
 thread = threading.Thread(target=run_loop)
 thread.start()
+
 
 async def main():
     await asyncio.sleep(0.5)
@@ -335,6 +349,7 @@ async def main():
     await checkpoint.arm()
     print("Main loop: checkpoint active, sending resume signal")
     checkpoint.resume()
+
 
 asyncio.run(main())
 thread.join()

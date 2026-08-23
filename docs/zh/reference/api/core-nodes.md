@@ -40,8 +40,7 @@ class BaseNode:
 `Node` 是 `BaseNode` 的泛型具体实现，也是开发者最常接触的节点类型。使用 `@Node()` 装饰器创建的节点就是 `Node` 实例。它将一个普通的 Python 函数或协程包装为工作流的基本执行单元。
 
 ```python
-class Node(BaseNode, Generic[NODE_T]):
-    ...
+class Node(BaseNode, Generic[NODE_T]): ...
 ```
 
 ### 创建方式

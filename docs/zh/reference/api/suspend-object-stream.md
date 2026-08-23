@@ -166,9 +166,11 @@ stream = SuspendObjectStream[str]()
 # 自定义缓冲区大小和超时
 stream = SuspendObjectStream[str](queue_size=100, queue_timeout=30.0)
 
+
 # 预配置回调
 async def my_callback(response: str):
     print(f"收到: {response}")
+
 
 stream = SuspendObjectStream[str](callback=my_callback)
 ```
@@ -200,6 +202,7 @@ stream = SuspendObjectStream[str](callback=my_callback)
 ```python
 from amrita_sense.streaming import SuspendObjectStream
 
+
 class MyProcessor:
     @SuspendObjectStream.suspend
     async def process(self, stream: SuspendObjectStream, data: str):
@@ -229,6 +232,7 @@ class MyProcessor:
 # 等价写法
 @SuspendObjectStream.suspend_with_tag("my_tag")
 async def foo(self, stream, x): ...
+
 
 # 等价于
 @SuspendObjectStream.suspend(tag="my_tag")
@@ -340,9 +344,12 @@ async def custom_step(self, stream: SuspendObjectStream):
 # 默认模式——推入队列
 await stream.push_object("用户输入数据")
 
+
 # 回调模式——对象由回调直接处理
 async def handle_input(obj: str):
     print(f"收到输入: {obj}")
+
+
 stream.set_callback_fun_sending(handle_input)
 await stream.push_object("这条不会进入队列")
 ```
@@ -370,9 +377,12 @@ await stream.push_object("这条不会进入队列")
 # 队列模式——对象进入缓冲区
 await stream.yield_response("Hello, World!")
 
+
 # 回调模式——对象由回调直接处理
 async def handle(response: str):
     print(f"回调收到: {response}")
+
+
 stream.set_callback_func(handle)
 await stream.yield_response("这条不会进入队列")
 ```
@@ -390,6 +400,7 @@ async def my_generator():
     for i in range(5):
         yield f"块 {i}"
         await asyncio.sleep(0.1)
+
 
 await stream.yield_response_iteration(my_generator())
 # 等价于：
@@ -418,6 +429,7 @@ async def monitor(response: str):
     if "error" in response.lower():
         await send_alert(response)
     print(response, end="", flush=True)
+
 
 stream.set_callback_func(monitor)
 # 此后所有 yield_response() 都由 monitor 处理
@@ -569,15 +581,18 @@ await stream.set_queue_done()
 import asyncio
 from amrita_sense.streaming import SuspendObjectStream
 
+
 async def producer(stream: SuspendObjectStream[str]):
     for i in range(5):
         await stream.yield_response(f"数据块 {i}\n")
         await asyncio.sleep(0.5)
     await stream.set_queue_done()
 
+
 async def consumer(stream: SuspendObjectStream[str]):
     async for chunk in stream.get_response_generator():
         print(chunk, end="", flush=True)
+
 
 async def controller(stream: SuspendObjectStream[str]):
     # 外部控制：在第二个数据块后暂停
@@ -587,12 +602,14 @@ async def controller(stream: SuspendObjectStream[str]):
     stream.resume()
     print("[已恢复]")
 
+
 async def main():
     stream = SuspendObjectStream[str]()
     prod = asyncio.create_task(producer(stream))
     ctrl = asyncio.create_task(controller(stream))
     await consumer(stream)
     await prod
+
 
 asyncio.run(main())
 ```
@@ -605,13 +622,16 @@ asyncio.run(main())
 async def handle_chunk(chunk: str):
     print(chunk, end="", flush=True)
 
+
 stream = SuspendObjectStream[str](callback=handle_chunk)
+
 
 # 生产者正常发送
 async def producer():
     for i in range(5):
         await stream.yield_response(f"块 {i}\n")
     await stream.set_queue_done()
+
 
 # 等待生产者完成
 await producer()
@@ -627,13 +647,16 @@ async def monitor(response: str):
     if "error" in response.lower():
         print("[告警] 检测到错误！")
 
+
 stream = SuspendObjectStream[str](callback=monitor)
+
 
 async def controller():
     """外断点：在关键点暂停"""
     await stream.wait_to_suspend("before_llm_call", timeout=10.0)
     print("\n即将调用 LLM，是否继续？")
     stream.resume()
+
 
 # 启动生产者和控制器
 asyncio.create_task(producer(stream))
@@ -649,6 +672,7 @@ asyncio.create_task(controller())
 import asyncio
 from amrita_sense.streaming import SuspendObjectStream
 
+
 async def producer(stream: SuspendObjectStream[str]):
     # 启动反向流监听
     async def handle_input():
@@ -663,6 +687,7 @@ async def producer(stream: SuspendObjectStream[str]):
         await asyncio.sleep(0.3)
     await stream.set_queue_done()
 
+
 async def consumer(stream: SuspendObjectStream[str]):
     async for response in stream.get_response_generator():
         print(response, end="")
@@ -671,11 +696,13 @@ async def consumer(stream: SuspendObjectStream[str]):
             await stream.send_to_producer("需要更多上下文")
     await stream.send_done_to_producer()
 
+
 async def main():
     stream = SuspendObjectStream[str]()
     prod = asyncio.create_task(producer(stream))
     await consumer(stream)
     await prod
+
 
 asyncio.run(main())
 ```

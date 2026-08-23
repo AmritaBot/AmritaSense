@@ -10,6 +10,7 @@ AmritaSense 的内置指令集已经覆盖了条件分支、循环、异常处�
 from abc import ABC, abstractmethod
 from amrita_sense.node.core import NodeCompose
 
+
 class SelfCompileInstruction(ABC):
     @abstractmethod
     def extract(self) -> NodeCompose:
@@ -94,8 +95,11 @@ workflow = start >> log_start >> process_data >> log_end >> end
 from amrita_sense.instructions import IF, TRY
 from amrita_sense.exceptions import BreakLoop
 
+
 class RetryClause(SelfCompileInstruction):
-    def __init__(self, node: BaseNode, max_retries: int = 3, fallback: BaseNode | None = None):
+    def __init__(
+        self, node: BaseNode, max_retries: int = 3, fallback: BaseNode | None = None
+    ):
         self._node = node
         self._max = max_retries
         self._fallback = fallback
@@ -110,7 +114,7 @@ class RetryClause(SelfCompileInstruction):
             nonlocal retries
             retries += 1
             if retries >= self._max:
-                raise BreakLoop   # 跳出重试循环，进入降级或向上抛异常
+                raise BreakLoop  # 跳出重试循环，进入降级或向上抛异常
 
         retries = 0
 
@@ -119,7 +123,9 @@ class RetryClause(SelfCompileInstruction):
         # SelfCompileInstruction 直接支持 `>>`；末尾无需 NOP——
         # 工作流到达末尾时解释器自然结束。
         if self._fallback:
-            return WHILE(lambda: retries < self._max).ACTION(retry_body) >> self._fallback
+            return (
+                WHILE(lambda: retries < self._max).ACTION(retry_body) >> self._fallback
+            )
         else:
             return WHILE(lambda: retries < self._max).ACTION(retry_body).extract()
 ```
@@ -177,9 +183,7 @@ class ExecuteWhenElse(SelfCompileInstruction):
         self._other = otherwise
 
     def extract(self) -> NodeCompose:
-        return NodeCompose(
-            IF(self._cond, self._action).ELSE(self._other)
-        )
+        return NodeCompose(IF(self._cond, self._action).ELSE(self._other))
 ```
 
 ## 自定义指令的设计原则
