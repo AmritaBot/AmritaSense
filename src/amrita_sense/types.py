@@ -27,6 +27,7 @@ class Stack(Generic[T]):
     ovf: int
     _lk: threading.Lock
     stack: list[T]
+    __slots__ = ("_lk", "ovf", "stack")
 
     def __init__(self, ovf: int = 1024):
         """Initialize a new thread-safe stack with optional overflow limit.
@@ -141,6 +142,7 @@ class PointerVector:
 
     base_addr: list[int]
     _lock: threading.Lock
+    __slots__ = ("_lock", "base_addr")
 
     def __init__(self, base: list[int] | None = None):
         """Initialize a new pointer vector with optional initial address.

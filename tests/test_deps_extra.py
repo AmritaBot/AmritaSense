@@ -7,13 +7,21 @@ from amrita_sense.runtime.workflow import WorkflowInterpreter
 from amrita_sense.types import PointerVector
 
 
+class _FakeCalc:
+    def __init__(self, alias_map):
+        self._alias_map = alias_map
+
+    def resolve_alias(self, name):
+        return self._alias_map[name]
+
+
 class _FakePointer:
     def __init__(self, pointer, alias_map):
         self._pointer = PointerVector(pointer)
-        self._alias_map = alias_map
+        self.calc = _FakeCalc(alias_map)
 
-    def find_addr_alias(self, name):
-        return self._alias_map[name]
+    def get_graph(self):
+        return self
 
 
 def test_pointer_depends_returns_same():

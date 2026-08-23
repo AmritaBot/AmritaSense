@@ -134,8 +134,7 @@ class NativeIfClause(SelfCompileInstruction):
 
         n_elif = len(elif_specs)
 
-        # merge position (0-indexed, before building nodes)
-        # IF(3) + ELIFs(3*n) + else_slot_width + NOP(1)
+        # merge position: IF(3) + ELIFs(3*n) + else_slot_width + NOP(1)
         else_slot_width = 1 if else_is_single else 2  # single node or [enter, bubble]
         merge_pos = 3 + 3 * n_elif + else_slot_width
 

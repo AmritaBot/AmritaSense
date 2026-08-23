@@ -22,6 +22,17 @@ class EventTrigger(BaseNode):
     _c_offset: int
     _e_offset: int
 
+    __slots__ = (
+        "_c_offset",
+        "_e_offset",
+        "address_able",
+        "fun_frame",
+        "fun_sign",
+        "func",
+        "tag",
+        "wrap_to_async",
+    )
+
     def __init__(self, c_offset: int, e_offset: int):
         self._c_offset = c_offset
         self._e_offset = e_offset

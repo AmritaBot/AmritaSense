@@ -26,8 +26,10 @@ class WhileNode(BaseNode):
     _else_addr: int
 
     __slots__ = (
+        "_checkup_addr",
         "_condi_offset",
         "_do_offset",
+        "_else_addr",
         "address_able",
         "fun_frame",
         "fun_sign",
@@ -83,10 +85,7 @@ class CheckUpNode(BaseNode):
     _jump_addr: int
 
     __slots__ = (
-        "_checkup_addr",
-        "_condi_offset",
-        "_do_offset",
-        "_else_addr",
+        "_jump_addr",
         "address_able",
         "fun_frame",
         "fun_sign",

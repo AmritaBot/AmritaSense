@@ -209,8 +209,7 @@ class NativeIfJumpNode(BaseNode):
                 await pc.call_offset(self._do_offset)
                 pc.jump_near(self._ret_pos)
             else:
-                # Bubble path: no PUSH / RET_FAR — the nested container flows
-                # back to the merge point naturally via advance_pointer.
+                # Bubble path: no PUSH/RET_FAR — nested container flows back via advance_pointer.
                 parent = list(pc._pointer.base_addr[:-1])
                 pc.jump_far_ptr([*parent, self._do_pos, 0])
         else:

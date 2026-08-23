@@ -195,7 +195,7 @@ class TestRslvNode:
 
         pc = WorkflowInterpreter(NodeCompose(n).render())
         pc._pointer = PointerVector([0])
-        nd = pc.find_addr([0])
+        nd = pc.get_graph().calc.find_addr([0])
         assert isinstance(nd, BaseNode)
         kw = await pc._rslv_node(nd, pc._ava_args, pc._ava_kwargs)
         assert isinstance(kw, dict)
@@ -208,7 +208,7 @@ class TestRslvNode:
 
         pc = WorkflowInterpreter(NodeCompose(n).render())
         pc._pointer = PointerVector([0])
-        nd = pc.find_addr([0])
+        nd = pc.get_graph().calc.find_addr([0])
         assert isinstance(nd, BaseNode)
         with pytest.raises(DependsResolveFailed):
             await pc._rslv_node(nd, pc._ava_args, pc._ava_kwargs)
@@ -221,7 +221,7 @@ class TestRslvNode:
 
         pc = WorkflowInterpreter(NodeCompose(n).render())
         pc._pointer = PointerVector([0])
-        nd = pc.find_addr([0])
+        nd = pc.get_graph().calc.find_addr([0])
         assert isinstance(nd, BaseNode)
         kw = await pc._rslv_node(nd, pc._ava_args, pc._ava_kwargs)
         assert kw["pc"] is pc

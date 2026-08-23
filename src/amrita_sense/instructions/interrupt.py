@@ -169,8 +169,7 @@ def INTERRUPT_INTO(
         # Resolve lazily, cache once
         assert jmp_addr is not None
         if ret_addr is None:
-            # None default: reuse the parent's return address when inside a
-            # call_sub, otherwise use the current pointer.
+            # None default: reuse parent's return addr (inside call_sub) or current pointer.
             if pc.outer_interpreting:
                 ret_addr = pc._ret_addr_stack.stack[-1].base_addr.copy()
             else:

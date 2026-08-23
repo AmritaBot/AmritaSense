@@ -52,7 +52,7 @@ def FAR_OFFSET(where: str):
 
     def inner(pc: WorkflowInterpreter) -> PointerVector:
         now_addr = pc._pointer
-        return now_addr - PointerVector(pc.find_addr_alias(where))
+        return now_addr - PointerVector(pc.get_graph().calc.resolve_alias(where))
 
     return inner
 
@@ -85,7 +85,7 @@ def NEAR_OFFSET(where: str):
 
     def inner(pc: WorkflowInterpreter) -> int:
         now_addr = pc._pointer
-        delta = now_addr - PointerVector(pc.find_addr_alias(where))
+        delta = now_addr - PointerVector(pc.get_graph().calc.resolve_alias(where))
         if not all(i == 0 for idx, i in enumerate(delta) if idx < (len(delta) - 1)):
             raise RuntimeError(f"Far offset {delta} is not assign able to near offset")
         return delta[-1]
@@ -116,7 +116,7 @@ def ADDR(where: str):
     """
 
     def inner(pc: WorkflowInterpreter) -> PointerVector:
-        return PointerVector(pc.find_addr_alias(where))
+        return PointerVector(pc.get_graph().calc.resolve_alias(where))
 
     return inner
 

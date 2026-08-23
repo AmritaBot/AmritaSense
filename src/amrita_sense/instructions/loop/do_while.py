@@ -51,9 +51,7 @@ class DONode(BaseNode):
             ptr.jump_near(self._jmp_addr)
         else:
             base = ptr._pointer.copy().offset(self._jmp_addr)
-            data = ptr.find_addr(
-                base.base_addr,
-            )
+            data = ptr.get_graph().calc.find_addr(base.base_addr)
             assert isinstance(data, DowhileNode)
             condi_addr = base.copy().offset(data._condi_offset)
 
@@ -81,6 +79,18 @@ class DowhileNode(BaseNode):
     _back_addr: int
     _condi_offset: int
     _then_addr: int
+
+    __slots__ = (
+        "_back_addr",
+        "_condi_offset",
+        "_then_addr",
+        "address_able",
+        "fun_frame",
+        "fun_sign",
+        "func",
+        "tag",
+        "wrap_to_async",
+    )
 
     def __init__(self, condi_offset: int, then_addr: int, back_addr: int):
         self._condi_offset = condi_offset

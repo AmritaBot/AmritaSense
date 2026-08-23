@@ -31,6 +31,7 @@ class FuncBlock(BaseNode):
     _onetime: bool
     __slots__ = (
         "_comp_rendered",
+        "_interpreter",
         "_io",
         "_mdw",
         "_onetime",
