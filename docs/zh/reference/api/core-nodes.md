@@ -68,8 +68,10 @@ def my_function(arg1: str) -> str:
 
 `NodeCompose` 是节点编排的容器。它维护一个有序的节点列表，并通过 `__rshift__` 支持 `>>` 链式追加。`NodeCompose` 同时也是 `SelfCompileInstruction.extract()` 的标准返回类型——自编译指令最终都将自身的语义展开为一个 `NodeCompose`。
 
+> **契约**：`NodeCompose` 是源组合契约 `AbstractComposeOriginal` 的默认、功能完备实现。大多数代码直接使用 `NodeCompose`；抽象契约仅为 Mock 与扩展而设。参见 [Compose 契约](/zh/guide/advanced/compose-contracts)。
+
 ```python
-class NodeCompose:
+class NodeCompose(AbstractComposeOriginal[NodeComposeRendered]):
     _graph: list[BaseNode | NodeCompose | SelfCompileInstruction]
 ```
 
@@ -96,8 +98,10 @@ workflow = node_a >> node_b >> node_c
 
 `NodeComposeRendered` 是编译的最终产物——一个完整解析、优化、带地址映射的可执行工作流图。`WorkflowInterpreter` 接受的正是此类型的实例。
 
+> **契约**：`NodeComposeRendered` 是渲染图契约 `AbstractCompose[AddressCalculator]` 的默认、功能完备实现。任何满足该只读契约的对象（例如测试用的 Mock）都可作为渲染图被消费。参见 [Compose 契约](/zh/guide/advanced/compose-contracts)。
+
 ```python
-class NodeComposeRendered:
+class NodeComposeRendered(AbstractCompose[AddressCalculator]):
     _graph: list[BaseNode | NodeComposeRendered]
     alias2vector_map: dict[str, list[int]]
 ```

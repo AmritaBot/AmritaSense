@@ -12,9 +12,11 @@ class WorkflowInterpreter(Generic[io_T]): ...
 
 ### Constructor
 
+The interpreter accepts any _rendered graph_ satisfying the contract `AbstractCompose[AddressCalculator]` — in practice this is `NodeComposeRendered` (the default implementation). See [Compose Contracts](/guide/advanced/compose-contracts).
+
 ```python
 WorkflowInterpreter(
-    node_compose: NodeComposeRendered | SelfCompileInstruction,
+    node_compose: AbstractCompose[AddressCalculator] | SelfCompileInstruction,
     object_io: SuspendObjectStream[Any] | None = None,
     *,
     exception_ignored: tuple[type[BaseException], ...] = (),
@@ -29,7 +31,7 @@ WorkflowInterpreter(
 
 Arguments:
 
-- `node_compose`: A rendered workflow graph or a self-compiling instruction.
+- `node_compose`: A rendered workflow graph (an `AbstractCompose[AddressCalculator]`, typically `NodeComposeRendered`) or a self-compiling instruction.
 - `object_io`: Optional external I/O object. Defaults to a new `SuspendObjectStream`.
 - `exception_ignored`: Exception types to bypass TRY/CATCH blocks.
 - `extra_args` / `extra_kwargs`: Additional runtime values available for dependency injection.
@@ -173,7 +175,7 @@ Call a subroutine at a multi-dimensional offset from the current position. Appli
 
 Create a child interpreter in the interpreter tree. By default inherits the parent's graph and middleware.
 
-- `compose`: Optional `NodeComposeRendered` for the child. If `None`, uses the parent's graph.
+- `compose`: Optional rendered graph (`AbstractCompose[AddressCalculator]`, typically `NodeComposeRendered`) for the child. If `None`, uses the parent's graph.
 - `middleware`: `UNSET` (inherit parent's), `None` (no middleware), or a custom callable.
 - `object_io`: Optional `SuspendObjectStream`. If `None`, shares the parent's `object_io`. Since v0.3.2, `SuspendObjectStream` is concurrency-safe via the CLCA signal design pattern.
 
@@ -207,7 +209,7 @@ Reset the interpreter's execution state to its initial values: clear the pointer
 
 `reset()` is intended for scenarios where you want to restart execution from scratch on the same workflow graph without creating a new interpreter.
 
-#### `get_graph() -> NodeComposeRendered` (v0.4.4+)
+#### `get_graph() -> AbstractCompose[AddressCalculator]` (v0.4.4+)
 
 Return the rendered workflow graph being executed by this interpreter. The graph's `calc` property provides the `AddressCalculator` with methods `resolve_alias()`, `find_addr()`, `find_addr_safe()`, and `advance()`.
 
@@ -250,7 +252,7 @@ Restore the interpreter state from an `InterpreterContext` snapshot. Sets the po
 
 - `ctx`: The `InterpreterContext` to restore from.
 
-#### `find_addr(addr: list[int]) -> BaseNode | NodeComposeRendered`
+#### `find_addr(addr: list[int]) -> BaseNode | AbstractCompose[AddressCalculator]`
 
 ::: warning Deprecated
 This method is deprecated since v0.4.4. Use `get_graph().calc.find_addr(addr)` instead.
@@ -258,7 +260,7 @@ This method is deprecated since v0.4.4. Use `get_graph().calc.find_addr(addr)` i
 
 Find a node or rendered composition by absolute address.
 
-#### `find_node_alias(alias: str) -> BaseNode | NodeComposeRendered`
+#### `find_node_alias(alias: str) -> BaseNode | AbstractCompose[AddressCalculator]`
 
 Resolve an alias and return the corresponding node object.
 
@@ -278,9 +280,9 @@ Advance the execution pointer to the next node in the workflow graph. This metho
 **Algorithm**
 
 1. Starting from `ptr` (or `self._pointer`), traverse `base_addr` layer-by-layer to locate the container of the current node.
-2. If the current node is a **non-empty `NodeComposeRendered`** -> enter the nested container (`append(0)`), return `True`.
+2. If the current node is a **non-empty rendered composition** (an `AbstractCompose`) -> enter the nested container (`append(0)`), return `True`.
 3. If the current node has a **next sibling**:
-   - Sibling is a non-empty `NodeComposeRendered` -> enter that nested container, return `True`.
+   - Sibling is a non-empty rendered composition -> enter that nested container, return `True`.
    - Otherwise -> move to the sibling node, return `True`.
 4. If no next sibling -> **backtrack up** the pointer stack layer-by-layer, looking for a parent container's next sibling.
 5. If a next sibling is found during backtracking -> apply the same logic, return `True`.

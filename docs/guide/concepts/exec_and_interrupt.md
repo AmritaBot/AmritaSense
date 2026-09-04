@@ -130,6 +130,7 @@ Python's `except Exception` does not catch `BaseException` subclasses. Therefore
    ```
 
 2. **Insert `INTERRUPT` node in workflow**:
+
    ```python
    from amrita_sense.instructions import INTERRUPT
 

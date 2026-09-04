@@ -409,7 +409,7 @@ class NodeComposeRendered(AbstractCompose[AddressCalculator]):
     def _build(
         self,
         current_path: list[int] | None = None,
-        top: AbstractCompose[AddressCalculator] | None = None,
+        top: NodeComposeRendered | None = None,
     ):
         """Build the executable workflow graph from the original composition.
 
@@ -420,8 +420,6 @@ class NodeComposeRendered(AbstractCompose[AddressCalculator]):
         Args:
             current_path: Current address path during recursive processing.
             top: Reference to the top-level rendered composition for alias registration.
-            cache_size: Cache size for address calculation.
-            pre_cache: Pre-calculated address cache in %40 of cache_size.
 
         Raises:
             GraphBuildError: If the composition is already built or has no original graph.
@@ -431,10 +429,6 @@ class NodeComposeRendered(AbstractCompose[AddressCalculator]):
             current_path = []
         if top is None:
             top = self
-        if not isinstance(top, NodeComposeRendered):
-            raise TypeError(
-                "top must be the top-level NodeComposeRendered that is being built."
-            )
         im_top: bool = top is self
 
         if hasattr(self, "_graph"):

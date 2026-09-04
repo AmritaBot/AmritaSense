@@ -8,15 +8,17 @@ AmritaSense 的内置指令集已经覆盖了条件分支、循环、异常处�
 
 ```python
 from abc import ABC, abstractmethod
-from amrita_sense.node.core import NodeCompose
+from amrita_sense.node.abc_base import AbstractComposeOriginal
 
 
 class SelfCompileInstruction(ABC):
     @abstractmethod
-    def extract(self) -> NodeCompose:
+    def extract(self) -> AbstractComposeOriginal:
         """将自定义指令展开为底层节点组合"""
         pass
 ```
+
+契约只要求“返回*某种*源组合”（`AbstractComposeOriginal`）。实践中 `extract()` 返回默认实现 `NodeCompose` 即可——框架会像处理手写编排一样，自动递归渲染你返回的组合。
 
 ### 核心概念
 

@@ -68,8 +68,10 @@ def my_function(arg1: str) -> str:
 
 `NodeCompose` is a container for node composition. It maintains an ordered list of nodes and supports `>>` chain appending via `__rshift__`. `NodeCompose` is also the standard return type of `SelfCompileInstruction.extract()` -- self-compile instructions ultimately expand their semantics into a `NodeCompose`.
 
+> **Contract**: `NodeCompose` is the default, fully-featured implementation of the source-composition contract `AbstractComposeOriginal`. Most code uses `NodeCompose` directly; the abstract contract exists for mocking and extension. See [Compose Contracts](/guide/advanced/compose-contracts).
+
 ```python
-class NodeCompose:
+class NodeCompose(AbstractComposeOriginal[NodeComposeRendered]):
     _graph: list[BaseNode | NodeCompose | SelfCompileInstruction]
 ```
 
@@ -96,8 +98,10 @@ workflow = node_a >> node_b >> node_c
 
 `NodeComposeRendered` is the final compilation product -- a fully resolved, optimized, address-mapped executable workflow graph. This is the type accepted by `WorkflowInterpreter`.
 
+> **Contract**: `NodeComposeRendered` is the default, fully-featured implementation of the rendered-graph contract `AbstractCompose[AddressCalculator]`. Anything satisfying that read-only contract (e.g. a test mock) can be consumed wherever a rendered workflow is expected. See [Compose Contracts](/guide/advanced/compose-contracts).
+
 ```python
-class NodeComposeRendered:
+class NodeComposeRendered(AbstractCompose[AddressCalculator]):
     _graph: list[BaseNode | NodeComposeRendered]
     alias2vector_map: dict[str, list[int]]
 ```

@@ -59,26 +59,38 @@ class AbstractComposeOriginal(ABC, Generic[Compose_T]):
     def render(self) -> Compose_T:
         """Compile this composition into an executable workflow graph.
 
-        This method processes all nodes in the composition, resolves aliases,
-        expands self-compiling instructions, and builds the final execution graph.
-
-        Args:
-            cache_size: Maximum size of the cache for resolved nodes. Set to -1 to disable addressing caching.
-            pre_cache: Preload addressing cache in compiling.
+        Concrete source compositions override this to build their rendered
+        graph.  The default implementation ``NodeCompose`` returns a
+        ``NodeComposeRendered`` via the standard compilation pipeline.
 
         Returns:
-            A Compose_T instance representing the compiled workflow.
+            A ``Compose_T`` instance representing the compiled workflow.
         """
         ...
 
 
 class AbstractCompose(ABC, Generic[Calc_T]):
-    @abstractmethod
-    def __init__(self, *nodes: BaseNode | SelfCompileInstruction): ...
+    """Read-only rendered-graph contract consumed by the runtime.
+
+    This is the interface that ``WorkflowInterpreter``, the debugger and node
+    ``_post_compile`` hooks rely on when they consume a *rendered* workflow
+    graph.  It intentionally exposes **no construction or compilation
+    members** (no ``__init__``, no ``_build``): those belong to concrete
+    implementations such as ``NodeComposeRendered``.  Keeping the contract
+    minimal makes it cheap to implement a fake rendered graph in tests
+    (mock) or to plug in a custom rendered-graph implementation.
+
+    The default, fully-featured implementation is ``NodeComposeRendered``
+    (see ``amrita_sense.node.core``); anything satisfying this contract can
+    be consumed wherever a rendered workflow is expected.
+    """
 
     @property
     @abstractmethod
-    def calc(self) -> Calc_T: ...
+    def calc(self) -> Calc_T:
+        """Return the address calculator bound to this rendered graph."""
+        ...
+
     @abstractmethod
     def __getitem__(self, key: int) -> BaseNode | AbstractCompose:
         """Access a node in the rendered graph by index.
@@ -115,29 +127,6 @@ class AbstractCompose(ABC, Generic[Calc_T]):
 
         Returns:
             Number of nodes in the rendered graph.
-        """
-        ...
-
-    @abstractmethod
-    def _build(
-        self,
-        current_path: list[int] | None = None,
-        top: AbstractCompose[Calc_T] | None = None,
-    ):
-        """Build the executable workflow graph from the original composition.
-
-        This internal method recursively processes the original graph, resolving
-        aliases, expanding self-compiling instructions, and building the final
-        execution structure.
-
-        Args:
-            current_path: Current address path during recursive processing.
-            top: Reference to the top-level rendered composition for alias registration.
-            cache_size: Cache size for address calculation.
-            pre_cache: Pre-calculated address cache in %40 of cache_size.
-
-        Raises:
-            GraphBuildError: If the composition is already built or has no original graph.
         """
         ...
 

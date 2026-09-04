@@ -8,15 +8,17 @@ AmritaSense’s built-in instruction set already covers core control flow such a
 
 ```python
 from abc import ABC, abstractmethod
-from amrita_sense.node.core import NodeCompose
+from amrita_sense.node.abc_base import AbstractComposeOriginal
 
 
 class SelfCompileInstruction(ABC):
     @abstractmethod
-    def extract(self) -> NodeCompose:
+    def extract(self) -> AbstractComposeOriginal:
         """Expand the custom instruction into a lower-level node composition."""
         pass
 ```
+
+The contract only says "return _some_ source composition" (`AbstractComposeOriginal`). In practice your `extract()` returns the default implementation `NodeCompose` — the framework recursively renders whatever composition you hand back, exactly as it does for hand-written graphs.
 
 ### Core concepts
 

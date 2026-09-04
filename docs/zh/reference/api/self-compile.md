@@ -18,8 +18,8 @@ class SelfCompileInstruction(ABC):
 
 **核心方法**
 
-- `extract() -> NodeCompose`：将指令展开为底层节点组合。必须返回一个 `NodeCompose` 实例，该实例会被框架自动递归渲染。
-- `__rshift__(other) -> NodeCompose`：支持 `>>` 运算符，使自编译指令可以直接与普通节点组合。语法糖：`instruction >> node` 等价于 `NodeCompose(instruction, node)`。
+- `extract() -> AbstractComposeOriginal`：将指令展开为底层节点组合。框架接受任何源组合；实践中直接返回 `NodeCompose`（其默认实现）即可，该实例会被自动递归渲染。
+- `__rshift__(other) -> AbstractComposeOriginal`：支持 `>>` 运算符，使自编译指令可以直接与普通节点组合。语法糖：`instruction >> node` 等价于 `NodeCompose(instruction, node)`。
 
 **设计理念**
 
@@ -59,7 +59,7 @@ AmritaSense 的内置指令集全部是 `SelfCompileInstruction` 的子类。以
 
 1. **继承 `SelfCompileInstruction`**
 2. **在 `__init__` 中接收构造参数**：这些参数决定了展开后的节点组合
-3. **实现 `extract() -> NodeCompose`**：在此方法内完成所有地址计算和节点组合，返回最终的 `NodeCompose`
+3. **实现 `extract() -> AbstractComposeOriginal`**：在此方法内完成所有地址计算和节点组合，返回最终的组合（通常是一个 `NodeCompose`）
 
 ### 简单示例
 
