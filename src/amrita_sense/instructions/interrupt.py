@@ -1,7 +1,8 @@
 from amrita_sense.exceptions import IllegalState
 from amrita_sense.instructions.enum import BuiltinTags
 from amrita_sense.node import NodeType
-from amrita_sense.node.core import NodeComposeRendered
+from amrita_sense.node.abc_base import AbstractCompose
+from amrita_sense.node.addressing import AddressCalculator
 from amrita_sense.node.wrapper import Node
 from amrita_sense.runtime.types import InterpreterContext
 from amrita_sense.runtime.workflow import WorkflowInterpreter
@@ -65,7 +66,7 @@ def PUSH_CONTEXT(
         dump.ptr = PointerVector(addr)
         pc._context_stack.push(dump)
 
-    def _post_compile(compose: NodeComposeRendered):
+    def _post_compile(compose: AbstractCompose[AddressCalculator]):
         nonlocal addr
         if addr is not None:
             raise RuntimeError(
@@ -180,7 +181,7 @@ def INTERRUPT_INTO(
         pc.context_stack.push(ctx)
         pc.jump_to(jmp_addr)
 
-    def _post_compile(compose: NodeComposeRendered):
+    def _post_compile(compose: AbstractCompose[AddressCalculator]):
         nonlocal jmp_addr, ret_addr
         if jmp_addr is not None:
             raise RuntimeError(

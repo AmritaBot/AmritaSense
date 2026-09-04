@@ -1,6 +1,7 @@
 from amrita_sense.instructions.enum import BuiltinTags
 from amrita_sense.node import NodeType
-from amrita_sense.node.core import NodeComposeRendered
+from amrita_sense.node.abc_base import AbstractCompose
+from amrita_sense.node.addressing import AddressCalculator
 from amrita_sense.node.wrapper import Node
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 from amrita_sense.types import PointerVector
@@ -54,7 +55,7 @@ def PUSH_STACK(alias_or_idata: str | list[int]) -> NodeType[None]:
         assert addr is not None
         pc._ret_addr_stack.push(PointerVector(addr))
 
-    def _post_compile(compose: NodeComposeRendered):
+    def _post_compile(compose: AbstractCompose[AddressCalculator]):
         nonlocal addr
         if addr is not None:
             raise RuntimeError(
@@ -107,7 +108,7 @@ def PUSH_AND_GOTO(
         pc._ret_addr_stack.push(PointerVector(frm_addr))
         pc.jump_to(to_addr)
 
-    def _post_compile(compose: NodeComposeRendered):
+    def _post_compile(compose: AbstractCompose[AddressCalculator]):
         nonlocal frm_addr, to_addr
         if frm_addr is not None or to_addr is not None:
             raise RuntimeError(

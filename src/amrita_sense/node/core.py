@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import inspect
 from abc import abstractmethod
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
 from types import FrameType
 from typing import TYPE_CHECKING, Any, Generic, TypeVar, overload
 
@@ -12,11 +12,10 @@ from amrita_sense.exceptions import GraphBuildError, NullPointerException
 from amrita_sense.hook.fun_typing import DependencyMeta, sign_func
 from amrita_sense.logging import debug_log, logger
 from amrita_sense.node import addressing
+from amrita_sense.node.abc_base import AbstractCompose, AbstractComposeOriginal
 from amrita_sense.node.addressing import AddressCalculator
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.utils import TimeInsighter, isabstractmethod
-
-from . import self_compile
 
 if TYPE_CHECKING:
     from amrita_sense.runtime.workflow import WorkflowInterpreter
@@ -136,8 +135,8 @@ class BaseNode:
         ...
 
     def __rshift__(
-        self, other: BaseNode | SelfCompileInstruction | NodeCompose
-    ) -> NodeCompose:
+        self, other: BaseNode | SelfCompileInstruction | AbstractComposeOriginal
+    ) -> AbstractComposeOriginal:
         """Create a node composition using the right-shift operator.
 
         This enables the `node1 >> node2` syntax for composing workflows.
@@ -146,7 +145,7 @@ class BaseNode:
             other: Another node or composition to append to this node.
 
         Returns:
-            A new NodeCompose containing this node and the other element.
+            A new AbstractComposeOriginal containing this node and the other element.
         """
         return NodeCompose(self, other)
 
@@ -246,8 +245,8 @@ class Node(BaseNode, Generic[NODE_T]):
             return self.func
 
     def __rshift__(
-        self, other: BaseNode | SelfCompileInstruction | NodeCompose
-    ) -> NodeCompose:
+        self, other: BaseNode | SelfCompileInstruction | AbstractComposeOriginal
+    ) -> AbstractComposeOriginal:
         """Create a node composition using the right-shift operator.
 
         Args:
@@ -259,7 +258,7 @@ class Node(BaseNode, Generic[NODE_T]):
         return NodeCompose(self, other)
 
 
-class NodeCompose:
+class NodeCompose(AbstractComposeOriginal["NodeComposeRendered"]):
     """Container for composing multiple nodes into a workflow sequence.
 
     This class represents a linear composition of nodes that will be executed
@@ -271,20 +270,34 @@ class NodeCompose:
         _graph: List of nodes and sub-compositions in this composition.
     """
 
-    _graph: list[NodeCompose | BaseNode | SelfCompileInstruction]
+    _graph: list[AbstractComposeOriginal | BaseNode | SelfCompileInstruction]
 
-    def __init__(self, *nodes: NodeCompose | BaseNode | SelfCompileInstruction):
+    def __init__(
+        self, *nodes: AbstractComposeOriginal | BaseNode | SelfCompileInstruction
+    ):
         """Initialize a node composition with one or more elements.
 
         Args:
             *nodes: Variable number of nodes, compositions, or self-compile instructions.
         """
-        if any(isinstance(i, NodeComposeRendered) for i in nodes):
-            raise TypeError("NodeComposeRendered cannot be used in NodeCompose")
+        if any(isinstance(i, AbstractCompose) for i in nodes):
+            raise TypeError(
+                "A rendered composition cannot be used in a source composition"
+            )
         self._graph = list(nodes)
 
+    def __iter__(
+        self,
+    ) -> Iterator[BaseNode | AbstractComposeOriginal | SelfCompileInstruction]:
+        """Iterate over the child elements of this source composition.
+
+        Yields:
+            Each child node, sub-composition, or self-compile instruction.
+        """
+        yield from self._graph
+
     def __rshift__(
-        self, other: NodeCompose | BaseNode | SelfCompileInstruction
+        self, other: AbstractComposeOriginal | BaseNode | SelfCompileInstruction
     ) -> Self:
         """Append another element to this composition using the right-shift operator.
 
@@ -319,7 +332,7 @@ class NodeCompose:
         return r
 
 
-class NodeComposeRendered:
+class NodeComposeRendered(AbstractCompose[AddressCalculator]):
     """Compiled and executable workflow graph.
 
     This class represents a fully processed workflow graph that is ready for
@@ -333,7 +346,9 @@ class NodeComposeRendered:
 
     _graph: list[BaseNode | NodeComposeRendered]
     __original_tmp: (
-        NodeCompose | list[BaseNode | NodeCompose | SelfCompileInstruction] | None
+        AbstractComposeOriginal
+        | list[BaseNode | AbstractComposeOriginal | SelfCompileInstruction]
+        | None
     )
     alias2vector_map: dict[str, list[int]]
     """Mark for AliasNodes"""
@@ -363,8 +378,8 @@ class NodeComposeRendered:
 
     def __init__(
         self,
-        original_graph: NodeCompose
-        | list[BaseNode | NodeCompose | SelfCompileInstruction],
+        original_graph: AbstractComposeOriginal
+        | list[BaseNode | AbstractComposeOriginal | SelfCompileInstruction],
     ):
         """Initialize a rendered composition with the original graph.
 
@@ -394,7 +409,7 @@ class NodeComposeRendered:
     def _build(
         self,
         current_path: list[int] | None = None,
-        top: NodeComposeRendered | None = None,
+        top: AbstractCompose[AddressCalculator] | None = None,
     ):
         """Build the executable workflow graph from the original composition.
 
@@ -414,10 +429,13 @@ class NodeComposeRendered:
 
         if current_path is None:
             current_path = []
-        im_top: bool = False
         if top is None:
             top = self
-            im_top = True
+        if not isinstance(top, NodeComposeRendered):
+            raise TypeError(
+                "top must be the top-level NodeComposeRendered that is being built."
+            )
+        im_top: bool = top is self
 
         if hasattr(self, "_graph"):
             raise GraphBuildError("NodeComposeRendered is already built")
@@ -429,8 +447,8 @@ class NodeComposeRendered:
         if im_top:
             top._collected_hooks = []
 
-        if isinstance(self.__original_tmp, NodeCompose):
-            self._process_nodes(self.__original_tmp._graph, current_path, top)
+        if isinstance(self.__original_tmp, AbstractComposeOriginal):
+            self._process_nodes(list(self.__original_tmp), current_path, top)
         else:
             self._process_nodes(self.__original_tmp, current_path, top)
         if im_top:
@@ -444,7 +462,7 @@ class NodeComposeRendered:
 
     def _process_nodes(
         self,
-        nodes: list[BaseNode | NodeCompose | SelfCompileInstruction],
+        nodes: list[BaseNode | AbstractComposeOriginal | SelfCompileInstruction],
         current_path: list[int],
         top: NodeComposeRendered,
     ):
@@ -462,7 +480,7 @@ class NodeComposeRendered:
         for idx, node in enumerate(nodes):
             node_path = [*current_path, idx]
 
-            if isinstance(node, NodeCompose):
+            if isinstance(node, AbstractComposeOriginal):
                 rendered_compose: NodeComposeRendered | BaseNode = self._render_compose(
                     node, node_path, top
                 )
@@ -498,7 +516,7 @@ class NodeComposeRendered:
 
     def _render_compose(
         self,
-        node_compose: NodeCompose,
+        node_compose: AbstractComposeOriginal,
         compose_path: list[int],
         top: NodeComposeRendered,
     ) -> NodeComposeRendered:
@@ -513,7 +531,7 @@ class NodeComposeRendered:
             A rendered composition representing the nested structure.
         """
 
-        rendered = NodeComposeRendered(node_compose._graph)
+        rendered = NodeComposeRendered(node_compose)
 
         rendered._build(compose_path, top)
         return rendered
@@ -543,5 +561,4 @@ class NodeComposeRendered:
         yield from self._graph
 
 
-self_compile.NodeCompose = NodeCompose  # For import.
 addressing.NodeComposeRendered = NodeComposeRendered

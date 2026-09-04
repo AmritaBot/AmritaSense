@@ -7,6 +7,8 @@ from exceptiongroup import BaseExceptionGroup
 
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.enum import BuiltinTags
+from amrita_sense.node.abc_base import AbstractCompose, AbstractComposeOriginal
+from amrita_sense.node.addressing import AddressCalculator
 from amrita_sense.node.core import (
     BaseNode,
     NodeCompose,
@@ -47,10 +49,10 @@ class BatchRun(BaseNode):
     fun_sign: DependencyMeta
     _io: SuspendObjectStream | None
     _mdw: Callable[["WorkflowInterpreter"], Awaitable[Any]] | None | object
-    _comp_rendered: NodeComposeRendered
+    _comp_rendered: AbstractCompose[AddressCalculator]
     _fail_fast: bool
-    _graphs: list[NodeComposeRendered]
-    _origin: tuple[NodeCompose | BaseNode | SelfCompileInstruction, ...]
+    _graphs: list[AbstractCompose[AddressCalculator]]
+    _origin: tuple[AbstractComposeOriginal | BaseNode | SelfCompileInstruction, ...]
     _interpreters: list[WorkflowInterpreter]
 
     __slots__ = (
@@ -71,7 +73,7 @@ class BatchRun(BaseNode):
 
     def __init__(
         self,
-        *payload: BaseNode | NodeCompose | SelfCompileInstruction,
+        *payload: BaseNode | AbstractComposeOriginal | SelfCompileInstruction,
         middleware: Callable[["WorkflowInterpreter"], Awaitable[Any]]
         | None
         | object = UNSET,
@@ -149,7 +151,7 @@ class BatchRun(BaseNode):
 
 
 def BATCH_RUN(
-    *nodes: BaseNode | NodeCompose | SelfCompileInstruction,
+    *nodes: BaseNode | AbstractComposeOriginal | SelfCompileInstruction,
     sos_io: SuspendObjectStream | None = None,
     middleware: Callable[["WorkflowInterpreter"], Awaitable[Any]]
     | None

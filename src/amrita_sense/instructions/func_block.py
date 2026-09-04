@@ -9,7 +9,9 @@ from amrita_sense.exceptions import IllegalState
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.alias import ALIAS
 from amrita_sense.instructions.workfl_ctrl import NOP
-from amrita_sense.node.core import BaseNode, NodeCompose, NodeComposeRendered
+from amrita_sense.node.abc_base import AbstractCompose, AbstractComposeOriginal
+from amrita_sense.node.addressing import AddressCalculator
+from amrita_sense.node.core import BaseNode
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.node.wrapper import Node
 from amrita_sense.runtime.workflow import UNSET, WorkflowInterpreter
@@ -24,7 +26,7 @@ class FuncBlock(BaseNode):
     fun_frame: FrameType
     fun_sign: DependencyMeta
 
-    _comp_rendered: NodeComposeRendered
+    _comp_rendered: AbstractCompose[AddressCalculator]
     _mdw: Callable[["WorkflowInterpreter"], Awaitable[Any]] | None | object
     _io: SuspendObjectStream[Any] | None
     _interpreter: WorkflowInterpreter | None
@@ -45,7 +47,7 @@ class FuncBlock(BaseNode):
 
     def __init__(
         self,
-        sub_comp: NodeComposeRendered,
+        sub_comp: AbstractCompose[AddressCalculator],
         middleware: Callable[["WorkflowInterpreter"], Awaitable[Any]] | None | object,
         object_io: SuspendObjectStream | None,
         one_time_interp: bool,
@@ -80,7 +82,7 @@ class FuncBlock(BaseNode):
 
 
 def FUN_BLOCK(
-    sub_comp: NodeComposeRendered,
+    sub_comp: AbstractCompose[AddressCalculator],
     middleware: Callable[["WorkflowInterpreter"], Awaitable[Any]]
     | None
     | object = UNSET,
@@ -90,7 +92,7 @@ def FUN_BLOCK(
     """Create a sub workflow call.
 
     Args:
-        sub_comp (NodeComposeRendered): Sub compose to call.
+        sub_comp (AbstractCompose[AddressCalculator]): Sub compose to call.
         middleware (Callable[[&quot;WorkflowInterpreter&quot;], Awaitable[Any]] | None | object, optional): middleware to be used in sub interpreter. Defaults to UNSET.
         object_io (SuspendObjectStream | None, optional): (Please make sure it's thread safe, not shared between interpreters.). Defaults to None.
         one_time_interp (bool, optional): Whether to create a new interpreter for each call. Defaults to False.
@@ -113,8 +115,8 @@ def _fn_escape(pc: WorkflowInterpreter):
 
 def INTER_FN(
     entrypoint: str,
-    block: BaseNode | NodeCompose | SelfCompileInstruction,
-) -> NodeCompose:
+    block: BaseNode | AbstractComposeOriginal | SelfCompileInstruction,
+) -> AbstractComposeOriginal:
     """Define an **interrupt service routine** (Sense interrupt handler).
 
     Appends :func:`~amrita_sense.instructions.interrupt.INTERRUPT_RET` to
@@ -142,8 +144,8 @@ def INTER_FN(
 
 def FN(
     entrypoint: str,
-    block: BaseNode | NodeCompose | SelfCompileInstruction,
-) -> NodeCompose:
+    block: BaseNode | AbstractComposeOriginal | SelfCompileInstruction,
+) -> AbstractComposeOriginal:
     """Define a **regular function block** (Sense subroutine).
 
     Appends :func:`~amrita_sense.instructions.ret2.RET_FAR` to ``block`` so

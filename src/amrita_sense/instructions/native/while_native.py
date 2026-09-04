@@ -21,6 +21,7 @@ from amrita_sense.instructions.native._core import (
 )
 from amrita_sense.instructions.native.continue_loop import CONTINUE
 from amrita_sense.instructions.workfl_ctrl import NOP
+from amrita_sense.node.abc_base import AbstractComposeOriginal
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
 
@@ -57,7 +58,7 @@ class NativeWhileClause(SelfCompileInstruction):
     ### Compile ###
 
     @override
-    def extract(self) -> NodeCompose:
+    def extract(self) -> AbstractComposeOriginal:
         if self._body is None:
             raise RuntimeError("NATIVE_WHILE requires .ACTION(body) before use")
 

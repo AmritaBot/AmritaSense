@@ -8,7 +8,8 @@ from typing_extensions import Never, Self
 
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.workfl_ctrl import NOP
-from amrita_sense.node.core import BaseNode, Node, NodeCompose, NodeComposeRendered
+from amrita_sense.node.abc_base import AbstractCompose, AbstractComposeOriginal
+from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 
@@ -22,16 +23,18 @@ def _check_do(pl: BaseNode) -> None: ...
 
 @overload
 def _check_do(
-    pl: NodeComposeRendered | SelfCompileInstruction | NodeCompose,
+    pl: AbstractCompose | AbstractComposeOriginal | SelfCompileInstruction,
 ) -> Never: ...
 
 
 def _check_do(
-    pl: BaseNode | NodeCompose | NodeComposeRendered | SelfCompileInstruction,
+    pl: BaseNode | AbstractCompose | AbstractComposeOriginal | SelfCompileInstruction,
 ):
-    if isinstance(pl, (NodeCompose, NodeComposeRendered, SelfCompileInstruction)):
+    if isinstance(
+        pl, (AbstractCompose, AbstractComposeOriginal, SelfCompileInstruction)
+    ):
         raise TypeError(
-            "DO cannot be a NodeCompose, NodeComposeRendered or SelfCompileInstruction,"
+            "DO cannot be a composition or SelfCompileInstruction,"
             + " please use FUN_BLOCK to wrap the sub component."
         )
 
@@ -134,7 +137,7 @@ class IFClause(SelfCompileInstruction, Condition):
         self.condition = condition
         self.do = do
 
-    def extract(self) -> NodeCompose:
+    def extract(self) -> AbstractComposeOriginal:
         return NodeCompose(
             *ConditionJumpNode.make_chunk(self.condition, self.do, 3, 3),
             NOP,
@@ -182,7 +185,7 @@ class ELIFClause(SelfCompileInstruction, Condition):
     def ELSE(self) -> Callable[[Node | None], "ELSEClause"]:
         return lambda node=None: ELSEClause(self, node or NOP)
 
-    def extract(self) -> NodeCompose:
+    def extract(self) -> AbstractComposeOriginal:
         total_length = (
             3  # IF + CONDI + DO
             + 3  # Main ELIF Clause
@@ -263,7 +266,7 @@ class ELSEClause(SelfCompileInstruction, Condition):
         self.parent = parent
         self.top = parent if isinstance(parent, IFClause) else parent.parent
 
-    def extract(self) -> NodeCompose:
+    def extract(self) -> AbstractComposeOriginal:
         top_if = self.top
         parent = self.parent
 

@@ -18,6 +18,7 @@ from typing import Any, Literal, overload
 
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.enum import BuiltinTags
+from amrita_sense.node.abc_base import AbstractComposeOriginal
 from amrita_sense.node.core import BaseNode, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.runtime.workflow import WorkflowInterpreter
@@ -106,10 +107,10 @@ def _classify_body(
 ) -> tuple[BaseNode, Literal[True]]: ...
 @overload
 def _classify_body(
-    payload: NodeCompose | SelfCompileInstruction,
+    payload: AbstractComposeOriginal | SelfCompileInstruction,
 ) -> tuple[NodeCompose, Literal[False]]: ...
 def _classify_body(
-    payload: BaseNode | NodeCompose | SelfCompileInstruction,
+    payload: BaseNode | AbstractComposeOriginal | SelfCompileInstruction,
 ) -> tuple[BaseNode | NodeCompose, bool]:
     """Classify *payload* as single-node or compose.
 

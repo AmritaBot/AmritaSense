@@ -8,6 +8,7 @@ from amrita_sense._unsafe import __flags__
 from amrita_sense.exceptions import BreakLoop
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.workfl_ctrl import NOP
+from amrita_sense.node.abc_base import AbstractComposeOriginal
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.runtime.workflow import WorkflowInterpreter
@@ -124,7 +125,7 @@ class DoWhileClause(
     def WHILE(self) -> Callable[[Node[bool]], Self]:
         return lambda condition: (setattr(self, "condition", condition), self)[1]
 
-    def extract(self) -> NodeCompose:
+    def extract(self) -> AbstractComposeOriginal:
         return NodeCompose(
             DONode(1, 2, 4), self.do, DowhileNode(1, 4, 0), self.condition, NOP
         )

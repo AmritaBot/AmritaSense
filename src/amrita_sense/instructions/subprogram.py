@@ -9,6 +9,7 @@ from amrita_sense.exceptions import AliasNotFoundError, GraphBuildError
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.enum import BuiltinTags
 from amrita_sense.instructions.workfl_ctrl import NOP
+from amrita_sense.node.abc_base import AbstractComposeOriginal
 from amrita_sense.node.core import BaseNode, NodeCompose, NodeComposeRendered
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.node.wrapper import Node
@@ -53,7 +54,7 @@ class SubprogramStorage(SelfCompileInstruction):
     def __init__(self, *nodes: BaseNode):
         self._nodes = nodes
 
-    def extract(self) -> NodeCompose:
+    def extract(self) -> AbstractComposeOriginal:
         node_compose = [NOP, *self._nodes, NOP]
         addr: int = len(node_compose) - 1
         node_compose[0] = SubprogramJumpNode(addr)
@@ -167,7 +168,9 @@ def ARCHIVED_NODES(*nodes: BaseNode) -> SubprogramStorage:
     return SubprogramStorage(*nodes)
 
 
-def ARCHIVED_SEGMENT(seg: NodeCompose | SelfCompileInstruction) -> NodeCompose:
+def ARCHIVED_SEGMENT(
+    seg: AbstractComposeOriginal | SelfCompileInstruction,
+) -> AbstractComposeOriginal:
     """Define a segment of nodes that is **skipped** at runtime.
 
     Wraps ``seg`` between a jump and a :func:`~amrita_sense.instructions.workfl_ctrl.NOP`,
@@ -181,7 +184,7 @@ def ARCHIVED_SEGMENT(seg: NodeCompose | SelfCompileInstruction) -> NodeCompose:
         seg: The node compose or self-compiling instruction to archive.
 
     Returns:
-        A :class:`NodeCompose` that skips over ``seg`` at runtime.
+        A composition that skips over ``seg`` at runtime.
     """
     if isinstance(seg, SelfCompileInstruction):
         seg = seg.extract()

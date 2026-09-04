@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from amrita_sense.exceptions import NullPointerException
 from amrita_sense.logging import logger
+from amrita_sense.node.abc_base import AbstractAddressCalculator
 
 if TYPE_CHECKING:
     from amrita_sense.node.core import BaseNode, NodeComposeRendered
@@ -12,9 +13,7 @@ else:
     NodeComposeRendered = None
 
 
-class AddressCalculator:
-    """A stateless address computation utility."""
-
+class AddressCalculator(AbstractAddressCalculator[NodeComposeRendered]):
     def __init__(self, graph: NodeComposeRendered):
         """Constructor
 
@@ -47,10 +46,7 @@ class AddressCalculator:
         raise NullPointerException(f"address {addr} not found")
 
     def advance(self, pointer: PointerVector) -> bool:
-        """Given a PointerVector, return the next pointer vector, or None if at end.
-
-        This uses LRU caching to avoid re‑traversing the graph for the same ptr.
-        """
+        """Given a PointerVector, return the next pointer vector, or None if at end."""
         if not pointer:
             return False
         graph: NodeComposeRendered = self._graph

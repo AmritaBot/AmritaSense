@@ -19,7 +19,7 @@ from typing import (
 from uuid import uuid4
 
 import aiologic
-from typing_extensions import LiteralString, deprecated
+from typing_extensions import LiteralString
 
 from amrita_sense._unsafe import __flags__
 from amrita_sense.exceptions import (
@@ -33,7 +33,9 @@ from amrita_sense.exceptions import (
 )
 from amrita_sense.hook.matcher import DependsFactory, MatcherFactory, sign_func
 from amrita_sense.logging import logger
-from amrita_sense.node.core import BaseNode, NodeComposeRendered
+from amrita_sense.node.abc_base import AbstractCompose
+from amrita_sense.node.addressing import AddressCalculator
+from amrita_sense.node.core import BaseNode
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.runtime.types import InterpreterContext
 from amrita_sense.streaming import SuspendObjectStream
@@ -56,7 +58,7 @@ class WorkflowInterpreter(Generic[io_T]):
     pattern for dynamic workflow execution.
     """
 
-    _graph: NodeComposeRendered
+    _graph: AbstractCompose[AddressCalculator]
     _pointer: PointerVector
     _jump_marked: bool
 
@@ -115,7 +117,7 @@ class WorkflowInterpreter(Generic[io_T]):
 
     def __init__(
         self,
-        node_compose: NodeComposeRendered | SelfCompileInstruction,
+        node_compose: AbstractCompose[AddressCalculator] | SelfCompileInstruction,
         object_io: SuspendObjectStream[Any] | None = None,
         *,
         exception_ignored: tuple[type[BaseException], ...] = (),
@@ -143,7 +145,10 @@ class WorkflowInterpreter(Generic[io_T]):
         self._interpreter_id = uuid4().hex
         if isinstance(node_compose, SelfCompileInstruction):
             node_compose = node_compose.extract().render()
-        self._graph = node_compose
+        # ``node_compose`` is either an already-rendered composition or a
+        # self-compiling instruction that has been rendered above, so the
+        # resulting object always conforms to the rendered-compose contract.
+        self._graph = cast(AbstractCompose[AddressCalculator], node_compose)
         self._pointer = PointerVector()
         self._panic_exc = None
         self.__outer_interpreting = False
@@ -199,11 +204,11 @@ class WorkflowInterpreter(Generic[io_T]):
             self._top_interpreter = None
         self._pending_stop = False
 
-    def get_graph(self) -> NodeComposeRendered:
+    def get_graph(self) -> AbstractCompose[AddressCalculator]:
         """Return the compiled workflow graph being executed.
 
         Returns:
-            The NodeComposeRendered instance representing the workflow graph.
+            The compiled workflow graph (an ``AbstractCompose``) being executed.
         """
         return self._graph
 
@@ -322,7 +327,7 @@ class WorkflowInterpreter(Generic[io_T]):
 
     def fork_interpreter(
         self,
-        compose: NodeComposeRendered | None,
+        compose: AbstractCompose[AddressCalculator] | None,
         middleware: Callable[[WorkflowInterpreter], Awaitable[Any]]
         | None
         | object = UNSET,
@@ -340,7 +345,7 @@ class WorkflowInterpreter(Generic[io_T]):
         parent's ``object_io`` can be safely shared with child interpreters.
 
         Args:
-            compose (NodeComposeRendered | None): The workflow graph for the sub-interpreter.
+            compose (AbstractCompose[AddressCalculator] | None): The workflow graph for the sub-interpreter.
                 If None, it will use the same graph as the parent.
             middleware (Callable[[WorkflowInterpreter], Awaitable[Any]] | None | object):
                 The middleware to be used for the sub-interpreter.
@@ -1028,7 +1033,9 @@ class WorkflowInterpreter(Generic[io_T]):
 
         return self.get_graph().calc.advance(ptr if ptr is not None else self._pointer)
 
-    def find_node_alias(self, alias: str) -> BaseNode | NodeComposeRendered:
+    def find_node_alias(
+        self, alias: str
+    ) -> BaseNode | AbstractCompose[AddressCalculator]:
         """Find a node by its alias and return the node object.
 
         Args:
@@ -1041,45 +1048,9 @@ class WorkflowInterpreter(Generic[io_T]):
             self.get_graph().calc.resolve_alias(alias)
         )
 
-    @deprecated(
-        "This method is no longer used, please use '.calc.find_addr(addr)' instead!",
-        category=DeprecationWarning,
-    )
-    def find_addr(self, addr: list[int]) -> BaseNode | NodeComposeRendered:
-        """Find a node at the specified address.
-
-        Args:
-            addr: Address vector to look up.
-
-        Returns:
-            The node at the specified address.
-
-        Raises:
-            NullPointerException: If the address does not exist in the graph.
-        """
-        return self.get_graph().calc.find_addr(addr)
-
-    @deprecated(
-        "This method is no longer used, please use '.calc.resolve_alias(addr)' instead!",
-        category=DeprecationWarning,
-    )
-    def find_addr_alias(self, alias: str) -> list[int]:
-        """Find the address vector for a node by its alias.
-
-        Args:
-            alias: The alias name of the target node.
-
-        Returns:
-            The address vector (list of indices) pointing to the node.
-
-        Raises:
-            NullPointerException: If the alias does not exist in the graph.
-        """
-        return self.get_graph().calc.resolve_alias(alias)
-
     def _find_addr_or_none(
         self, addr: list[int]
-    ) -> BaseNode | NodeComposeRendered | None:
+    ) -> BaseNode | AbstractCompose[AddressCalculator] | None:
         return self.get_graph().calc.find_addr_safe(addr)
 
     async def _rslv_node(
@@ -1163,7 +1134,9 @@ class WorkflowInterpreter(Generic[io_T]):
 
     async def _call(
         self,
-        addr_getter: Callable[[list[int]], BaseNode | NodeComposeRendered]
+        addr_getter: Callable[
+            [list[int]], BaseNode | AbstractCompose[AddressCalculator]
+        ]
         | None = None,
         *extra_args: Any,
         no_cache: bool = False,
@@ -1197,8 +1170,10 @@ class WorkflowInterpreter(Generic[io_T]):
             DependsInjectFailed: If dependency injection fails at runtime.
         """
         addr_getter = addr_getter or self.get_graph().calc.find_addr
-        node: BaseNode | NodeComposeRendered = addr_getter(self._pointer.base_addr)
-        while isinstance(node, NodeComposeRendered):
+        node: BaseNode | AbstractCompose[AddressCalculator] = addr_getter(
+            self._pointer.base_addr
+        )
+        while isinstance(node, AbstractCompose):
             if not node:
                 return
             self._pointer.append(0)

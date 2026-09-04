@@ -25,6 +25,7 @@ from amrita_sense.instructions.native._core import (
     _classify_body,
 )
 from amrita_sense.instructions.workfl_ctrl import NOP
+from amrita_sense.node.abc_base import AbstractComposeOriginal
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
 
@@ -85,7 +86,7 @@ class NativeIfClause(SelfCompileInstruction):
     ### Compile ###
 
     @override
-    def extract(self) -> NodeCompose:
+    def extract(self) -> AbstractComposeOriginal:
         """Build the flat native IF layout.
 
         3 slots per IF/ELIF branch (condi_offset=1, do_offset=2) + optional
