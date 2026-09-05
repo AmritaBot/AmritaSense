@@ -213,14 +213,6 @@ Reset the interpreter's execution state to its initial values: clear the pointer
 
 Return the rendered workflow graph being executed by this interpreter. The graph's `calc` property provides the `AddressCalculator` with methods `resolve_alias()`, `find_addr()`, `find_addr_safe()`, and `advance()`.
 
-#### `find_addr_alias(alias: str) -> list[int]`
-
-::: warning Deprecated
-This method is deprecated since v0.4.4. Use `get_graph().calc.resolve_alias(alias)` instead.
-:::
-
-Resolve an alias to its absolute address vector. Raises `NullPointerException` if the alias does not exist.
-
 #### `if_flag` property (v0.4.x+)
 
 Get or set the interrupt context flag. The setter validates that the value is a boolean. When `True`, `INTERRUPT_INTO` cannot be called (raises `IllegalState`).
@@ -251,14 +243,6 @@ Restore the interpreter state from an `InterpreterContext` snapshot. Sets the po
 **Parameters**
 
 - `ctx`: The `InterpreterContext` to restore from.
-
-#### `find_addr(addr: list[int]) -> BaseNode | AbstractCompose[AddressCalculator]`
-
-::: warning Deprecated
-This method is deprecated since v0.4.4. Use `get_graph().calc.find_addr(addr)` instead.
-:::
-
-Find a node or rendered composition by absolute address.
 
 #### `find_node_alias(alias: str) -> BaseNode | AbstractCompose[AddressCalculator]`
 

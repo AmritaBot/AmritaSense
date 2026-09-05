@@ -36,7 +36,6 @@ class DLLComposeProxy(AbstractCompose[Never]):
     _top: NodeComposeRendered | None
     _lock: threading.Lock
     __slots__ = [
-        "__weakref__",
         "_compose",
         "_lock",
         "_original",

@@ -191,22 +191,6 @@ def __init__(
 
 返回当前工作流的编译产物。编译图的 `calc` 属性提供 `AddressCalculator`，包含 `resolve_alias()`、`find_addr()`、`find_addr_safe()`、`advance()` 方法。
 
-`find_addr_alias(alias: str) -> list[int]`
-
-::: warning 已废弃
-此方法自 v0.4.4 起废弃。请改用 `get_graph().calc.resolve_alias(alias)`。
-:::
-
-在 `alias2vector_map` 中查找别名并返回其指针向量地址。若别名不存在，抛出 `NullPointerException`。
-
-`find_addr(addr: list[int]) -> BaseNode | AbstractCompose[AddressCalculator]`
-
-::: warning 已废弃
-此方法自 v0.4.4 起废弃。请改用 `get_graph().calc.find_addr(addr)`。
-:::
-
-通过绝对地址查找节点或子容器。地址无效时抛出 `NullPointerException`。
-
 #### 跳转操作
 
 所有跳转方法均受 `@markup` 保护。`@markup` 确保一次调用只设置 `_jump_marked` 一次，且在 `_jump_marked` 已为 `True` 时不再执行。跳转后解释器主循环检测到标记，跳过常规指针推进，下一轮从跳转目标继续。

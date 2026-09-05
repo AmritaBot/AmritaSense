@@ -11,7 +11,6 @@ import asyncio
 
 # Uncomment to test different flags:
 # __flags__.FORCE_NOT_WRAP_TO_ASYNC = True
-# __flags__.ALLOW_CALL_NODECOMPOSE = True
 # __flags__.DISABLE_EXC_IGNORED = True
 # __flags__.NO_DEPENDENCY_META_CACHE = True
 # __flags__.NO_SHARED_MIDDLEWARE = True

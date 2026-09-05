@@ -175,7 +175,9 @@ graph LR
 ### 底层节点
 
 - `NativeDoWhileNode`（`_core.py`）：DO-WHILE 回边节点。条件真时 `jump_near(loop_pos)` 回到 body 入口（`NativeBubbleEnterNode` 处理重新进入）；条件假时 `jump_near(exit_pos)` 跳到出口。
-- `NativeBubbleEnterNode`（`_core.py`）：Bubble 入口辅助节点。**总是**先 `PUSH` 哨兵（自身地址）再 `jump_far_ptr` 进入 body，使 `CONTINUE()` / `BREAK_LOOP()` 可以弹栈。构造函数只接受 `body_pos`（v0.6.0 移除了 `ret_pos` 参数）。
+- `NativeBubbleEnterNode`（`_core.py`）：Bubble 入口辅助节点，用于经跳转进入的原生 body（`DO` body、`ELSE` body）。构造函数接受 `body_pos` 与 `push`（v0.6.0 移除了 `ret_pos` 参数；v0.6.1 新增了 `push`）。
+  - `push=True`（默认，`DO`）：先 `PUSH` 哨兵（自身地址）再 `jump_far_ptr` 进入 body，使 `CONTINUE()` / `BREAK_LOOP()` 可以弹栈。
+  - `push=False`（`ELSE` 分支，v0.6.1 起）：**不**压哨兵——body 靠 `advance_pointer` 自然流回合并点，语义类似 Python `else` 块。
 
 ## BREAK_LOOP
 

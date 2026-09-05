@@ -68,8 +68,8 @@ class AbstractComposeOriginal(ABC, Generic[Compose_T]):
         """
         ...
 
-    @abstractmethod
     @classmethod
+    @abstractmethod
     def get_builder(cls) -> type[Compose_T]: ...
 
 
