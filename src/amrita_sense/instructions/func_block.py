@@ -120,7 +120,7 @@ def INTER_FN(
     """Define an **interrupt service routine** (Sense interrupt handler).
 
     Appends :func:`~amrita_sense.instructions.interrupt.INTERRUPT_RET` to
-    ``block`` so the routine auto-restores the interpreter context when it
+    `block` so the routine auto-restores the interpreter context when it
     finishes.  Use this together with
     :func:`~amrita_sense.instructions.interrupt.INTERRUPT_INTO` (the
     interrupt dispatcher) and :func:`ARCHIVED_SEGMENT` (to hide the routine
@@ -148,7 +148,7 @@ def FN(
 ) -> AbstractComposeOriginal:
     """Define a **regular function block** (Sense subroutine).
 
-    Appends :func:`~amrita_sense.instructions.ret2.RET_FAR` to ``block`` so
+    Appends :func:`~amrita_sense.instructions.ret2.RET_FAR` to `block` so
     the function returns via the return-address stack when it finishes.  Use
     this together with
     :func:`~amrita_sense.instructions.ret2.PUSH_AND_GOTO` (the caller) and

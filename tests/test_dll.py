@@ -167,25 +167,28 @@ def test_dll_proxy_children_swap_after_apply(log):
     assert list(iter(proxy)) == [c]
 
 
-def test_dll_failed_apply_rolls_back_proxy_state(log):
-    a, b = make_node("A", log), make_node("B", log)
+def test_dll_apply_rejects_non_nodecompose_payload(log):
+    a, b, c = make_node("A", log), make_node("B", log), make_node("C", log)
     dll = DLLCompose(b.as_compose())
     (a >> dll >> NOP).render()
     proxy = dll.get_proxy()
 
-    # A bare node has no get_builder(), so the rebase aborts.
-    with pytest.raises(AttributeError):
+    # A bare node is not a source composition: apply() rejects it up front
+    # (mirroring __init__) instead of starting a rebuild.
+    with pytest.raises(GraphBuildError):
         dll.apply(a)  # type: ignore[reportArgumentType]
 
-    # The failed lifecycle rolled the proxy back to its unbuilt state.
-    with pytest.raises(GraphBuildError):
-        proxy[0]
-    with pytest.raises(NullPointerException):
-        list(iter(proxy))
-    with pytest.raises(NullPointerException):
-        len(proxy)
-    with pytest.raises(NullPointerException):
-        bool(proxy)
+    # Rejection happens before any mutation: the proxy still serves the
+    # previously applied payload.
+    assert proxy[0] is b
+    assert list(iter(proxy)) == [b]
+    assert len(proxy) == 1
+    assert bool(proxy) is True
+
+    # And a subsequent valid rebase keeps working.
+    dll.apply(c.as_compose())
+    assert proxy[0] is c
+    assert list(iter(proxy)) == [c]
 
 
 def test_dll_empty_payload_renders_but_is_not_addressable(log):

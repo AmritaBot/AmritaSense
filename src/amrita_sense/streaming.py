@@ -84,10 +84,10 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         """
         Decorator that pauses the decorated coroutine until the stream is
         resumed.  Must be applied to a coroutine that receives a
-        ``SuspendObjectStream`` instance as one of its arguments.
+        `SuspendObjectStream` instance as one of its arguments.
 
         The optional *tag* allows selective resumption – only
-        ``wait_to_suspend`` calls with a matching tag will block the
+        `wait_to_suspend` calls with a matching tag will block the
         function.
         """
         if not asyncio.iscoroutinefunction(func):
@@ -118,7 +118,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
 
     @staticmethod
     def suspend_with_tag(tag: str):
-        """Shorthand for ``SuspendObjectStream.suspend(func, tag)``."""
+        """Shorthand for `SuspendObjectStream.suspend(func, tag)`."""
         return lambda func: SuspendObjectStream.suspend(func, tag)
 
     async def _wait_for_continue(self, tag: str | None = None) -> bool:
@@ -129,7 +129,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         caller creates it and others piggyback via callbacks.
 
         Returns:
-            ``True`` if the caller actually blocked (was suspended), ``False``
+            `True` if the caller actually blocked (was suspended), `False`
             if no suspension was in progress or the *tag* did not match.
         """
         async with self._state_lock:
@@ -215,7 +215,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         Producer sends an object (e.g. a prompt) to the consumer.
 
         This uses the primary producer->consumer channel and is subject to
-        suspension via the ``SUSPEND_ON_PUSH`` tag.
+        suspension via the `SUSPEND_ON_PUSH` tag.
         """
         await self._wait_for_continue(SUSPEND_ON_PUSH)
         async with self._state_lock:
@@ -233,8 +233,8 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         Producer sends a response chunk to the consumer.
 
         This is normally used to stream output from a long‑running operation.
-        It respects the ``SUSPEND_ON_YIELD`` suspension tag and falls back to
-        the ``_callback_fun`` callback if one is configured.
+        It respects the `SUSPEND_ON_YIELD` suspension tag and falls back to
+        the `_callback_fun` callback if one is configured.
         """
         await self._wait_for_continue(SUSPEND_ON_YIELD)
         async with self._state_lock:
@@ -250,7 +250,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
     async def yield_response_iteration(
         self, iterator: AsyncGenerator[ObjectTypeT, None]
     ):
-        """Convenience wrapper that calls ``yield_response`` for every item of *iterator*."""
+        """Convenience wrapper that calls `yield_response` for every item of *iterator*."""
         async for chunk in iterator:
             await self.yield_response(chunk)
 
@@ -260,7 +260,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         producer.
 
         Only one consumer is allowed.  The generator automatically exits when
-        the producer sends the done marker (see ``set_queue_done``).
+        the producer sends the done marker (see `set_queue_done`).
 
         Raises:
             StreamStateError: If another consumer is already active or a
@@ -285,7 +285,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
             await self._receive_stream.aclose()
 
     def queue_closed(self) -> bool:
-        """Return ``True`` if the producer->consumer channel is closed."""
+        """Return `True` if the producer->consumer channel is closed."""
         return self._queue_done
 
     async def set_queue_done(self) -> None:
@@ -318,7 +318,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         Consumer sends the end‑of‑stream marker to the producer.
 
         After this call the producer's input generator (obtained via
-        ``get_producer_input_generator``) will stop yielding items.
+        `get_producer_input_generator`) will stop yielding items.
         """
         async with self._state_lock:
             if self._peer_done:
@@ -336,7 +336,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
 
         The producer can use this to receive data from the consumer.  The
         generator stops when the consumer sends the done marker (see
-        ``send_done_to_producer``).
+        `send_done_to_producer`).
 
         Raises:
             StreamStateError: If another generator for the reverse stream is
@@ -362,11 +362,11 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
 
     def set_callback_func(self, func: CALLBACK_TYPE) -> None:
         """
-        Set a callback that receives every ``yield_response`` value instead
+        Set a callback that receives every `yield_response` value instead
         of pushing it to the stream.
 
         Only one callback can be set, and it prevents the use of
-        ``get_response_generator``.
+        `get_response_generator`.
 
         Raises:
             StreamStateError: If a callback has already been set.
@@ -380,7 +380,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
 
     def set_callback_fun_sending(self, func: CALLBACK_TYPE) -> None:
         """
-        Set a callback that receives every ``push_object`` value instead of
+        Set a callback that receives every `push_object` value instead of
         pushing it to the stream.
 
         Raises:

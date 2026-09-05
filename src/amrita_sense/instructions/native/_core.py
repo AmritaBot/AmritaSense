@@ -1,12 +1,12 @@
 """Native control-flow core nodes — lightweight jump-based branching.
 
-These nodes replace ``call_sub`` for branch bodies with the
-``PUSH / JMP / CONTINUE / BREAK_LOOP`` pattern, avoiding lock acquisition,
+These nodes replace `call_sub` for branch bodies with the
+`PUSH / JMP / CONTINUE / BREAK_LOOP` pattern, avoiding lock acquisition,
 middleware invocation, and DI resolution on every branch entry.
 
-Loop bodies always end with ``CONTINUE()`` (factory), and ``BREAK_LOOP()``
-targets are configured at compile-time via ``_configure_loop_control_nodes()``.
-Single-node bodies are auto‑wrapped into ``NodeCompose(body, CONTINUE())``.
+Loop bodies always end with `CONTINUE()` (factory), and `BREAK_LOOP()`
+targets are configured at compile-time via `_configure_loop_control_nodes()`.
+Single-node bodies are auto‑wrapped into `NodeCompose(body, CONTINUE())`.
 """
 
 from __future__ import annotations
@@ -28,13 +28,13 @@ from amrita_sense.types import PointerVector
 
 
 class _LoopControlNode(BaseNode):
-    """Abstract base: pop ``_ret_addr_stack`` and ``jump_far_ptr``.
+    """Abstract base: pop `_ret_addr_stack` and `jump_far_ptr`.
 
     Subclasses are configured at compile-time by the enclosing native
-    loop's ``extract()`` via ``_configure_loop_control_nodes()``.
+    loop's `extract()` via `_configure_loop_control_nodes()`.
 
-    At runtime the popped ``PointerVector`` provides the parent address;
-    ``_target_pos`` (set by the scanner) gives the offset within that
+    At runtime the popped `PointerVector` provides the parent address;
+    `_target_pos` (set by the scanner) gives the offset within that
     parent.
     """
 
@@ -77,25 +77,32 @@ class _LoopControlNode(BaseNode):
 
 
 def _configure_loop_control_nodes(
-    compose: NodeCompose,
+    compose: AbstractComposeOriginal,
     continue_pos: int,
     break_pos: int,
 ) -> None:
     """DFS-scan *compose*, configuring unconfigured loop-control nodes.
 
-    Stops recursing at native-loop boundaries (``NativeWhileNode`` or
-    ``NativeBubbleEnterNode`` as the first child of a ``NodeCompose``).
-    This ensures each loop only configures control nodes at its own
-    nesting level.
+    Children are consumed through the abstract source-composition contract
+    (`__iter__`) rather than `_graph` directly, so custom source
+    compositions work here too.  Stops recursing at native-loop boundaries
+    (`NativeWhileNode` or `NativeBubbleEnterNode` as the first child),
+    so each loop only configures control nodes at its own nesting level.
+    `DLLCompose` children are skipped — their payload is compiled
+    independently at `apply()` time.
     """
-    for child in compose._graph:
+    from amrita_sense.node.dll import DLLCompose
+
+    for child in compose:
         if isinstance(child, _LoopControlNode) and not child._configured:
             child._target_pos = (
                 continue_pos if child.tag == BuiltinTags.CONTINUE else break_pos
             )
             child._configured = True
-        elif isinstance(child, NodeCompose):
-            first = child._graph[0] if child._graph else None
+        elif isinstance(child, AbstractComposeOriginal) and not isinstance(
+            child, DLLCompose
+        ):
+            first = next(iter(child), None)
             if isinstance(first, (NativeWhileNode, NativeBubbleEnterNode)):
                 continue  # inner native loop boundary — stop here
             _configure_loop_control_nodes(child, continue_pos, break_pos)
@@ -117,10 +124,13 @@ def _classify_body(
     Returns
     -------
     (body, is_single)
-        ``is_single`` is ``True`` when *payload* is a ``BaseNode``
-        (call_offset path).  ``SelfCompileInstruction`` is extracted
-        to ``NodeCompose`` first.  The compose itself is returned
-        as-is — ``render()`` will recursively expand nested layers.
+        `is_single` is ``True`` when *payload* is a `BaseNode`
+        (call_offset path).  `SelfCompileInstruction` is extracted
+        first.  Compositions are normalized to `NodeCompose`: a
+        `NodeCompose` is returned as-is, while any other
+        `AbstractComposeOriginal` (custom source composition) is
+        materialized by flattening its children through the abstract
+        iteration contract — the same path `render()` uses.
     """
     if isinstance(payload, BaseNode):
         return payload, True
@@ -131,6 +141,16 @@ def _classify_body(
     if isinstance(payload, NodeCompose):
         return payload, False
 
+    if isinstance(payload, AbstractComposeOriginal):
+        # Materialize any custom source composition (e.g. a NodeCompose
+        # alternative).  DLLCompose stays rejected — its payload is
+        # compiled independently at apply() time, not as a body here.
+        from amrita_sense.node.dll import DLLCompose
+
+        if isinstance(payload, DLLCompose):
+            raise TypeError(f"Unsupported payload type: {type(payload).__name__}")
+        return NodeCompose(*payload), False
+
     raise TypeError(f"Unsupported payload type: {type(payload).__name__}")
 
 
@@ -140,17 +160,17 @@ def _classify_body(
 class NativeIfJumpNode(BaseNode):
     """IF-condition jump node for native fast-path branching.
 
-    Layout (after ``extract()``):
+    Layout (after `extract()`):
 
-    - ``[pos]`` NativeIfJumpNode
-    - ``[pos+1]`` condition_node — ``call_offset(1)``
-    - ``[pos+2]`` do_slot (single node or bubble)
-    - ``[pos+3]`` NOP (merge / false target)
+    - `[pos]` NativeIfJumpNode
+    - `[pos+1]` condition_node — `call_offset(1)`
+    - `[pos+2]` do_slot (single node or bubble)
+    - `[pos+3]` NOP (merge / false target)
 
-    **Single-node path:** ``CALL condi`` → True: ``CALL do; jmp_near ret`` | False: ``jmp false``.
+    **Single-node path:** `CALL condi` → True: ``CALL do; jmp_near ret`` | False: `jmp false`.
 
-    **Bubble path:** ``CALL condi`` → True: ``jump_far_ptr([do_pos,0])`` (the bubble is a
-    nested container — it flows back to the merge point naturally) | False: ``jmp false``.
+    **Bubble path:** `CALL condi` → True: `jump_far_ptr([do_pos,0])` (the bubble is a
+    nested container — it flows back to the merge point naturally) | False: `jmp false`.
     """
 
     tag: str
@@ -223,12 +243,12 @@ class NativeIfJumpNode(BaseNode):
 class NativeWhileNode(BaseNode):
     """WHILE-condition jump node for native fast-path loops.
 
-    Layout: ``[pos]`` self, ``[pos+1]`` cond, ``[pos+2]`` body (+CONTINUE),
-    ``[pos+3]`` NOP exit.
+    Layout: `[pos]` self, ``[pos+1]`` cond, `[pos+2]` body (+CONTINUE),
+    `[pos+3]` NOP exit.
 
-    Cond true → push ``[pos]`` onto ``_ret_addr_stack``, ``jump_far_ptr``
-    into body.  The body's trailing ``CONTINUE()`` pops and jumps back to
-    ``[pos]``, re‑evaluating the condition.
+    Cond true → push `[pos]` onto ``_ret_addr_stack``, `jump_far_ptr`
+    into body.  The body's trailing `CONTINUE()` pops and jumps back to
+    `[pos]`, re‑evaluating the condition.
 
     Supports nesting: each loop level pushes its own head position.
     """
@@ -291,11 +311,11 @@ class NativeWhileNode(BaseNode):
 class NativeDoWhileNode(BaseNode):
     """DO‑WHILE back-edge node.
 
-    Layout: ``[loop_pos]`` enter → body (+CONTINUE) → ``[pos]`` self,
-    ``[pos+1]`` cond, ``[pos+2]`` NOP exit.
+    Layout: `[loop_pos]` enter → body (+CONTINUE) → `[pos]` self,
+    `[pos+1]` cond, `[pos+2]` NOP exit.
 
-    Cond true → ``jump_near(loop_pos)`` re-enters body via enter.
-    The body's trailing ``CONTINUE()`` pops and jumps back to ``[pos]``
+    Cond true → `jump_near(loop_pos)` re-enters body via enter.
+    The body's trailing `CONTINUE()` pops and jumps back to `[pos]`
     to re‑evaluate the condition.
 
     Supports nesting: each loop level pushes its own head position.
@@ -349,11 +369,11 @@ class NativeBubbleEnterNode(BaseNode):
     """Helper node that enters a body bubble.
 
     Used when a native instruction's body is reached via a jump
-    (DO body, ELSE body).  With ``push=True`` (DO), pushes a sentinel onto
-    ``_ret_addr_stack`` so that ``CONTINUE()`` and ``BREAK_LOOP()`` can pop
-    it and jump to their configured targets.  With ``push=False`` (ELSE,
+    (DO body, ELSE body).  With `push=True` (DO), pushes a sentinel onto
+    `_ret_addr_stack` so that ``CONTINUE()`` and `BREAK_LOOP()` can pop
+    it and jump to their configured targets.  With `push=False` (ELSE,
     since v0.6.1), no push is performed — the bubble flows back to the
-    merge point naturally via ``advance_pointer``, like a Python ``else``
+    merge point naturally via `advance_pointer`, like a Python `else`
     block (no early-return / RET_FAR semantics).
     """
 

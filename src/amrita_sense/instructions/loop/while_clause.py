@@ -8,7 +8,6 @@ from amrita_sense._unsafe import __flags__
 from amrita_sense.exceptions import BreakLoop
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.workfl_ctrl import NOP
-from amrita_sense.node.abc_base import AbstractComposeOriginal
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.runtime.workflow import WorkflowInterpreter
@@ -122,7 +121,7 @@ class WhileClause(SelfCompileInstruction):  # WHILE >> CONDI >> DO >> CHECKUP >>
             raise RuntimeError("Please DO NOT follow a ACTION after a ACTION")
         return lambda node: (self, self._action_set(node))[0]
 
-    def extract(self) -> AbstractComposeOriginal:
+    def extract(self) -> NodeCompose:
         from amrita_sense.instructions.jump import JumpNode
 
         if isinstance(self._action, JumpNode):

@@ -18,11 +18,11 @@ def RET_FAR() -> NodeType[None]:
 
     .. note::
 
-       This instruction uses ``rebase_ptr`` rather than ``jump_to`` — it does
+       This instruction uses `rebase_ptr` rather than `jump_to` — it does
        **not** set the jump flag.  Therefore, after the return, the interpreter
        will naturally advance to the next instruction (return-address + 1).
 
-       Callers should push ``target - 1`` so that ``advance_pointer`` lands on
+       Callers should push `target - 1` so that `advance_pointer` lands on
        the actual target node.
 
     Returns:
@@ -78,13 +78,13 @@ def PUSH_AND_GOTO(
     """Push a return address and jump to another address.
 
     This instruction pushes a return address onto the return-address stack and
-    then jumps to ``to_adr``.  When the target routine later executes
+    then jumps to `to_adr`.  When the target routine later executes
     :func:`RET_FAR`, it will pop this return address and resume execution there.
 
     Args:
         from_adr: The **return address** (alias or absolute address vector) to
             push onto the return-address stack.  This is where execution should
-            resume after :func:`RET_FAR`.  If ``None``, defaults to the top of
+            resume after :func:`RET_FAR`.  If `None`, defaults to the top of
             the **return-address stack** (i.e. the current instruction's return
             address).
         to_adr: The alias or absolute address to **jump to** now.

@@ -88,7 +88,7 @@ class BatchRun(BaseNode):
         self._interpreters = []
 
     def _post_compile(self, compose: NodeComposeRendered) -> None:
-        # ``_origin`` is deleted on first compile; its absence marks this node as already compiled.
+        # `_origin` is deleted on first compile; its absence marks this node as already compiled.
         if not hasattr(self, "_origin"):
             raise RuntimeError(
                 "BATCH_RUN node has already been compiled; "

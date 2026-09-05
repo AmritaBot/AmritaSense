@@ -10,14 +10,14 @@ Usage::
         step2,
     ))
 
-``CONTINUE()`` is a factory that returns a node which, at runtime, pops
-the ``_ret_addr_stack`` and ``jump_far_ptr``'s to the loop head.  The
+`CONTINUE()` is a factory that returns a node which, at runtime, pops
+the `_ret_addr_stack` and `jump_far_ptr`'s to the loop head.  The
 target position is configured at compile-time by the enclosing native
-loop's ``extract()`` via ``_configure_loop_control_nodes()``.
+loop's `extract()` via `_configure_loop_control_nodes()`.
 
-Unlike ``RET_FAR`` (which uses ``rebase_ptr`` and relies on
-``advance_pointer``), ``CONTINUE`` uses ``jump_far_ptr`` — a direct
-jump that sets ``_jump_marked`` so the main loop executes the target
+Unlike `RET_FAR` (which uses `rebase_ptr` and relies on
+`advance_pointer`), ``CONTINUE`` uses `jump_far_ptr` — a direct
+jump that sets `_jump_marked` so the main loop executes the target
 immediately without an intervening advance step.
 """
 
@@ -51,7 +51,7 @@ class _ContinueNode(_LoopControlNode):
 def CONTINUE() -> _ContinueNode:
     """Create a CONTINUE node.
 
-    At compile-time, the enclosing loop's ``extract()`` configures the
-    target position so that ``CONTINUE`` jumps back to the loop head.
+    At compile-time, the enclosing loop's `extract()` configures the
+    target position so that `CONTINUE` jumps back to the loop head.
     """
     return _ContinueNode()

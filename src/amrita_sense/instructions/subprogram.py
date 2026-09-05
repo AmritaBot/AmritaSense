@@ -132,7 +132,7 @@ def CALL(alias: str) -> CallNode:
 
        The target **must not** be :func:`~amrita_sense.instructions.interrupt.INTERRUPT_INTO`
        or :func:`~amrita_sense.instructions.ret2.PUSH_AND_GOTO`.  Using those
-       as a ``CALL`` target will cause undefined behavior because they
+       as a `CALL` target will cause undefined behavior because they
        manipulate the context stack and/or return-address stack in ways
        incompatible with single-step call semantics.
 
@@ -173,7 +173,7 @@ def ARCHIVED_SEGMENT(
 ) -> AbstractComposeOriginal:
     """Define a segment of nodes that is **skipped** at runtime.
 
-    Wraps ``seg`` between a jump and a :func:`~amrita_sense.instructions.workfl_ctrl.NOP`,
+    Wraps `seg` between a jump and a :func:`~amrita_sense.instructions.workfl_ctrl.NOP`,
     so the interpreter skips over the entire segment during normal execution.
     The segment remains in the compose graph and is reachable only via
     explicit jumps — this is the standard way to define **Functions** (the
@@ -184,7 +184,7 @@ def ARCHIVED_SEGMENT(
         seg: The node compose or self-compiling instruction to archive.
 
     Returns:
-        A composition that skips over ``seg`` at runtime.
+        A composition that skips over `seg` at runtime.
     """
     if isinstance(seg, SelfCompileInstruction):
         seg = seg.extract()

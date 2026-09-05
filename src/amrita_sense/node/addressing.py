@@ -46,7 +46,14 @@ class AddressCalculator(AbstractAddressCalculator[NodeComposeRendered]):
         raise NullPointerException(f"address {addr} not found")
 
     def advance(self, pointer: PointerVector) -> bool:
-        """Given a PointerVector, return the next pointer vector, or None if at end."""
+        """Advance *pointer* in place to the next position in the graph.
+
+        Returns True while a next position exists, False once the end of
+        the workflow has been reached.  The pointer is *mutated* in place:
+        entering a nested compose container appends `0`, a regular step
+        replaces the innermost index, and exhausted containers pop back up
+        through their parents to continue at the following sibling.
+        """
         if not pointer:
             return False
         graph: NodeComposeRendered = self._graph

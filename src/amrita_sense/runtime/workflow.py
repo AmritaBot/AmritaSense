@@ -145,7 +145,7 @@ class WorkflowInterpreter(Generic[io_T]):
         self._interpreter_id = uuid4().hex
         if isinstance(node_compose, SelfCompileInstruction):
             node_compose = node_compose.extract().render()
-        # ``node_compose`` is either an already-rendered composition or a
+        # `node_compose` is either an already-rendered composition or a
         # self-compiling instruction that has been rendered above, so the
         # resulting object always conforms to the rendered-compose contract.
         self._graph = cast(AbstractCompose[AddressCalculator], node_compose)
@@ -208,7 +208,7 @@ class WorkflowInterpreter(Generic[io_T]):
         """Return the compiled workflow graph being executed.
 
         Returns:
-            The compiled workflow graph (an ``AbstractCompose``) being executed.
+            The compiled workflow graph (an `AbstractCompose`) being executed.
         """
         return self._graph
 
@@ -262,24 +262,24 @@ class WorkflowInterpreter(Generic[io_T]):
         """Whether cached DI entries are still valid under the current args.
 
         This is a *cache-validity* gate, not a hash-correctness assertion.
-        Any write to ``_ava_args`` / ``_ava_kwargs`` sets this to ``False``
-        (the cached hash may be stale).  Call ``rehash_args()`` to recalculate
+        Any write to `_ava_args` / ``_ava_kwargs`` sets this to `False`
+        (the cached hash may be stale).  Call `rehash_args()` to recalculate
         the hash and restore trust.
         """
         return self._di_cache.hash_trustable
 
     @property
     def args_hash(self) -> int:
-        """Fingerprint of the current args type-signature (see ``_fingerprint_args``)."""
+        """Fingerprint of the current args type-signature (see `_fingerprint_args`)."""
         return self._di_cache.args_hash
 
     def rehash_args(self) -> None:
         """Recalculate the args hash and mark the DI cache as trusted again.
 
         Lifecycle:
-        1. Any setter of ``_ava_args`` / ``_ava_kwargs`` sets ``hash_trustable=False``.
-        2. ``run_step_by`` (and other entry points) call this method after
-           resolving any ``DependsFactory`` instances in the session args.
+        1. Any setter of `_ava_args` / ``_ava_kwargs`` sets `hash_trustable=False`.
+        2. `run_step_by` (and other entry points) call this method after
+           resolving any `DependsFactory` instances in the session args.
         3. If the type-signature actually changed, clear the LRU payload
            so stale entries are not served.
         """
@@ -340,9 +340,9 @@ class WorkflowInterpreter(Generic[io_T]):
         This method creates a new WorkflowInterpreter instance that shares the same
         state, but you can custom the workflow graph and middleware for the sub-interpreter.
 
-        Since v0.3.2, ``SuspendObjectStream`` is concurrency-safe via the
+        Since v0.3.2, `SuspendObjectStream` is concurrency-safe via the
         **CLCA (Cross Loop Callback-Allocate)** signal design pattern, so the
-        parent's ``object_io`` can be safely shared with child interpreters.
+        parent's `object_io` can be safely shared with child interpreters.
 
         Args:
             compose (AbstractCompose[AddressCalculator] | None): The workflow graph for the sub-interpreter.
@@ -352,9 +352,9 @@ class WorkflowInterpreter(Generic[io_T]):
                 If UNSET, it will use the same middleware as the parent.
                 If None, it will not use any middleware.
             object_io (io_T | None): The object I/O stream for the sub-interpreter.
-                If None, reuses the parent interpreter's ``object_io`` instance.
-                Safe sharing is guaranteed for ``SuspendObjectStream`` (CLCA-safe since v0.3.2);
-                other ``io_T`` subtypes must ensure their own thread safety if passed explicitly.
+                If None, reuses the parent interpreter's `object_io` instance.
+                Safe sharing is guaranteed for `SuspendObjectStream` (CLCA-safe since v0.3.2);
+                other `io_T` subtypes must ensure their own thread safety if passed explicitly.
             ava_args (tuple | None): The arguments to be **merge** and passed to the sub-interpreter.
                 If None, it will use the same arguments as the parent.
             ava_kwargs (dict[str, Any] | None): The keyword arguments to **merge** and be passed to the sub-interpreter.
@@ -891,9 +891,9 @@ class WorkflowInterpreter(Generic[io_T]):
     async def _refresh_di_cache_full(self):
         """Pre-warm the DI cache by resolving every node in the graph.
 
-        Only safe during initialization (after ``rehash_args()`` has been
-        called).  Requires ``hash_trustable=True`` — otherwise the cache
-        keys would be built from a stale ``args_hash``.
+        Only safe during initialization (after `rehash_args()` has been
+        called).  Requires `hash_trustable=True` — otherwise the cache
+        keys would be built from a stale `args_hash`.
         """
         if not self._di_cache.hash_trustable:
             raise DependsResolveFailed(
@@ -1089,11 +1089,11 @@ class WorkflowInterpreter(Generic[io_T]):
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         """Resolve static dependencies and cacheable factories for a node.
 
-        Returns a ``(static_kwargs, non_cacheable_factories)`` tuple.
+        Returns a `(static_kwargs, non_cacheable_factories)` tuple.
 
-        *   ``cacheable=True`` factories are resolved immediately — their
-            results are merged into ``static_kwargs`` and **will be cached**.
-        *   ``cacheable=False`` (default) factories are returned as-is in the
+        *   `cacheable=True` factories are resolved immediately — their
+            results are merged into `static_kwargs` and **will be cached**.
+        *   `cacheable=False` (default) factories are returned as-is in the
             second dict for **per-call** resolution.
         """
         fun = node.func
@@ -1146,20 +1146,20 @@ class WorkflowInterpreter(Generic[io_T]):
 
         Dependency resolution has **two orthogonal concerns**:
 
-        1. **cacheable vs non-cacheable** — handled by ``_rslv_node_static``.
-           ``cacheable=True`` factories are resolved at cache-write time and
-           merged into ``static_kwargs``.  ``cacheable=False`` factories are
+        1. **cacheable vs non-cacheable** — handled by `_rslv_node_static`.
+           `cacheable=True` factories are resolved at cache-write time and
+           merged into `static_kwargs`.  `cacheable=False` factories are
            stored as-is and re-resolved on every call.
 
-        2. **cache validity** — controlled by ``hash_trustable`` / ``no_cache`` /
-           ``WORKFLOW_DI_NO_CACHE``.  When the cache is not trusted, we still
+        2. **cache validity** — controlled by `hash_trustable` / `no_cache` /
+           `WORKFLOW_DI_NO_CACHE`.  When the cache is not trusted, we still
            split cacheable/non-cacheable factories, but skip the LRU read/write.
 
         Args:
             addr_getter: Optional function to retrieve the node at a specific address.
             *extra_args: Additional positional arguments for the node execution.
             no_cache: If True, skip the LRU cache for this call (still respects
-                      ``cacheable`` flags via ``_rslv_node_static``).
+                      `cacheable` flags via `_rslv_node_static`).
             **extra_kwargs: Additional keyword arguments for the node execution.
 
         Returns:

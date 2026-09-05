@@ -1,7 +1,7 @@
 """Tests for v0.4.2 DI cache system: DICache, _fingerprint_args, conflict flags, etc.
 
-Every test runs under a fresh ``_Flags()`` instance patched into
-``amrita_sense._unsafe`` and ``amrita_sense.runtime.workflow``,
+Every test runs under a fresh `_Flags()` instance patched into
+`amrita_sense._unsafe` and `amrita_sense.runtime.workflow`,
 so no global flag state leaks between tests or downstream suites.
 """
 

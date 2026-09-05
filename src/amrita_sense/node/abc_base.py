@@ -56,12 +56,13 @@ class AbstractComposeOriginal(ABC, Generic[Compose_T]):
         """
         ...
 
+    @abstractmethod
     def render(self) -> Compose_T:
         """Compile this composition into an executable workflow graph.
 
         Concrete source compositions override this to build their rendered
-        graph.  The default implementation `NodeCompose` returns a
-        `NodeComposeRendered` via the standard compilation pipeline.
+        graph.  `NodeCompose`, for example, returns a `NodeComposeRendered`
+        via the standard compilation pipeline.
 
         Returns:
             A `Compose_T` instance representing the compiled workflow.
@@ -179,5 +180,12 @@ class AbstractAddressCalculator(ABC, Generic[Compose_T]):
 
     @abstractmethod
     def advance(self, pointer: PointerVector) -> bool:
-        """Given a PointerVector, return the next pointer vector, or None if at end."""
+        """Advance *pointer* in place to the next position in the graph.
+
+        Returns True while a next position exists, False once the end of
+        the workflow has been reached.  The pointer is *mutated* in place:
+        entering a nested compose container appends `0`, a regular step
+        replaces the innermost index, and exhausted containers pop back up
+        through their parents to continue at the following sibling.
+        """
         ...

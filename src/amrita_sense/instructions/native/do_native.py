@@ -4,7 +4,7 @@ Usage::
 
     NATIVE_DO(body).WHILE(condition)
 
-``body`` is always wrapped as ``NodeCompose(body, CONTINUE())`` so that
+`body` is always wrapped as `NodeCompose(body, CONTINUE())` so that
 the loop can iterate.  Single-node bodies are auto‑wrapped.
 """
 
@@ -30,20 +30,22 @@ from amrita_sense.node.self_compile import SelfCompileInstruction
 class NativeDoClause(SelfCompileInstruction):
     """Fast-path DO-WHILE loop.
 
-    Layout: ``[0]`` enter, ``[1]`` body (+CONTINUE), ``[2]`` do_while,
-    ``[3]`` cond, ``[4]`` NOP exit.
+    Layout: `[0]` enter, ``[1]`` body (+CONTINUE), `[2]` do_while,
+    `[3]` cond, `[4]` NOP exit.
 
-    Enter pushes and ``jump_far_ptr``'s into body every iteration.
-    ``CONTINUE()`` pops and jumps to ``[2]`` do_while to re‑check.
-    ``BREAK_LOOP()`` pops and jumps to ``[4]`` NOP exit.
+    Enter pushes and `jump_far_ptr`'s into body every iteration.
+    `CONTINUE()` pops and jumps to `[2]` do_while to re‑check.
+    `BREAK_LOOP()` pops and jumps to `[4]` NOP exit.
     """
 
-    _body: BaseNode | NodeCompose | SelfCompileInstruction
+    _body: BaseNode | AbstractComposeOriginal | SelfCompileInstruction
     _condition: Node[bool] | None
 
     __slots__ = ("_body", "_condition")
 
-    def __init__(self, body: BaseNode | NodeCompose | SelfCompileInstruction) -> None:
+    def __init__(
+        self, body: BaseNode | AbstractComposeOriginal | SelfCompileInstruction
+    ) -> None:
         self._body = body
         self._condition = None
 
@@ -59,7 +61,7 @@ class NativeDoClause(SelfCompileInstruction):
     ### Compile ###
 
     @override
-    def extract(self) -> AbstractComposeOriginal:
+    def extract(self) -> NodeCompose:
         if self._condition is None:
             raise RuntimeError("NATIVE_DO requires .WHILE(condition) before use")
 
@@ -70,7 +72,7 @@ class NativeDoClause(SelfCompileInstruction):
         body_slot: NodeCompose = (
             NodeCompose(body, CONTINUE())
             if is_single
-            else NodeCompose(*cast(NodeCompose, body)._graph, CONTINUE())
+            else NodeCompose(*cast(NodeCompose, body), CONTINUE())
         )
 
         # DFS configure CONTINUE/BREAK_LOOP inside body_slot.
@@ -90,13 +92,17 @@ class NativeDoClause(SelfCompileInstruction):
         )
 
 
-def NATIVE_DO(body: BaseNode | NodeCompose | SelfCompileInstruction) -> NativeDoClause:
+def NATIVE_DO(
+    body: BaseNode | AbstractComposeOriginal | SelfCompileInstruction,
+) -> NativeDoClause:
     """Create a native fast-path DO-WHILE loop.
 
     Args:
-        body: Loop body — single ``BaseNode`` or a composition.
+        body: Loop body — single `BaseNode` or a source composition
+            (`AbstractComposeOriginal`, e.g. `NodeCompose` or a
+            custom composition).
 
     Returns:
-        ``NativeDoClause`` — call ``.WHILE(condition)`` to set the condition.
+        `NativeDoClause` — call `.WHILE(condition)` to set the condition.
     """
     return NativeDoClause(body)

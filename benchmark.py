@@ -92,9 +92,9 @@ def _prewarm():
 
 
 def invoke(runs: int = RUNS, verbose: bool = True) -> list[Result]:
-    """Run every registered benchmark ``runs`` times.
+    """Run every registered benchmark `runs` times.
 
-    Returns a list of averaged ``Result`` objects (one per scenario).
+    Returns a list of averaged `Result` objects (one per scenario).
     If *verbose* is True, per-run timings and the final report are printed.
     """
     _prewarm()

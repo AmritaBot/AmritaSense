@@ -4,7 +4,7 @@ Usage::
 
     NATIVE_WHILE(condition).ACTION(body)
 
-``body`` is always wrapped as ``NodeCompose(body, CONTINUE())`` so that
+`body` is always wrapped as `NodeCompose(body, CONTINUE())` so that
 the loop can iterate.  Single-node bodies are auto‑wrapped.
 """
 
@@ -29,16 +29,16 @@ from amrita_sense.node.self_compile import SelfCompileInstruction
 class NativeWhileClause(SelfCompileInstruction):
     """Fast-path WHILE loop.
 
-    Layout: ``[0]`` while_node, ``[1]`` cond, ``[2]`` body (+CONTINUE),
-    ``[3]`` NOP exit.
+    Layout: `[0]` while_node, ``[1]`` cond, `[2]` body (+CONTINUE),
+    `[3]` NOP exit.
 
-    While-node pushes ``[0]``, ``jump_far_ptr`` into body.  The body's
-    ``CONTINUE()`` pops and ``jump_far_ptr``'s back to ``[0]``.
-    ``BREAK_LOOP()`` pops and jumps to ``[3]``.
+    While-node pushes `[0]`, `jump_far_ptr` into body.  The body's
+    `CONTINUE()` pops and ``jump_far_ptr``'s back to `[0]`.
+    `BREAK_LOOP()` pops and jumps to `[3]`.
     """
 
     _condition: Node[bool]
-    _body: BaseNode | NodeCompose | SelfCompileInstruction | None
+    _body: BaseNode | AbstractComposeOriginal | SelfCompileInstruction | None
 
     __slots__ = ("_body", "_condition")
 
@@ -48,7 +48,9 @@ class NativeWhileClause(SelfCompileInstruction):
 
     ### Fluent API ###
 
-    def ACTION(self, body: BaseNode | NodeCompose | SelfCompileInstruction) -> Self:
+    def ACTION(
+        self, body: BaseNode | AbstractComposeOriginal | SelfCompileInstruction
+    ) -> Self:
         """Set the loop body."""
         if self._body is not None:
             raise TypeError("ACTION already set on NativeWhileClause")
@@ -58,7 +60,7 @@ class NativeWhileClause(SelfCompileInstruction):
     ### Compile ###
 
     @override
-    def extract(self) -> AbstractComposeOriginal:
+    def extract(self) -> NodeCompose:
         if self._body is None:
             raise RuntimeError("NATIVE_WHILE requires .ACTION(body) before use")
 
@@ -69,7 +71,7 @@ class NativeWhileClause(SelfCompileInstruction):
         body_slot: NodeCompose = (
             NodeCompose(body, CONTINUE())
             if is_single
-            else NodeCompose(*cast(NodeCompose, body)._graph, CONTINUE())
+            else NodeCompose(*cast(NodeCompose, body), CONTINUE())
         )
 
         # DFS configure CONTINUE/BREAK_LOOP inside body_slot.
@@ -96,6 +98,8 @@ def NATIVE_WHILE(condition: Node[bool]) -> NativeWhileClause:
         condition: Boolean condition node.
 
     Returns:
-        ``NativeWhileClause`` — call ``.ACTION(body)`` to set the loop body.
+        `NativeWhileClause` — call `.ACTION(body)` to set the loop body
+        (a single `BaseNode` or a source composition, e.g. `NodeCompose`
+        or a custom `AbstractComposeOriginal`).
     """
     return NativeWhileClause(condition)

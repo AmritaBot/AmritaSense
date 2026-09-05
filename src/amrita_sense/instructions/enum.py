@@ -1,16 +1,16 @@
 """Enumeration of all built-in instruction tags.
 
-Each member corresponds to the runtime ``tag`` attribute of a built-in
+Each member corresponds to the runtime `tag` attribute of a built-in
 AmritaSense instruction node.  Tags fall into two categories:
 
 **Explicit tags**
-    Set directly via ``@Node("...")`` or ``_init(..., tag="...")``.
+    Set directly via `@Node("...")` or `_init(..., tag="...")`.
     These are the stable, human-readable identifiers.
 
 **Auto-generated tags** (:attr:`AUTO_PREFIX`)
-    Produced by the ``BaseNode._init`` fallback ``f"NodeSuspend::{func.__name__}"``
+    Produced by the `BaseNode._init` fallback `f"NodeSuspend::{func.__name__}"`
     when no explicit tag is supplied.  Multiple node types may share the same
-    auto-generated tag (e.g. ``NodeSuspend::__call__``), so these are primarily
+    auto-generated tag (e.g. `NodeSuspend::__call__`), so these are primarily
     useful for debugging rather than unique identification.
 """
 
@@ -65,7 +65,7 @@ class BuiltinTags(str, Enum):
 
     #  Event system
     EVENT_TRIGGER_CALL = "EventTrigger::__call__"
-    """Tag for the internal ``EventTrigger`` node in :func:`~amrita_sense.instructions.trigger_event.TRIGGER_EVENT`."""
+    """Tag for the internal `EventTrigger` node in :func:`~amrita_sense.instructions.trigger_event.TRIGGER_EVENT`."""
 
     TRIGGER_CONSTRUCTOR = "TriggerInstruction::constructor"
     """Tag for the event-constructor node in :func:`~amrita_sense.instructions.trigger_event.TRIGGER_EVENT`."""
@@ -92,27 +92,27 @@ AUTO_TAGS: dict[LiteralString, str] = {
 }
 
 """
-Auto-generated tags for built-in instructions whose nodes pass ``tag=None``.
+Auto-generated tags for built-in instructions whose nodes pass `tag=None`.
 
-These are produced by the ``BaseNode._init`` fallback and are shared
+These are produced by the `BaseNode._init` fallback and are shared
 across many node types — they are **not** unique identifiers.
 
 =============================== ============================================
 Tag                             Instruction(s)
 =============================== ============================================
-``NodeSuspend::_no_operation``  :data:`~amrita_sense.instructions.workfl_ctrl.NOP`
-``NodeSuspend::_interrput_operation`` :data:`~amrita_sense.instructions.workfl_ctrl.INTERRUPT`
-``NodeSuspend::_interrupt_keep_ctx``  :data:`~amrita_sense.instructions.workfl_ctrl.INTERRUPT_KEEP_CTX`
-``NodeSuspend::_jump``          :func:`~amrita_sense.instructions.jump.GOTO` (JumpNode)
-``NodeSuspend::__call__``       SubprogramJumpNode, CallNode, NativeIfJumpNode,
+`NodeSuspend::_no_operation`  :data:`~amrita_sense.instructions.workfl_ctrl.NOP`
+`NodeSuspend::_interrput_operation` :data:`~amrita_sense.instructions.workfl_ctrl.INTERRUPT`
+`NodeSuspend::_interrupt_keep_ctx`  :data:`~amrita_sense.instructions.workfl_ctrl.INTERRUPT_KEEP_CTX`
+`NodeSuspend::_jump`          :func:`~amrita_sense.instructions.jump.GOTO` (JumpNode)
+`NodeSuspend::__call__`       SubprogramJumpNode, CallNode, NativeIfJumpNode,
                                 NativeWhileNode, NativeDoWhileNode,
                                 NativeBubbleEnterNode, FuncBlock
-``NodeSuspend::_do``            ConditionJumpNode (IF chain)
-``NodeSuspend::_else_worker``   ELSE clause worker node
-``NodeSuspend::_do_worker``     DONode
-``NodeSuspend::_do_while_worker`` DowhileNode
-``NodeSuspend::_while_worker``  WhileNode
-``NodeSuspend::_while_checkup`` CheckUpNode
+`NodeSuspend::_do`            ConditionJumpNode (IF chain)
+`NodeSuspend::_else_worker`   ELSE clause worker node
+`NodeSuspend::_do_worker`     DONode
+`NodeSuspend::_do_while_worker` DowhileNode
+`NodeSuspend::_while_worker`  WhileNode
+`NodeSuspend::_while_checkup` CheckUpNode
 =============================== ============================================
 """
 

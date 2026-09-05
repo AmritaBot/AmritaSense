@@ -137,7 +137,7 @@ class IFClause(SelfCompileInstruction, Condition):
         self.condition = condition
         self.do = do
 
-    def extract(self) -> AbstractComposeOriginal:
+    def extract(self) -> NodeCompose:
         return NodeCompose(
             *ConditionJumpNode.make_chunk(self.condition, self.do, 3, 3),
             NOP,
@@ -185,7 +185,7 @@ class ELIFClause(SelfCompileInstruction, Condition):
     def ELSE(self) -> Callable[[Node | None], "ELSEClause"]:
         return lambda node=None: ELSEClause(self, node or NOP)
 
-    def extract(self) -> AbstractComposeOriginal:
+    def extract(self) -> NodeCompose:
         total_length = (
             3  # IF + CONDI + DO
             + 3  # Main ELIF Clause
@@ -266,7 +266,7 @@ class ELSEClause(SelfCompileInstruction, Condition):
         self.parent = parent
         self.top = parent if isinstance(parent, IFClause) else parent.parent
 
-    def extract(self) -> AbstractComposeOriginal:
+    def extract(self) -> NodeCompose:
         top_if = self.top
         parent = self.parent
 

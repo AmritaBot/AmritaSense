@@ -361,10 +361,12 @@ class DLLCompose(AbstractComposeOriginal[DLLComposeProxy]):
 
         Raises:
             GraphBuildError: If no proxy is bound, meaning the compose was
-                never built.
+                never built, or if *comp* is not a `NodeCompose`.
         """
         if self._proxy is None:
             raise GraphBuildError("DLLCompose: No proxy to apply to")
+        if not isinstance(comp, NodeCompose):
+            raise GraphBuildError("DLLCompose: Only NodeCompose is allowed.")
         self._compose = comp
         self._proxy._apply(comp)
 

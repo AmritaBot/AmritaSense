@@ -168,7 +168,7 @@ def backtrace(inter: WorkflowInterpreter) -> None:
 def list_nodes(inter: WorkflowInterpreter) -> None:
     """Print every node in the workflow graph with its address and tag.
 
-    Like ``dis.dis()`` for AmritaSense workflows.
+    Like `dis.dis()` for AmritaSense workflows.
     """
     graph = inter.get_graph()
     nodes = _walk_graph(graph)
