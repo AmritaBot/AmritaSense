@@ -25,7 +25,7 @@ def test_do_while_extract_structure():
     extracted = clause.extract()
 
     # DONode, action, DowhileNode, condition, NOP
-    assert len(extracted._graph) == 5
+    assert len(extracted._graph) == 5  # type: ignore[reportAttributeAccessIssue]
 
 
 def test_while_action_jumpnode_raises():
@@ -46,4 +46,4 @@ def test_while_extract_normal():
     extracted = w.extract()
 
     # WhileNode, condition, action, CheckUpNode, NOP
-    assert len(extracted._graph) == 5
+    assert len(extracted._graph) == 5  # type: ignore[reportAttributeAccessIssue]

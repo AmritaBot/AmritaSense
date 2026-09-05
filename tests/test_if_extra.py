@@ -20,8 +20,8 @@ def test_if_simple_extract():
     extracted = if_clause.extract()
 
     # Base IF chunk: ConditionJumpNode, condition, do, then NOP
-    assert len(extracted._graph) == 4
-    assert extracted._graph[-1] is NOP
+    assert len(extracted._graph) == 4  # type: ignore[reportAttributeAccessIssue]
+    assert extracted._graph[-1] is NOP  # type: ignore[reportAttributeAccessIssue]
 
 
 def test_if_with_elif_else_extract():
@@ -36,5 +36,5 @@ def test_if_with_elif_else_extract():
     extracted = composed.extract()
 
     # There should be more than the base 4 elements and end with NOP
-    assert len(extracted._graph) >= 7
-    assert extracted._graph[-1] is NOP
+    assert len(extracted._graph) >= 7  # type: ignore[reportAttributeAccessIssue]
+    assert extracted._graph[-1] is NOP  # type: ignore[reportAttributeAccessIssue]

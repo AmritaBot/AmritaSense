@@ -32,8 +32,8 @@ def test_try_full_chain_extract():
     extracted = tc.extract()
 
     # First element should be a TryNode instance
-    assert isinstance(extracted._graph[0], TryNode)
+    assert isinstance(extracted._graph[0], TryNode)  # type: ignore[reportAttributeAccessIssue]
     # Ensure the composed graph contains the provided nodes
-    assert any(n is catch_node for n in extracted._graph)
-    assert any(n is then_node for n in extracted._graph)
-    assert any(n is fin_node for n in extracted._graph)
+    assert any(n is catch_node for n in extracted._graph)  # type: ignore[reportAttributeAccessIssue]
+    assert any(n is then_node for n in extracted._graph)  # type: ignore[reportAttributeAccessIssue]
+    assert any(n is fin_node for n in extracted._graph)  # type: ignore[reportAttributeAccessIssue]

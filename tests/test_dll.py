@@ -40,7 +40,7 @@ def test_dll_apply_hot_patch(log):
 
     log.clear()
     # Rebase: recompile a new payload into the same slot.
-    dll.apply(b >> a)
+    dll.apply(b >> a)  # type: ignore[reportArgumentType]
     asyncio.run(WorkflowInterpreter(r_comp).run())
     assert log == ["A", "B", "A"]
 
@@ -60,7 +60,7 @@ def test_dll_repeated_apply_keeps_working(log):
         assert log == ["A", "C"]
 
     log.clear()
-    dll.apply(b >> c)
+    dll.apply(b >> c)  # type: ignore[reportArgumentType]
     asyncio.run(WorkflowInterpreter(r_comp).run())
     assert log == ["A", "B", "C"]
 
@@ -68,7 +68,7 @@ def test_dll_repeated_apply_keeps_working(log):
 def test_dll_constructor_rejects_bare_node(log):
     a = make_node("A", log)
     with pytest.raises(GraphBuildError):
-        DLLCompose(a)
+        DLLCompose(a)  # type: ignore[reportArgumentType]
 
 
 def test_dll_constructor_rejects_rendered_compose(log):
@@ -83,7 +83,7 @@ def test_dll_rshift_extends_payload_and_chains(log):
     dll = DLLCompose(a.as_compose())
     # __rshift__ mutates the wrapped source compose and returns self.
     assert dll >> b.as_compose() is dll
-    dll >> c.as_compose()
+    dll >> c.as_compose()  # type: ignore
     r_comp = (NOP >> dll >> NOP).render()
     asyncio.run(WorkflowInterpreter(r_comp).run())
     assert log == ["A", "B", "C"]
@@ -175,7 +175,7 @@ def test_dll_failed_apply_rolls_back_proxy_state(log):
 
     # A bare node has no get_builder(), so the rebase aborts.
     with pytest.raises(AttributeError):
-        dll.apply(a)
+        dll.apply(a)  # type: ignore[reportArgumentType]
 
     # The failed lifecycle rolled the proxy back to its unbuilt state.
     with pytest.raises(GraphBuildError):
