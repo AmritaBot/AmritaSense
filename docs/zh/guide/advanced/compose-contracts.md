@@ -52,21 +52,29 @@ from amrita_sense.node.abc_base import (
 
 ### 源组合契约：`AbstractComposeOriginal`
 
-任何源组合都应支持链式追加与遍历：
+任何源组合都应支持链式追加、遍历与一个构建器钩子：
 
 - `__iter__()` —— 产出子节点 / 嵌套组合 / 自编译指令。
 - `__rshift__(other)` —— 追加一个元素并返回 `self`。
-- `render()` —— 构建编译后的工作流图。
+- `get_builder()`（抽象类方法）—— 声明该源组合编译成哪种具体渲染图类（`AbstractCompose` 子类型）。`NodeCompose` 返回 `NodeComposeRendered`。
+- `render()` —— 构建编译后的工作流图。标准管线通过 `get_builder()` 构造渲染图；`NodeCompose.render()` 是通常的入口。
 
 ### 渲染图契约：`AbstractCompose[Calc_T]`
 
-这是**运行时消费的只读接口**——解释器、调试器与节点的 `_post_compile` 钩子从不构建或修改渲染图，只读取它：
+这是运行时消费的接口——解释器、调试器与节点的 `_post_compile` 钩子只**读取**渲染图，从不构建或修改它。契约分为两个面：
+
+读取面（运行时与钩子使用）：
 
 - `calc` —— 绑定的地址计算器（`resolve_alias()`、`find_addr()`、`find_addr_safe()`、`advance()`）。
 - `__getitem__(key)` / `__iter__()` / `__len__()` —— 按索引 / 顺序访问子条目。
 - `__bool__()` —— 为空或尚未构建时返回 `False`。
 
-构造与编译成员（`__init__`、`_build`）**刻意不**属于此契约——它们是 `NodeComposeRendered` 等具体实现的事。保持契约最小化，正是测试里廉价编写假渲染图的关键。
+构建面（`render()` 以及渲染器遇到嵌套源组合时使用）：
+
+- `__init__(compose)` —— 由源组合构造渲染图。
+- `_build(current_path, top)` —— 原地编译图；`current_path` / `top` 仅在顶层图时保持 `None`。
+
+构建面的两个成员都是抽象的，因此任何源组合都能通过各自的 `get_builder()` 被渲染。Mock 只需实现被测到的成员——钩子测试的假图可以把 `_build` 做成空操作。
 
 ## 示例 1 —— 为 `_post_compile` 钩子 Mock 渲染图
 
@@ -122,6 +130,14 @@ class FakeRendered(AbstractCompose[FakeCalculator]):
 
     def __len__(self) -> int:
         return len(self._items)
+
+    def _build(
+        self,
+        current_path: list[int] | None = None,
+        top: AbstractCompose | None = None,
+    ) -> None:
+        """空操作：钩子测试从不渲染真实图。"""
+        return None
 ```
 
 把它喂给一个在 `_post_compile` 中通过 `compose.calc` 解析别名的节点：
@@ -150,11 +166,11 @@ node._post_compile(FakeRendered({"target": [1, 2]}))
 assert node() == [1, 2]
 ```
 
-全程没有构建任何工作流、也没有构造 `NodeComposeRendered`——这个假图用五个小成员就满足了整个渲染图契约。
+全程没有构建任何工作流、也没有构造 `NodeComposeRendered`——这个假图用少量小成员就满足了整个渲染图契约（其 `_build` 为空操作，因为钩子测试从不渲染）。
 
 ## 示例 2 —— 自定义源组合
 
-实现了 `AbstractComposeOriginal` 的源组合可以嵌入更大的工作流，渲染器纯粹通过契约（遍历 + `render()`）消费它。
+实现了 `AbstractComposeOriginal` 的源组合可以嵌入更大的工作流。渲染器纯粹通过契约消费它——遍历子元素，并用 `get_builder()` 构造嵌套渲染图；它从不调用嵌套组合的 `render()`（该方法只是顶层入口）。
 
 ```python
 from amrita_sense.node.abc_base import AbstractComposeOriginal
@@ -176,8 +192,12 @@ class RepeatTwice(AbstractComposeOriginal["NodeComposeRendered"]):
         self._nodes.append(other)
         return self
 
+    @classmethod
+    def get_builder(cls) -> type[NodeComposeRendered]:
+        return NodeComposeRendered
+
     def render(self) -> NodeComposeRendered:
-        rendered = NodeComposeRendered(self)
+        rendered = type(self).get_builder()(self)
         rendered._build()
         return rendered
 
@@ -186,7 +206,7 @@ workflow = step1 >> RepeatTwice(step2, step3)  # 产生 NodeCompose（默认实�
 rendered = workflow.render()
 ```
 
-`RepeatTwice(step2, step3)` 被渲染成一个嵌套 bubble，其内部图是 `step2, step2, step3, step3`——渲染器对待它与 `NodeCompose` 完全相同，因为二者满足同一个源组合契约。
+`RepeatTwice(step2, step3)` 被渲染成一个嵌套 bubble，其内部图是 `step2, step2, step3, step3`——渲染器通过 `get_builder()` 构造嵌套容器，因此只要二者声明同一个构建器，`RepeatTwice` 就与 `NodeCompose` 被完全同等地处理。
 
 ## 与 `SelfCompileInstruction` 的关系
 
@@ -196,5 +216,5 @@ rendered = workflow.render()
 
 - **默认路径**：继续使用 `NodeCompose` / `NodeComposeRendered` —— 它们完整、已导出、值得推荐。
 - **测试钩子 / 运行时**：实现 `AbstractCompose`（若 `calc` 需要回答查找，再实现 `AbstractAddressCalculator`），只实现被测成员。
-- **新型容器**：需要不同的*源*容器时继承 `AbstractComposeOriginal`；需要不同的*渲染后*容器时实现 `AbstractCompose`。
-- **永远不要**把仅编译期使用的成员加进渲染图契约——运行时从不调用它们，加了只会让 Mock 变重，毫无收益。
+- **新型容器**：需要不同的*源*容器时继承 `AbstractComposeOriginal`；需要不同的*渲染后*容器时实现 `AbstractCompose`。务必声明 `get_builder()`，渲染器才能知道你的源组合编译成哪种渲染图类。
+- **读取面保持最小**：只实现测试真正用到的成员。由于 `__init__` / `_build` 已是渲染图契约的一部分，纯读取的假图（例如钩子测试）应把 `_build` 存根为空操作，而不是构建真实图。

@@ -52,21 +52,29 @@ from amrita_sense.node.abc_base import (
 
 ### The source-composition contract: `AbstractComposeOriginal`
 
-Any source composition is expected to support chaining and iteration:
+Any source composition is expected to support chaining, iteration and a builder hook:
 
 - `__iter__()` — yield the child nodes / nested compositions / self-compile instructions.
 - `__rshift__(other)` — append another element and return `self`.
-- `render()` — build the compiled workflow graph.
+- `get_builder()` (abstract classmethod) — declare which concrete rendered-graph class (an `AbstractCompose` subtype) this source composition compiles into. `NodeCompose` returns `NodeComposeRendered`.
+- `render()` — build the compiled workflow graph. The standard pipeline constructs the rendered graph through `get_builder()`; `NodeCompose.render()` is the usual entry point.
 
 ### The rendered-graph contract: `AbstractCompose[Calc_T]`
 
-This is the **read-only interface the runtime consumes** — the interpreter, the debugger and node `_post_compile` hooks never build or mutate a rendered graph, they only read it:
+This is the interface the runtime consumes — the interpreter, the debugger and node `_post_compile` hooks only **read** a rendered graph and never build or mutate it. The contract has two surfaces:
+
+Read side (used at runtime and by hooks):
 
 - `calc` — the bound address calculator (`resolve_alias()`, `find_addr()`, `find_addr_safe()`, `advance()`).
 - `__getitem__(key)` / `__iter__()` / `__len__()` — indexed / sequential access to child entries.
 - `__bool__()` — `False` while empty or not yet built.
 
-Construction and compilation members (`__init__`, `_build`) are intentionally **not** part of this contract — they belong to concrete implementations such as `NodeComposeRendered`. Keeping the contract minimal is what makes a fake rendered graph cheap to write in tests.
+Build side (used by `render()` and by the renderer when it meets a nested source composition):
+
+- `__init__(compose)` — construct the rendered graph from its source composition.
+- `_build(current_path, top)` — compile the graph in place; `current_path` / `top` stay `None` only for the top-level graph.
+
+Both build-side members are abstract, so any source composition can be rendered through its own `get_builder()`. Mocks only need to implement what they exercise — a hook-test fake can make `_build` a no-op.
 
 ## Example 1 — Mocking a rendered graph for a `_post_compile` hook
 
@@ -122,6 +130,14 @@ class FakeRendered(AbstractCompose[FakeCalculator]):
 
     def __len__(self) -> int:
         return len(self._items)
+
+    def _build(
+        self,
+        current_path: list[int] | None = None,
+        top: AbstractCompose | None = None,
+    ) -> None:
+        """No-op: hook tests never render a real graph."""
+        return None
 ```
 
 Feeding the fake to a node whose `_post_compile` resolves an alias through `compose.calc`:
@@ -150,11 +166,11 @@ node._post_compile(FakeRendered({"target": [1, 2]}))
 assert node() == [1, 2]
 ```
 
-No workflow was built and no `NodeComposeRendered` was constructed — the fake satisfies the whole rendered-graph contract with five small members.
+No workflow was built and no `NodeComposeRendered` was constructed — the fake satisfies the whole rendered-graph contract with a handful of small members (its `_build` is a no-op because hook tests never render).
 
 ## Example 2 — A custom source composition
 
-A source composition that implements `AbstractComposeOriginal` can be embedded into a larger workflow and is consumed by the renderer purely through its contract (iteration + `render()`).
+A source composition that implements `AbstractComposeOriginal` can be embedded into a larger workflow. The renderer consumes it purely through its contract — iterating over the children and constructing the nested rendered graph via `get_builder()`; it never calls the nested composition's `render()` (that method is only the top-level entry point).
 
 ```python
 from amrita_sense.node.abc_base import AbstractComposeOriginal
@@ -176,8 +192,12 @@ class RepeatTwice(AbstractComposeOriginal["NodeComposeRendered"]):
         self._nodes.append(other)
         return self
 
+    @classmethod
+    def get_builder(cls) -> type[NodeComposeRendered]:
+        return NodeComposeRendered
+
     def render(self) -> NodeComposeRendered:
-        rendered = NodeComposeRendered(self)
+        rendered = type(self).get_builder()(self)
         rendered._build()
         return rendered
 
@@ -186,7 +206,7 @@ workflow = step1 >> RepeatTwice(step2, step3)  # NodeCompose (default impl)
 rendered = workflow.render()
 ```
 
-`RepeatTwice(step2, step3)` is rendered as a nested bubble whose graph contains `step2, step2, step3, step3` — the renderer treats it exactly like a `NodeCompose` because both satisfy the same source-composition contract.
+`RepeatTwice(step2, step3)` is rendered as a nested bubble whose graph contains `step2, step2, step3, step3` — the renderer constructs a nested container through its `get_builder()`, so `RepeatTwice` is treated exactly like a `NodeCompose` as long as both declare the same builder.
 
 ## Relationship to `SelfCompileInstruction`
 
@@ -196,5 +216,5 @@ rendered = workflow.render()
 
 - **Default path**: keep using `NodeCompose` / `NodeComposeRendered` — they are complete, exported and recommended.
 - **Testing hooks / runtimes**: implement `AbstractCompose` (plus `AbstractAddressCalculator` if `calc` needs to answer lookups) with just the members under test.
-- **New container kinds**: subclass `AbstractComposeOriginal` when you need a different _source_ container; implement `AbstractCompose` when you need a different _rendered_ container.
-- **Never** put compilation-only members on a rendered-graph contract — the runtime never calls them, and adding them makes mocks heavier for no benefit.
+- **New container kinds**: subclass `AbstractComposeOriginal` when you need a different _source_ container; implement `AbstractCompose` when you need a different _rendered_ container. Always declare `get_builder()` so the renderer knows which rendered class your source composition compiles into.
+- **Read side stays minimal**: only implement the members a test actually exercises. Because `__init__` / `_build` are now part of the rendered-graph contract, a pure-read fake (e.g. hook tests) should stub `_build` as a no-op rather than build a real graph.

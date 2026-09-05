@@ -84,6 +84,7 @@ class NodeCompose(AbstractComposeOriginal[NodeComposeRendered]):
 ### Methods
 
 - `__rshift__(other)`: Implements the `>>` operator. Appends `other` to the internal list and returns `self`.
+- `get_builder() -> type[NodeComposeRendered]` (classmethod): Declares which rendered-graph class this source composition compiles into. The renderer calls it to construct the nested `NodeComposeRendered` containers.
 - `render() -> NodeComposeRendered`: Compiles the current composition structure. All `SelfCompileInstruction` instances are expanded during this phase, recursive `NodeCompose` instances are resolved into nested `NodeComposeRendered`, and the final executable graph with address mappings is produced.
 
 ### Usage example
@@ -98,7 +99,7 @@ workflow = node_a >> node_b >> node_c
 
 `NodeComposeRendered` is the final compilation product -- a fully resolved, optimized, address-mapped executable workflow graph. This is the type accepted by `WorkflowInterpreter`.
 
-> **Contract**: `NodeComposeRendered` is the default, fully-featured implementation of the rendered-graph contract `AbstractCompose[AddressCalculator]`. Anything satisfying that read-only contract (e.g. a test mock) can be consumed wherever a rendered workflow is expected. See [Compose Contracts](/guide/advanced/compose-contracts).
+> **Contract**: `NodeComposeRendered` is the default, fully-featured implementation of the rendered-graph contract `AbstractCompose[AddressCalculator]`. Anything satisfying that contract (e.g. a test mock) can be consumed wherever a rendered workflow is expected. See [Compose Contracts](/guide/advanced/compose-contracts).
 
 ```python
 class NodeComposeRendered(AbstractCompose[AddressCalculator]):
@@ -111,7 +112,7 @@ class NodeComposeRendered(AbstractCompose[AddressCalculator]):
 `render()` triggers `_build()` to recursively traverse the original `NodeCompose` structure:
 
 1. Expands all `SelfCompileInstruction` instances (calling their `extract()` method).
-2. Recursively renders nested `NodeCompose` instances into `NodeComposeRendered`.
+2. Recursively renders nested compositions, constructing each nested `NodeComposeRendered` through its declared `get_builder()`.
 3. Assigns a `PointerVector` address to each node.
 4. Collects all `AliasNode` instances, storing alias-to-address mappings into `alias2vector_map`.
 

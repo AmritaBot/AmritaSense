@@ -9,7 +9,7 @@ from typing_extensions import Self
 from amrita_sense.types import PointerVector
 
 if TYPE_CHECKING:
-    from amrita_sense.node.core import BaseNode
+    from amrita_sense.node.core import BaseNode, NodeComposeRendered
     from amrita_sense.node.self_compile import SelfCompileInstruction
 
 
@@ -68,22 +68,33 @@ class AbstractComposeOriginal(ABC, Generic[Compose_T]):
         """
         ...
 
+    @abstractmethod
+    @classmethod
+    def get_builder(cls) -> type[Compose_T]: ...
+
 
 class AbstractCompose(ABC, Generic[Calc_T]):
-    """Read-only rendered-graph contract consumed by the runtime.
+    """Rendered-graph contract consumed by the runtime.
 
     This is the interface that ``WorkflowInterpreter``, the debugger and node
     ``_post_compile`` hooks rely on when they consume a *rendered* workflow
-    graph.  It intentionally exposes **no construction or compilation
-    members** (no ``__init__``, no ``_build``): those belong to concrete
-    implementations such as ``NodeComposeRendered``.  Keeping the contract
-    minimal makes it cheap to implement a fake rendered graph in tests
-    (mock) or to plug in a custom rendered-graph implementation.
+    graph.  At runtime the graph is treated as read-only, so the contract
+    splits into two surfaces: a read side (``calc``, ``__getitem__``,
+    ``__iter__``, ``__bool__``, ``__len__``) that the interpreter and hooks
+    use, and a build side (``__init__(compose)``, ``_build(...)``) that
+    ``render()`` and the renderer use while compiling.  Both build members
+    are abstract so that any source composition can be rendered through its
+    own ``get_builder()``.  Keeping the contract small makes it cheap to
+    implement a fake rendered graph in tests (mock) or to plug in a custom
+    rendered-graph implementation.
 
     The default, fully-featured implementation is ``NodeComposeRendered``
     (see ``amrita_sense.node.core``); anything satisfying this contract can
     be consumed wherever a rendered workflow is expected.
     """
+
+    @abstractmethod
+    def __init__(self, compose: "AbstractComposeOriginal"): ...
 
     @property
     @abstractmethod
@@ -127,6 +138,23 @@ class AbstractCompose(ABC, Generic[Calc_T]):
 
         Returns:
             Number of nodes in the rendered graph.
+        """
+        ...
+
+    @abstractmethod
+    def _build(
+        self,
+        current_path: list[int] | None = None,
+        top: NodeComposeRendered | None = None,
+    ) -> None:
+        """Build the compose
+
+        Args:
+            current_path (list[int] | None, optional): Current address, when current is the top, this is None.
+            top (NodeComposeRendered | None, optional): The top-layer Compose, when current is top, this is Nonw.
+
+        Returns:
+            None: Right-In-Place action.
         """
         ...
 

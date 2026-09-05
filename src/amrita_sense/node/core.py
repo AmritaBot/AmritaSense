@@ -12,7 +12,11 @@ from amrita_sense.exceptions import GraphBuildError, NullPointerException
 from amrita_sense.hook.fun_typing import DependencyMeta, sign_func
 from amrita_sense.logging import debug_log, logger
 from amrita_sense.node import addressing
-from amrita_sense.node.abc_base import AbstractCompose, AbstractComposeOriginal
+from amrita_sense.node.abc_base import (
+    AbstractCompose,
+    AbstractComposeOriginal,
+    Compose_T,
+)
 from amrita_sense.node.addressing import AddressCalculator
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.utils import TimeInsighter, isabstractmethod
@@ -331,6 +335,10 @@ class NodeCompose(AbstractComposeOriginal["NodeComposeRendered"]):
         logger.info(f"node compose rendered, cost: {(time_end.total_seconds())}s")
         return r
 
+    @classmethod
+    def get_builder(cls) -> type[NodeComposeRendered]:
+        return NodeComposeRendered
+
 
 class NodeComposeRendered(AbstractCompose[AddressCalculator]):
     """Compiled and executable workflow graph.
@@ -510,10 +518,10 @@ class NodeComposeRendered(AbstractCompose[AddressCalculator]):
 
     def _render_compose(
         self,
-        node_compose: AbstractComposeOriginal,
+        node_compose: AbstractComposeOriginal[Compose_T],
         compose_path: list[int],
         top: NodeComposeRendered,
-    ) -> NodeComposeRendered:
+    ) -> Compose_T:
         """Recursively render a nested node composition.
 
         Args:
@@ -525,7 +533,7 @@ class NodeComposeRendered(AbstractCompose[AddressCalculator]):
             A rendered composition representing the nested structure.
         """
 
-        rendered = NodeComposeRendered(node_compose)
+        rendered: Compose_T = node_compose.get_builder()(node_compose)
 
         rendered._build(compose_path, top)
         return rendered
