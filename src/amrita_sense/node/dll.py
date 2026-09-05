@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
-from typing_extensions import Never
+from typing_extensions import Never, Self
 
 from amrita_sense.exceptions import GraphBuildError, NullPointerException
 from amrita_sense.node.core import BaseNode, NodeCompose, NodeComposeRendered
@@ -12,6 +13,9 @@ from .abc_base import (
     AbstractCompose,
     AbstractComposeOriginal,
 )
+
+if TYPE_CHECKING:
+    from amrita_sense.node.self_compile import SelfCompileInstruction
 
 
 class DLLComposeProxy(AbstractCompose[Never]):
@@ -167,7 +171,7 @@ class DLLComposeProxy(AbstractCompose[Never]):
             for symbol in self._symbols_delta:
                 top.alias2vector_map.pop(symbol, None)
 
-        symbols = top.alias2vector_map.keys()
+        symbols = set(top.alias2vector_map)
         try:
             top._collected_hooks = []
 
@@ -291,12 +295,12 @@ class DLLCompose(AbstractComposeOriginal[DLLComposeProxy]):
         _proxy: The proxy bound to this instance, or None if unbound.
     """
 
-    _compose: NodeCompose | None
+    _compose: NodeCompose
     _proxy: DLLComposeProxy | None
 
     __slots__ = ("_compose", "_proxy")
 
-    def __init__(self, compose: NodeCompose | None = None):
+    def __init__(self, compose: NodeCompose):
         """Initialize the compose wrapper.
 
         Args:
@@ -309,6 +313,34 @@ class DLLCompose(AbstractComposeOriginal[DLLComposeProxy]):
             raise GraphBuildError("Only NodeCompose is allowed.")
         self._compose = compose
         self._proxy = None
+
+    def __iter__(
+        self,
+    ) -> Iterator[BaseNode | AbstractComposeOriginal | SelfCompileInstruction]:
+        """Iterate over the wrapped source compose's children.
+
+        Yields:
+            Each child node, sub-composition, or self-compile instruction.
+        """
+        yield from self._compose
+
+    def __rshift__(
+        self,
+        other: AbstractComposeOriginal | BaseNode | SelfCompileInstruction,
+    ) -> Self:
+        """Append an element to the wrapped source compose and return self.
+
+        Appending to a DLLCompose mutates the NodeCompose it wraps, so the
+        element becomes part of the next apply() payload.
+
+        Args:
+            other: Another node, composition, or instruction to append.
+
+        Returns:
+            Self reference for method chaining.
+        """
+        self._compose >>= other
+        return self
 
     def render(self) -> Never:
         """Disallow standalone rendering of a dynamic-linked compose.
@@ -333,6 +365,7 @@ class DLLCompose(AbstractComposeOriginal[DLLComposeProxy]):
         """
         if self._proxy is None:
             raise GraphBuildError("DLLCompose: No proxy to apply to")
+        self._compose = comp
         self._proxy._apply(comp)
 
     def get_proxy(self) -> DLLComposeProxy:

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from amrita_sense.exceptions import NullPointerException
 from amrita_sense.logging import logger
-from amrita_sense.node.abc_base import AbstractAddressCalculator
+from amrita_sense.node.abc_base import AbstractAddressCalculator, AbstractCompose
 
 if TYPE_CHECKING:
     from amrita_sense.node.core import BaseNode, NodeComposeRendered
@@ -32,7 +32,7 @@ class AddressCalculator(AbstractAddressCalculator[NodeComposeRendered]):
         """Find a node at the given address, or None."""
         current: BaseNode | NodeComposeRendered = self._graph
         for idx in addr:
-            if not isinstance(current, NodeComposeRendered):
+            if not isinstance(current, AbstractCompose):
                 return None
             if idx >= len(current):
                 return None
@@ -52,25 +52,25 @@ class AddressCalculator(AbstractAddressCalculator[NodeComposeRendered]):
         graph: NodeComposeRendered = self._graph
         current_container: BaseNode | NodeComposeRendered = graph
         for idx in pointer.base_addr[:-1]:
-            if isinstance(current_container, NodeComposeRendered):
+            if isinstance(current_container, AbstractCompose):
                 current_container = current_container[idx]
             else:
                 return False
 
         end_idx = pointer[-1]
-        if not isinstance(current_container, NodeComposeRendered):
+        if not isinstance(current_container, AbstractCompose):
             return False
 
         current_node: BaseNode | NodeComposeRendered = current_container[end_idx]
-        if isinstance(current_node, NodeComposeRendered) and current_node:
+        if isinstance(current_node, AbstractCompose) and current_node:
             pointer.append(0)
             return True
 
         next_idx = end_idx + 1
         if next_idx < len(current_container):
-            # Check if the next node is a NodeComposeRendered that should be entered immediately
+            # Check if the next node is a rendered compose that should be entered immediately
             next_node: BaseNode | NodeComposeRendered = current_container[next_idx]
-            if isinstance(next_node, NodeComposeRendered) and next_node:
+            if isinstance(next_node, AbstractCompose) and next_node:
                 pointer[-1] = next_idx
                 pointer.append(0)
             else:
@@ -86,19 +86,19 @@ class AddressCalculator(AbstractAddressCalculator[NodeComposeRendered]):
             parent_path: list[int] = pointer.base_addr[:-1]
             parent_container: BaseNode | NodeComposeRendered = graph
             for idx in parent_path:
-                if isinstance(parent_container, NodeComposeRendered):
+                if isinstance(parent_container, AbstractCompose):
                     parent_container = parent_container[idx]
                 else:
                     return False
 
-            if isinstance(parent_container, NodeComposeRendered):
+            if isinstance(parent_container, AbstractCompose):
                 current_parent_idx = pointer[-1]
                 if current_parent_idx + 1 < len(parent_container):
                     next_parent_node: BaseNode | NodeComposeRendered = parent_container[
                         current_parent_idx + 1
                     ]
                     if (
-                        isinstance(next_parent_node, NodeComposeRendered)
+                        isinstance(next_parent_node, AbstractCompose)
                         and next_parent_node
                     ):
                         pointer[-1] = current_parent_idx + 1
