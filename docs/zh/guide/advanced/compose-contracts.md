@@ -34,6 +34,21 @@ rendered = wf.render()  # NodeComposeRendered
 pc = WorkflowInterpreter(rendered)
 ```
 
+## 工具链类比：ELF / 汇编 / 语法糖
+
+对照编译工具链能帮助记忆上面这张表——它只是*记忆辅助*，不要过度引申：
+
+- `AbstractCompose`（渲染图契约）≈ **ELF 可执行映像**：已完成定址、带符号表，装载后即可运行。
+- `AbstractComposeOriginal`（源组合契约）≈ **汇编 / IR**：描述“要执行什么”的中间形态——尚未分配地址、尚不可直接执行。
+- 编排本身（`>>` 链、`NodeCompose`、`render()`）≈ **高级语言语法糖**：你手写的是这一层，地址分配与符号解析都被盖在 `render()` 之下；只有 Mock 或自定义容器时才需要掀开糖衣、落到契约层。
+- `WorkflowInterpreter` + `calc.advance()` ≈ **装载器 / CPU**：指针向量就是程序计数器，逐条取指、执行。
+
+几点差异，避免引申过头：
+
+- 渲染图是**对象图**而不是字节码或二进制文件；“地址”是嵌套索引路径（`[0, 1, 2]`），不是内存偏移。
+- `calc` 更接近链接期的**符号表**：`resolve_alias()` 把别名解析成地址向量，`advance()` 才是运行期的 PC 推进。
+- 契约是**规格**（像 ELF 的格式规范），默认实现是标准工具链直接产出的东西。运行时只**读**渲染图，所以测试里的假图不必真正“链接”——实现一小撮成员即可，这正是 Mock 便宜的原因。
+
 ## 契约的位置
 
 两个抽象类都位于 `amrita_sense.node.abc_base`：
@@ -57,7 +72,7 @@ from amrita_sense.node.abc_base import (
 - `__iter__()` —— 产出子节点 / 嵌套组合 / 自编译指令。
 - `__rshift__(other)` —— 追加一个元素并返回 `self`。
 - `get_builder()`（抽象类方法）—— 声明该源组合编译成哪种具体渲染图类（`AbstractCompose` 子类型）。`NodeCompose` 返回 `NodeComposeRendered`。
-- `render()` —— 构建编译后的工作流图。标准管线通过 `get_builder()` 构造渲染图；`NodeCompose.render()` 是通常的入口。
+- `render()` —— 构建编译后的工作流图；它只是**顶层**入口。渲染器遇到嵌套源组合时并不会调用其 `render()`，而是通过 `get_builder()` 构图（见示例 2）。`NodeCompose.render()` 直接构造 `NodeComposeRendered` 并构建。
 
 ### 渲染图契约：`AbstractCompose[Calc_T]`
 
@@ -173,8 +188,21 @@ assert node() == [1, 2]
 实现了 `AbstractComposeOriginal` 的源组合可以嵌入更大的工作流。渲染器纯粹通过契约消费它——遍历子元素，并用 `get_builder()` 构造嵌套渲染图；它从不调用嵌套组合的 `render()`（该方法只是顶层入口）。
 
 ```python
+from amrita_sense import Node
 from amrita_sense.node.abc_base import AbstractComposeOriginal
 from amrita_sense.node.core import NodeComposeRendered
+
+
+@Node()
+def step1(): ...
+
+
+@Node()
+def step2(): ...
+
+
+@Node()
+def step3(): ...
 
 
 class RepeatTwice(AbstractComposeOriginal["NodeComposeRendered"]):

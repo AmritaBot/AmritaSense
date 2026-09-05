@@ -60,11 +60,11 @@ class AbstractComposeOriginal(ABC, Generic[Compose_T]):
         """Compile this composition into an executable workflow graph.
 
         Concrete source compositions override this to build their rendered
-        graph.  The default implementation ``NodeCompose`` returns a
-        ``NodeComposeRendered`` via the standard compilation pipeline.
+        graph.  The default implementation `NodeCompose` returns a
+        `NodeComposeRendered` via the standard compilation pipeline.
 
         Returns:
-            A ``Compose_T`` instance representing the compiled workflow.
+            A `Compose_T` instance representing the compiled workflow.
         """
         ...
 
@@ -76,20 +76,20 @@ class AbstractComposeOriginal(ABC, Generic[Compose_T]):
 class AbstractCompose(ABC, Generic[Calc_T]):
     """Rendered-graph contract consumed by the runtime.
 
-    This is the interface that ``WorkflowInterpreter``, the debugger and node
-    ``_post_compile`` hooks rely on when they consume a *rendered* workflow
+    This is the interface that `WorkflowInterpreter`, the debugger and node
+    `_post_compile` hooks rely on when they consume a *rendered* workflow
     graph.  At runtime the graph is treated as read-only, so the contract
-    splits into two surfaces: a read side (``calc``, ``__getitem__``,
-    ``__iter__``, ``__bool__``, ``__len__``) that the interpreter and hooks
-    use, and a build side (``__init__(compose)``, ``_build(...)``) that
-    ``render()`` and the renderer use while compiling.  Both build members
+    splits into two surfaces: a read side (`calc`, `__getitem__`,
+    `__iter__`, `__bool__`, `__len__`) that the interpreter and hooks
+    use, and a build side (`__init__(compose)`, `_build(...)`) that
+    `render()` and the renderer use while compiling.  Both build members
     are abstract so that any source composition can be rendered through its
-    own ``get_builder()``.  Keeping the contract small makes it cheap to
+    own `get_builder()`.  Keeping the contract small makes it cheap to
     implement a fake rendered graph in tests (mock) or to plug in a custom
     rendered-graph implementation.
 
-    The default, fully-featured implementation is ``NodeComposeRendered``
-    (see ``amrita_sense.node.core``); anything satisfying this contract can
+    The default, fully-featured implementation is `NodeComposeRendered`
+    (see `amrita_sense.node.core`); anything satisfying this contract can
     be consumed wherever a rendered workflow is expected.
     """
 
@@ -151,7 +151,7 @@ class AbstractCompose(ABC, Generic[Calc_T]):
 
         Args:
             current_path (list[int] | None, optional): Current address, when current is the top, this is None.
-            top (NodeComposeRendered | None, optional): The top-layer Compose, when current is top, this is Nonw.
+            top (NodeComposeRendered | None, optional): The top-layer Compose, when current is top, this is None.
 
         Returns:
             None: Right-In-Place action.

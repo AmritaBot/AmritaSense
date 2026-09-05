@@ -34,6 +34,21 @@ rendered = wf.render()  # NodeComposeRendered
 pc = WorkflowInterpreter(rendered)
 ```
 
+## A toolchain analogy: ELF / assembly / syntactic sugar
+
+A compiler-toolchain mapping can help you remember the table above — treat it as a _memory aid_, not something to push too far:
+
+- `AbstractCompose` (the rendered-graph contract) ≈ an **ELF executable image**: already laid out with addresses and a symbol table; load and run.
+- `AbstractComposeOriginal` (the source-composition contract) ≈ **assembly / IR**: the intermediate form that says _what to execute_ — no addresses assigned yet, not directly runnable.
+- The orchestration itself (`>>` chains, `NodeCompose`, `render()`) ≈ **high-level-language syntactic sugar**: this is the layer you hand-write; address assignment and symbol resolution are hidden under `render()`. You only peel the sugar off and drop to the contract layer when mocking or building a custom container.
+- `WorkflowInterpreter` + `calc.advance()` ≈ **loader / CPU**: the pointer vector is the program counter; fetch and execute, step by step.
+
+A few differences, so the analogy is not over-extended:
+
+- The rendered graph is an **object graph**, not bytecode or a binary file; “addresses” are nested index paths (`[0, 1, 2]`), not memory offsets.
+- `calc` is closer to the link-time **symbol table**: `resolve_alias()` maps an alias to an address vector at build time; `advance()` is the runtime PC advancement.
+- The contracts are **specifications** (like the ELF format spec); the default implementations are what a standard toolchain emits. The runtime only ever **reads** a rendered graph, so a test fake never has to really “link” — implementing a handful of members suffices. That is why mocking is cheap.
+
 ## Where the contracts live
 
 Both abstract classes live in `amrita_sense.node.abc_base`:
@@ -57,7 +72,7 @@ Any source composition is expected to support chaining, iteration and a builder 
 - `__iter__()` — yield the child nodes / nested compositions / self-compile instructions.
 - `__rshift__(other)` — append another element and return `self`.
 - `get_builder()` (abstract classmethod) — declare which concrete rendered-graph class (an `AbstractCompose` subtype) this source composition compiles into. `NodeCompose` returns `NodeComposeRendered`.
-- `render()` — build the compiled workflow graph. The standard pipeline constructs the rendered graph through `get_builder()`; `NodeCompose.render()` is the usual entry point.
+- `render()` — build the compiled workflow graph; it is only the **top-level** entry point. When the renderer meets a nested source composition it does not call `render()` — it builds through `get_builder()` (see Example 2). `NodeCompose.render()` constructs a `NodeComposeRendered` and builds it directly.
 
 ### The rendered-graph contract: `AbstractCompose[Calc_T]`
 
@@ -173,8 +188,21 @@ No workflow was built and no `NodeComposeRendered` was constructed — the fake 
 A source composition that implements `AbstractComposeOriginal` can be embedded into a larger workflow. The renderer consumes it purely through its contract — iterating over the children and constructing the nested rendered graph via `get_builder()`; it never calls the nested composition's `render()` (that method is only the top-level entry point).
 
 ```python
+from amrita_sense import Node
 from amrita_sense.node.abc_base import AbstractComposeOriginal
 from amrita_sense.node.core import NodeComposeRendered
+
+
+@Node()
+def step1(): ...
+
+
+@Node()
+def step2(): ...
+
+
+@Node()
+def step3(): ...
 
 
 class RepeatTwice(AbstractComposeOriginal["NodeComposeRendered"]):

@@ -15,15 +15,27 @@ from .abc_base import (
 
 
 class DLLComposeProxy(AbstractCompose[Never]):
-    """Proxy of a dynamic-linked NodeCompose.
+    """Placeholder slot for a dynamic-linked source compose.
 
-    The proxy defers building the underlying compose until the composition
-    graph is rendered. All mutable state is guarded by the _lock attribute so
-    that _build/_apply are safe to run concurrently with the dunder methods
-    below.
+    A dynamic-linked compose is not compiled into a plain rendered graph.
+    Instead the renderer places this proxy at its position in the compiled
+    graph and fills it in lazily: the first _build compiles the wrapped
+    source compose into an ordinary rendered compose kept in _compose, and
+    the read-side dunder methods forward to it. apply() later swaps in a
+    new source compose and recompiles it into the same slot, so the graph
+    around the proxy never moves — like relinking a shared library at a
+    fixed load address.
+
+    The proxy is a linking placeholder, not a full rendered graph: it
+    exposes no address calculator (calc always raises), is not directly
+    executable on its own, and has no children until built. It implements
+    AbstractCompose only so the renderer can treat it as a sub-container
+    while compiling. All mutable state is guarded by the _lock attribute so
+    that _build/_apply are safe to run concurrently with the dunder
+    methods below.
 
     Attributes:
-        _original: The unbuilt source compose, or None once built.
+        _original: The unbuilt source compose to link, or None once built.
         _compose: The rendered compose built from _original, or None before build.
         _prefix: Address path used to rebuild the compose after an apply.
         _top: The top-level rendered compose owning this proxy.
@@ -35,11 +47,13 @@ class DLLComposeProxy(AbstractCompose[Never]):
     _prefix: list[int] | None
     _top: NodeComposeRendered | None
     _lock: threading.Lock
+    _symbols_delta: set[str] | None
     __slots__ = [
         "_compose",
         "_lock",
         "_original",
         "_prefix",
+        "_symbols_delta",
         "_top",
     ]
 
@@ -60,6 +74,7 @@ class DLLComposeProxy(AbstractCompose[Never]):
         self._prefix = None
         self._top = None
         self._compose = None
+        self._symbols_delta = None
         self._lock = threading.Lock()
 
     @property
@@ -76,10 +91,10 @@ class DLLComposeProxy(AbstractCompose[Never]):
         current_path: list[int] | None = None,
         top: NodeComposeRendered | None = None,
     ) -> None:
-        """Build the underlying compose under the proxy lock.
+        """Run the full compilation lifecycle of the proxied compose.
 
         threading.Lock is not reentrant: calling _build again while the lock
-        is held would deadlock, so the real logic lives in _build_unlocked
+        is held would deadlock, so the real logic lives in _build_unlocked,
         which _apply also reuses.
 
         Args:
@@ -87,8 +102,8 @@ class DLLComposeProxy(AbstractCompose[Never]):
             top: The top-level rendered compose owning this proxy.
 
         Raises:
-            GraphBuildError: If the proxy is already built, or if either
-                current_path or top is None.
+            GraphBuildError: If there is no source compose to compile, or if
+                either current_path or top is None.
         """
         with self._lock:
             self._build_unlocked(current_path, top)
@@ -98,15 +113,35 @@ class DLLComposeProxy(AbstractCompose[Never]):
         current_path: list[int] | None,
         top: NodeComposeRendered | None,
     ) -> None:
-        """Run the build logic; the caller must already hold the lock.
+        """Run the full compilation lifecycle; the caller must hold the lock.
+
+        This is the shared entry point for the first render (_build) and for
+        later re-renders (_apply), so instead of a bare build it runs the
+        whole lifecycle:
+
+        1. Remove the alias symbols registered by the previous build from top.
+        2. Compile the wrapped source compose into its rendered form: call
+           get_builder() on it to obtain the rendered class, then build that
+           rendered compose in place at current_path. The read-side dunders
+           of this proxy then forward to it.
+        3. Record the alias symbols added by this build as the delta to clean
+           up on the next lifecycle.
+        4. Run the post-compile hooks collected on top during the build.
+
+        On failure the partial state is rolled back (the rendered compose
+        and the symbol delta are cleared). Either way the per-lifecycle
+        scratch state is released in the end — the hook collector on top is
+        reset and the source compose is dropped, since the proxy may be
+        re-applied with a fresh source compose later.
 
         Args:
             current_path: Address path of this proxy inside the graph.
             top: The top-level rendered compose owning this proxy.
 
         Raises:
-            GraphBuildError: If the proxy is already built, or if either
-                current_path or top is None.
+            GraphBuildError: If there is no source compose to compile (the
+                proxy was never bound, or was already built and not
+                re-applied), or if either current_path or top is None.
         """
         if self._original is None:
             raise GraphBuildError(
@@ -124,22 +159,47 @@ class DLLComposeProxy(AbstractCompose[Never]):
             raise GraphBuildError(
                 "DLLComposeProxy: The top-level compose has changed, this proxy cannot be reused in a different context"
             )
+
         self._top = top
         self._prefix = current_path
 
-        origin = self._original
-        self._compose = origin.get_builder()(origin)
-        self._compose._build(current_path, top)
-        self._original = None
+        if self._symbols_delta is not None:  # Delete the old symbols
+            for symbol in self._symbols_delta:
+                top.alias2vector_map.pop(symbol, None)
+
+        symbols = top.alias2vector_map.keys()
+        try:
+            top._collected_hooks = []
+
+            origin = self._original
+            self._compose = origin.get_builder()(origin)
+            self._compose._build(current_path, top)
+
+            self._symbols_delta = (
+                top.alias2vector_map.keys() - symbols
+            ) or None  # delta of symbols, None if no delta
+
+            for hook in top._collected_hooks:  # Run post-compile hooks
+                hook(top)
+        except Exception:  # For cleanup
+            self._compose = None
+            self._symbols_delta = None
+            raise
+        finally:
+            top._collected_hooks = None
+            self._original = None
 
     def _apply(self, comp: NodeCompose):
-        """Replace _original and rebuild from the previous path/top.
+        """Swap the source compose and rerun the full compilation lifecycle.
 
-        Holds the lock to avoid racing with _build or the dunder methods;
-        calls _build_unlocked directly to avoid double locking.
+        Sets the new source compose, then delegates to _build_unlocked (the
+        lock is already held here, so calling it directly avoids a deadlock)
+        so the proxy is recompiled in place at its previous path and top.
+        After this call the rendered compose reflects the new source at the
+        same location.
 
         Args:
-            comp: The new source compose to build.
+            comp: The new source compose to link.
         """
         with self._lock:
             self._original = comp
@@ -212,15 +272,22 @@ class DLLComposeProxy(AbstractCompose[Never]):
 
 
 class DLLCompose(AbstractComposeOriginal[DLLComposeProxy]):
-    """Source compose that builds through a DLLComposeProxy.
+    """Source wrapper that compiles into a DLLComposeProxy.
 
-    Unlike NodeCompose, a dynamic-linked compose cannot be rendered on its
-    own; it must be embedded in a NodeCompose context so that the proxy
-    receives the address path and top-level compose. The proxy can later be
-    re-applied with a new compose while keeping the same location.
+    Everyday workflows just chain NodeCompose and call render() on it —
+    that is the default source container. A dynamic-linked compose is a
+    different source container for the special case where the graph at a
+    fixed position must be swappable after the first render: it holds the
+    NodeCompose to link and declares, via get_builder(), that the renderer
+    should build a DLLComposeProxy for it.
+
+    It cannot be rendered standalone — the proxy needs an enclosing
+    NodeCompose context to learn its address path and the top-level
+    compose. Once built, apply() can swap the wrapped compose and
+    recompile it in place, keeping the same location.
 
     Attributes:
-        _compose: The wrapped source compose to build through the proxy.
+        _compose: The wrapped source compose to link through the proxy.
         _proxy: The proxy bound to this instance, or None if unbound.
     """
 
