@@ -68,8 +68,10 @@ def my_function(arg1: str) -> str:
 
 `NodeCompose` 是节点编排的容器。它维护一个有序的节点列表，并通过 `__rshift__` 支持 `>>` 链式追加。`NodeCompose` 同时也是 `SelfCompileInstruction.extract()` 的标准返回类型——自编译指令最终都将自身的语义展开为一个 `NodeCompose`。
 
+> **契约**：`NodeCompose` 是源组合契约 `AbstractComposeOriginal` 的默认、功能完备实现。大多数代码直接使用 `NodeCompose`；抽象契约仅为 Mock 与扩展而设。参见 [Compose 契约](/zh/guide/advanced/compose-contracts)。
+
 ```python
-class NodeCompose:
+class NodeCompose(AbstractComposeOriginal[NodeComposeRendered]):
     _graph: list[BaseNode | NodeCompose | SelfCompileInstruction]
 ```
 
@@ -82,6 +84,7 @@ class NodeCompose:
 ### 方法
 
 - `__rshift__(other)`：实现 `>>` 运算符，将 `other` 追加到内部列表并返回 `self`
+- `get_builder() -> type[NodeComposeRendered]`（类方法）：声明该源组合编译成哪种渲染图类。渲染器通过它构造嵌套的 `NodeComposeRendered` 容器
 - `render() -> NodeComposeRendered`：编译当前编排结构。所有 `SelfCompileInstruction` 在此阶段被展开，递归的 `NodeCompose` 被解析为嵌套的 `NodeComposeRendered`，最终生成带地址映射的可执行图
 
 ### 使用示例
@@ -96,8 +99,10 @@ workflow = node_a >> node_b >> node_c
 
 `NodeComposeRendered` 是编译的最终产物——一个完整解析、优化、带地址映射的可执行工作流图。`WorkflowInterpreter` 接受的正是此类型的实例。
 
+> **契约**：`NodeComposeRendered` 是渲染图契约 `AbstractCompose[AddressCalculator]` 的默认、功能完备实现。任何满足该契约的对象（例如测试用的 Mock）都可作为渲染图被消费。参见 [Compose 契约](/zh/guide/advanced/compose-contracts)。
+
 ```python
-class NodeComposeRendered:
+class NodeComposeRendered(AbstractCompose[AddressCalculator]):
     _graph: list[BaseNode | NodeComposeRendered]
     alias2vector_map: dict[str, list[int]]
 ```
@@ -107,7 +112,7 @@ class NodeComposeRendered:
 `render()` 调用触发 `_build()` 递归遍历原始的 `NodeCompose` 结构：
 
 1. 展开所有 `SelfCompileInstruction`（调用其 `extract()` 方法）
-2. 将嵌套的 `NodeCompose` 递归渲染为 `NodeComposeRendered`
+2. 递归渲染嵌套组合，通过其声明的 `get_builder()` 构造每个嵌套的 `NodeComposeRendered`
 3. 为每个节点分配 `PointerVector` 地址
 4. 收集所有 `AliasNode`，将别名与地址的映射存入 `alias2vector_map`
 

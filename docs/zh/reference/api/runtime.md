@@ -17,7 +17,7 @@ class WorkflowInterpreter(Generic[io_T]):
 
 **设计定位**
 
-`WorkflowInterpreter` 是 AmritaSense 的“CPU”。它从编译产物 `NodeComposeRendered`（代码段）中读取节点，用 `PointerVector`（程序计数器）追踪当前位置，通过 `_ret_addr_stack`（调用栈）管理子程序返回。所有控制流指令——`IF`、`GOTO`、`CALL`、`TRY`——最终都通过解释器提供的跳转和调用方法实现。
+`WorkflowInterpreter` 是 AmritaSense 的“CPU”。它从编译产物（默认实现为 `NodeComposeRendered`，契约见 [Compose 契约](/zh/guide/advanced/compose-contracts)）中读取节点，用 `PointerVector`（程序计数器）追踪当前位置，通过 `_ret_addr_stack`（调用栈）管理子程序返回。所有控制流指令——`IF`、`GOTO`、`CALL`、`TRY`——最终都通过解释器提供的跳转和调用方法实现。
 
 **泛型参数**
 
@@ -28,7 +28,7 @@ class WorkflowInterpreter(Generic[io_T]):
 ```python
 def __init__(
     self,
-    node_compose: NodeComposeRendered | SelfCompileInstruction,
+    node_compose: AbstractCompose[AddressCalculator] | SelfCompileInstruction,
     object_io: SuspendObjectStream[Any] | None = None,
     *,
     exception_ignored: tuple[type[BaseException], ...] = (),
@@ -40,7 +40,7 @@ def __init__(
 )
 ```
 
-- `node_compose`：编译后的工作流图，或一个 `SelfCompileInstruction`（会自动调用 `extract().render()` 编译）
+- `node_compose`：编译后的工作流图（满足契约 `AbstractCompose[AddressCalculator]`，通常为默认实现 `NodeComposeRendered`），或一个 `SelfCompileInstruction`（会自动调用 `extract().render()` 编译）
 - `object_io`：可选的外部 I/O 接口。若不传，解释器内部创建一个最基础的 `SuspendObjectStream`。节点可通过 `pc.object_io` 访问流式能力
 - `exception_ignored`：声明为不可捕获的异常类型元组。`InterruptNotice` 和 `BreakLoop` 会被自动加入此元组
 - `extra_args` / `extra_kwargs`：传递给每个节点的额外参数，供依赖注入使用
@@ -67,7 +67,7 @@ def __init__(
 
 ### 核心属性
 
-- `_graph: NodeComposeRendered`：编译后的只读工作流图，解释器从中读取节点
+- `_graph: AbstractCompose[AddressCalculator]`：编译后的只读工作流图，解释器从中读取节点
 - `_pointer: PointerVector`：当前执行位置。解释器主循环始终以它指向的节点作为执行目标
 - `_ret_addr_stack: Stack[PointerVector]`：返回地址栈。`call_sub` 和 `CALL` 指令压入返回地址，执行完毕弹栈恢复
 - `_jump_marked: bool`：跳转标记。当 `True` 时，主循环跳过本次的 `advance_pointer()` 步进，下一轮直接从跳转目标继续
@@ -124,7 +124,7 @@ def __init__(
 
 在解释器树中创建子解释器。默认继承父解释器的图和中间件。
 
-- `compose`：可选的 `NodeComposeRendered`。若为 `None`，使用父解释器的图。
+- `compose`：可选的渲染图（满足契约 `AbstractCompose[AddressCalculator]`，通常为 `NodeComposeRendered`）。若为 `None`，使用父解释器的图。
 - `middleware`：`UNSET`（继承父中间件）、`None`（无中间件）或自定义可调用对象。
 - `object_io`：可选的 `SuspendObjectStream`。若为 `None`，共享父解释器的 `object_io`。自 v0.3.2 起，`SuspendObjectStream` 通过 CLCA 信号设计模式实现了并发安全。
 
@@ -187,25 +187,9 @@ def __init__(
 
 #### 地址解析
 
-`get_graph() -> NodeComposeRendered`（v0.4.4+）
+`get_graph() -> AbstractCompose[AddressCalculator]`（v0.4.4+）
 
 返回当前工作流的编译产物。编译图的 `calc` 属性提供 `AddressCalculator`，包含 `resolve_alias()`、`find_addr()`、`find_addr_safe()`、`advance()` 方法。
-
-`find_addr_alias(alias: str) -> list[int]`
-
-::: warning 已废弃
-此方法自 v0.4.4 起废弃。请改用 `get_graph().calc.resolve_alias(alias)`。
-:::
-
-在 `alias2vector_map` 中查找别名并返回其指针向量地址。若别名不存在，抛出 `NullPointerException`。
-
-`find_addr(addr: list[int]) -> BaseNode | NodeComposeRendered`
-
-::: warning 已废弃
-此方法自 v0.4.4 起废弃。请改用 `get_graph().calc.find_addr(addr)`。
-:::
-
-通过绝对地址查找节点或子容器。地址无效时抛出 `NullPointerException`。
 
 #### 跳转操作
 
@@ -289,9 +273,9 @@ def __init__(
 **推进算法**
 
 1. 从 `ptr`（或 `self._pointer`）开始，沿 `base_addr` 逐层定位到当前节点所在容器
-2. 若当前节点是**非空 `NodeComposeRendered`** -> 指针进入嵌套容器（`append(0)`），返回 `True`
-3. 若当前节点有**后继兄弟节点**：
-   - 兄弟节点是非空 `NodeComposeRendered` -> 进入该嵌套容器，返回 `True`
+2. 若当前节点是**非空渲染组合**（满足 `AbstractCompose`）-> 指针进入嵌套容器（`append(0)`），返回 `True`
+3. 若当前节点有**下一个兄弟节点**：
+   - 兄弟节点是非空渲染组合 -> 进入该嵌套容器，返回 `True`
    - 否则 -> 移动到兄弟节点，返回 `True`
 4. 若当前节点无后继 -> 沿指针栈**逐层向上回溯**，寻找父容器的下一个兄弟
 5. 回溯中寻得后继 -> 按相同逻辑处理，返回 `True`

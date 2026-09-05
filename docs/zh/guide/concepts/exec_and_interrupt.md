@@ -138,11 +138,13 @@ class InterruptNotice(BaseException):
    解释器在下一个节点边界捕获此异常。
 
 2. **工作流中插入 `INTERRUPT` 节点**：
+
    ```python
    from amrita_sense.instructions import INTERRUPT
 
    workflow = Sequence(StepA(), Branch(If(condition=is_error, then=INTERRUPT), Else(...)))
    ```
+
    `INTERRUPT` 是一个 `address_able=False` 的特殊节点，执行时直接抛出 `InterruptNotice("Interrupt Node")`。
 
 **InterruptKeepContext（v0.4.x+）**

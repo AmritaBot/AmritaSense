@@ -6,12 +6,12 @@ Usage::
     NATIVE_IF(cond, body).ELIF(elif_cond, elif_body)
     NATIVE_IF(cond, body).ELIF(elif_cond, elif_body).ELSE(else_body)
 
-``body`` / ``elif_body`` / ``else_body`` accept:
+`body` / ``elif_body`` / `else_body` accept:
 
-* ``BaseNode`` — single node, executed via ``call_offset`` (no overhead vs vanilla).
-* ``NodeCompose`` | ``SelfCompileInstruction`` — wrapped into a **bubble**
+* `BaseNode` — single node, executed via `call_offset` (no overhead vs vanilla).
+* `AbstractComposeOriginal` (incl. ``NodeCompose``) | `SelfCompileInstruction` — wrapped into a **bubble**
   (a nested container).  The bubble flows back to the merge point naturally
-  via ``advance_pointer`` — like a Python ``if``/``else`` block, there is no
+  via `advance_pointer` — like a Python ``if``/`else` block, there is no
   early-return / RET_FAR mechanism (since v0.6.1).
 """
 
@@ -25,8 +25,15 @@ from amrita_sense.instructions.native._core import (
     _classify_body,
 )
 from amrita_sense.instructions.workfl_ctrl import NOP
+from amrita_sense.node.abc_base import AbstractComposeOriginal
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
+
+#: Body payload accepted by the native IF/ELIF/ELSE clauses — a single
+#: node, any source composition (`AbstractComposeOriginal`, e.g.
+#: `NodeCompose` or a custom composition), or a self-compiling
+#: instruction.
+_NativeBody = BaseNode | AbstractComposeOriginal | SelfCompileInstruction
 
 
 class _ELIFClause:
@@ -37,7 +44,7 @@ class _ELIFClause:
     def __init__(
         self,
         condition: Node[bool],
-        body: BaseNode | NodeCompose | SelfCompileInstruction,
+        body: _NativeBody,
     ) -> None:
         self.condition = condition
         self.body = body
@@ -47,14 +54,14 @@ class NativeIfClause(SelfCompileInstruction):
     """Fast-path IF with optional .ELIF / .ELSE chains."""
 
     _condition: Node[bool]
-    _body: BaseNode | NodeCompose | SelfCompileInstruction
+    _body: _NativeBody
     _elifs: list[_ELIFClause]
-    _else_body: BaseNode | NodeCompose | SelfCompileInstruction | None
+    _else_body: _NativeBody | None
 
     def __init__(
         self,
         condition: Node[bool],
-        body: BaseNode | NodeCompose | SelfCompileInstruction,
+        body: _NativeBody,
     ) -> None:
         self._condition = condition
         self._body = body
@@ -66,7 +73,7 @@ class NativeIfClause(SelfCompileInstruction):
     def ELIF(
         self,
         condition: Node[bool],
-        body: BaseNode | NodeCompose | SelfCompileInstruction,
+        body: _NativeBody,
     ) -> Self:
         """Append an ELIF branch."""
         self._elifs.append(_ELIFClause(condition, body))
@@ -74,7 +81,7 @@ class NativeIfClause(SelfCompileInstruction):
 
     def ELSE(
         self,
-        body: BaseNode | NodeCompose | SelfCompileInstruction,
+        body: _NativeBody,
     ) -> Self:
         """Append an ELSE branch."""
         if self._else_body is not None:
@@ -95,17 +102,17 @@ class NativeIfClause(SelfCompileInstruction):
         ### helpers ###
 
         def _wrap_if_body(
-            payload: BaseNode | NodeCompose | SelfCompileInstruction,
+            payload: _NativeBody,
         ) -> tuple[BaseNode | NodeCompose, bool]:
             """IF/ELIF body: single node OR flat NodeCompose bubble (no RET_FAR)."""
             body, is_single = _classify_body(payload)
             if is_single:
                 return body, True
             assert isinstance(body, NodeCompose)
-            return NodeCompose(*body._graph), False
+            return NodeCompose(*body), False
 
         def _wrap_else(
-            payload: BaseNode | NodeCompose | SelfCompileInstruction,
+            payload: _NativeBody,
         ) -> tuple[BaseNode | NodeCompose, bool]:
             """ELSE body: single node OR NodeCompose (no RET_FAR, natural flow)."""
             return _classify_body(payload)
@@ -181,7 +188,7 @@ class NativeIfClause(SelfCompileInstruction):
             assert isinstance(else_body, NodeCompose)
             else_pos = len(nodes)
             nodes.append(NativeBubbleEnterNode(else_pos + 1, push=False))
-            nodes.append(NodeCompose(*else_body._graph))
+            nodes.append(NodeCompose(*else_body))
         else:
             nodes.append(else_body)
 
@@ -193,16 +200,18 @@ class NativeIfClause(SelfCompileInstruction):
 
 def NATIVE_IF(
     condition: Node[bool],
-    body: BaseNode | NodeCompose | SelfCompileInstruction,
+    body: _NativeBody,
 ) -> NativeIfClause:
     """Create a native fast-path IF clause.
 
     Args:
-        condition: Boolean condition node (called via ``call_offset``).
-        body: Branch body — single ``BaseNode`` or a composition
-            (wrapped as a bubble with automatic ``RET_FAR``).
+        condition: Boolean condition node (called via `call_offset`).
+        body: Branch body — single `BaseNode` or a source composition
+            (`AbstractComposeOriginal`, e.g. `NodeCompose` or a
+            custom composition; wrapped as a bubble with automatic
+            `RET_FAR`).
 
     Returns:
-        ``NativeIfClause`` with fluent ``.ELIF`` / ``.ELSE`` chain support.
+        `NativeIfClause` with fluent ``.ELIF`` / `.ELSE` chain support.
     """
     return NativeIfClause(condition, body)

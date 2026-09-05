@@ -370,23 +370,23 @@ class DICache:
 
     Attributes:
         args_hash:
-            Fingerprint of the current ``(ava_args, ava_kwargs)`` types.
+            Fingerprint of the current `(ava_args, ava_kwargs)` types.
             Used as part of the LRU cache key so that a node's resolved
             dependencies are only reused when the type-signature of the
             available args hasn't changed.
         hash_trustable:
             *Cache-validity* gate, **not** a hash-correctness assertion.
-            Set to ``False`` by any write to ``__ava_args`` or
-            ``__ava_kwargs`` (the hash may be stale).  Restored to
-            ``True`` by ``rehash_args()``, which also clears the payload
+            Set to `False` by any write to `__ava_args` or
+            `__ava_kwargs` (the hash may be stale).  Restored to
+            `True` by `rehash_args()`, which also clears the payload
             when the hash actually changed.
         payload:
-            LRU cache mapping ``cache_key`` → ``(static_kwargs, non_cacheable_factories)``.
-            ``static_kwargs`` contains statically-resolved kwargs plus
-            results of ``cacheable=True`` factories that were resolved
-            at cache-write time.  ``non_cacheable_factories`` are
-            ``cacheable=False`` factories that must be re-resolved on
-            every ``_call``.
+            LRU cache mapping `cache_key` → `(static_kwargs, non_cacheable_factories)`.
+            `static_kwargs` contains statically-resolved kwargs plus
+            results of `cacheable=True` factories that were resolved
+            at cache-write time.  `non_cacheable_factories` are
+            `cacheable=False` factories that must be re-resolved on
+            every `_call`.
     """
 
     args_hash: int

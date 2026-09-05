@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="560" style="background: transparent;"><style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            background: #f1f5f9;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        #chart {
+            background: transparent;
+            padding: 10px;
+            width: 100%;
+            max-width: 1200px;
+            height: auto;
+        }
+        .node rect {
+            stroke-width: 2px;
+            rx: 12px;
+            ry: 12px;
+            filter: drop-shadow(0 2px 6px rgba(0,0,0,0.06));
+            transition: filter 0.25s, transform 0.2s;
+        }
+        .node rect:hover {
+            filter: drop-shadow(0 6px 16px rgba(79,70,229,0.18));
+            transform: scale(1.02);
+        }
+        .node text {
+            font-size: 14px;
+            font-weight: 600;
+            fill: #0f172a;
+            text-anchor: middle;
+            dominant-baseline: central;
+            pointer-events: none;
+        }
+        .node .sub-label {
+            font-size: 9px;
+            font-weight: 500;
+            letter-spacing: 0.4px;
+            text-anchor: middle;
+            dominant-baseline: central;
+            pointer-events: none;
+        }
+        .link {
+            fill: none;
+            stroke: #94a3b8;
+            stroke-width: 2.2px;
+            stroke-linejoin: round;
+            stroke-linecap: round;
+        }
+        .legend-text {
+            font-size: 12px;
+            fill: #1e293b;
+            dominant-baseline: central;
+            font-weight: 500;
+        }
+        .export-btn {
+            margin-top: 20px;
+            padding: 10px 24px;
+            background: #4f46e5;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(79,70,229,0.3);
+            transition: background 0.2s, transform 0.1s;
+        }
+        .export-btn:hover {
+            background: #4338ca;
+        }
+        .export-btn:active {
+            transform: scale(0.96);
+        }
+    </style><g transform="translate(120,80)"><defs><linearGradient id="containerGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#c7d2fe"/><stop offset="100%" stop-color="#818cf8"/></linearGradient><pattern id="containerPattern" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(30)"><rect width="10" height="10" fill="none"/><line x1="0" y1="0" x2="0" y2="10" stroke="#6366f1" stroke-width="3" opacity="0.25"/></pattern><linearGradient id="leafGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#f8fafc"/><stop offset="100%" stop-color="#e2e8f0"/></linearGradient><pattern id="leafPattern" patternUnits="userSpaceOnUse" width="12" height="12"><rect width="12" height="12" fill="none"/><circle cx="6" cy="6" r="1.8" fill="#94a3b8" opacity="0.35"/><circle cx="2" cy="2" r="1" fill="#94a3b8" opacity="0.2"/><circle cx="10" cy="10" r="1" fill="#94a3b8" opacity="0.2"/></pattern><linearGradient id="startGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fef08a"/><stop offset="100%" stop-color="#eab308"/></linearGradient><pattern id="startPattern" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(30)"><rect width="10" height="10" fill="none"/><line x1="0" y1="0" x2="0" y2="10" stroke="#ca8a04" stroke-width="3" opacity="0.3"/></pattern><marker id="arrow" viewBox="0 -5 10 10" refX="10" refY="0" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,-5L10,0L0,5" fill="#94a3b8"/></marker></defs><path class="link" d="M 429.99999999999994,236 V 315 H 334.44444444444446 V 394" marker-end="url(#arrow)"/><path class="link" d="M 203.33333333333334,210 L 369.99999999999994,210" marker-end="url(#arrow)"/><path class="link" d="M 489.99999999999994,210 L 656.6666666666665,210" marker-end="url(#arrow)"/><path class="link" d="M 394.44444444444446,420 L 465.55555555555554,420" marker-end="url(#arrow)"/><g class="node" transform="translate(143.33333333333334,210)"><rect width="120" height="52" x="-60" y="-26" fill="url(#startGrad)" stroke="#ca8a04" stroke-width="2.8"/><rect width="120" height="52" x="-60" y="-26" fill="url(#startPattern)" stroke="none" opacity="0.5" rx="12" ry="12"/><text y="-6" style="font-size: 18px; font-weight: 700; fill: rgb(66, 32, 6); letter-spacing: 0.2px;">a</text><text class="sub-label" y="14" style="fill: rgb(113, 63, 18); font-weight: 600; font-size: 10px; letter-spacing: 0.6px;">[0]</text></g><g class="node" transform="translate(429.99999999999994,210)"><rect width="120" height="52" x="-60" y="-26" fill="url(#containerGrad)" stroke="#4f46e5" stroke-width="2.4"/><rect width="120" height="52" x="-60" y="-26" fill="url(#containerPattern)" stroke="none" opacity="0.5" rx="12" ry="12"/><text y="-6" style="font-size: 18px; font-weight: 700; fill: rgb(30, 27, 75); letter-spacing: 0.2px;">[1]</text><text class="sub-label" y="14" style="fill: rgb(67, 56, 202); font-weight: 600; font-size: 10px; letter-spacing: 0.6px;">[1]</text></g><g class="node" transform="translate(716.6666666666665,210)"><rect width="120" height="52" x="-60" y="-26" fill="url(#leafGrad)" stroke="#94a3b8" stroke-width="2"/><rect width="120" height="52" x="-60" y="-26" fill="url(#leafPattern)" stroke="none" opacity="0.5" rx="12" ry="12"/><text y="-6" style="font-size: 18px; font-weight: 700; fill: rgb(15, 23, 42); letter-spacing: 0.2px;">d</text><text class="sub-label" y="14" style="fill: rgb(71, 85, 105); font-weight: 600; font-size: 10px; letter-spacing: 0.6px;">[2]</text></g><g class="node" transform="translate(334.44444444444446,420)"><rect width="120" height="52" x="-60" y="-26" fill="url(#leafGrad)" stroke="#94a3b8" stroke-width="2"/><rect width="120" height="52" x="-60" y="-26" fill="url(#leafPattern)" stroke="none" opacity="0.5" rx="12" ry="12"/><text y="-6" style="font-size: 18px; font-weight: 700; fill: rgb(15, 23, 42); letter-spacing: 0.2px;">b</text><text class="sub-label" y="14" style="fill: rgb(71, 85, 105); font-weight: 600; font-size: 10px; letter-spacing: 0.6px;">[1,0]</text></g><g class="node" transform="translate(525.5555555555555,420)"><rect width="120" height="52" x="-60" y="-26" fill="url(#leafGrad)" stroke="#94a3b8" stroke-width="2"/><rect width="120" height="52" x="-60" y="-26" fill="url(#leafPattern)" stroke="none" opacity="0.5" rx="12" ry="12"/><text y="-6" style="font-size: 18px; font-weight: 700; fill: rgb(15, 23, 42); letter-spacing: 0.2px;">c</text><text class="sub-label" y="14" style="fill: rgb(71, 85, 105); font-weight: 600; font-size: 10px; letter-spacing: 0.6px;">[1,1]</text></g><g transform="translate(640, -40)"><rect width="20" height="20" fill="url(#startGrad)" stroke="#ca8a04" rx="6"/><rect width="20" height="20" fill="url(#startPattern)" opacity="0.5" rx="6"/><text x="28" y="10" class="legend-text">Start Point (also Space Slot)</text><rect width="20" height="20" y="30" fill="url(#containerGrad)" stroke="#4f46e5" rx="6"/><rect width="20" height="20" y="30" fill="url(#containerPattern)" opacity="0.5" rx="6"/><text x="28" y="40" class="legend-text">Space Slot</text><rect width="20" height="20" y="60" fill="url(#leafGrad)" stroke="#94a3b8" rx="6"/><rect width="20" height="20" y="60" fill="url(#leafPattern)" opacity="0.5" rx="6"/><text x="28" y="70" class="legend-text">Executable Node</text><line x1="0" y1="90" x2="20" y2="90" stroke="#94a3b8" stroke-width="2.2" marker-end="url(#arrow)"/><text x="28" y="90" class="legend-text">Flow (arrow)</text></g><text x="430" y="-30" text-anchor="middle" style="font-size: 20px; font-weight: 700; fill: rgb(15, 23, 42); letter-spacing: 0.5px;">AmritaSense Compose Space Graph</text></g></svg>

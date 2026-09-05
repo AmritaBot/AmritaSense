@@ -19,7 +19,7 @@ from typing import (
 from uuid import uuid4
 
 import aiologic
-from typing_extensions import LiteralString, deprecated
+from typing_extensions import LiteralString
 
 from amrita_sense._unsafe import __flags__
 from amrita_sense.exceptions import (
@@ -33,7 +33,9 @@ from amrita_sense.exceptions import (
 )
 from amrita_sense.hook.matcher import DependsFactory, MatcherFactory, sign_func
 from amrita_sense.logging import logger
-from amrita_sense.node.core import BaseNode, NodeComposeRendered
+from amrita_sense.node.abc_base import AbstractCompose
+from amrita_sense.node.addressing import AddressCalculator
+from amrita_sense.node.core import BaseNode
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.runtime.types import InterpreterContext
 from amrita_sense.streaming import SuspendObjectStream
@@ -56,7 +58,7 @@ class WorkflowInterpreter(Generic[io_T]):
     pattern for dynamic workflow execution.
     """
 
-    _graph: NodeComposeRendered
+    _graph: AbstractCompose[AddressCalculator]
     _pointer: PointerVector
     _jump_marked: bool
 
@@ -115,7 +117,7 @@ class WorkflowInterpreter(Generic[io_T]):
 
     def __init__(
         self,
-        node_compose: NodeComposeRendered | SelfCompileInstruction,
+        node_compose: AbstractCompose[AddressCalculator] | SelfCompileInstruction,
         object_io: SuspendObjectStream[Any] | None = None,
         *,
         exception_ignored: tuple[type[BaseException], ...] = (),
@@ -143,7 +145,10 @@ class WorkflowInterpreter(Generic[io_T]):
         self._interpreter_id = uuid4().hex
         if isinstance(node_compose, SelfCompileInstruction):
             node_compose = node_compose.extract().render()
-        self._graph = node_compose
+        # `node_compose` is either an already-rendered composition or a
+        # self-compiling instruction that has been rendered above, so the
+        # resulting object always conforms to the rendered-compose contract.
+        self._graph = cast(AbstractCompose[AddressCalculator], node_compose)
         self._pointer = PointerVector()
         self._panic_exc = None
         self.__outer_interpreting = False
@@ -199,11 +204,11 @@ class WorkflowInterpreter(Generic[io_T]):
             self._top_interpreter = None
         self._pending_stop = False
 
-    def get_graph(self) -> NodeComposeRendered:
+    def get_graph(self) -> AbstractCompose[AddressCalculator]:
         """Return the compiled workflow graph being executed.
 
         Returns:
-            The NodeComposeRendered instance representing the workflow graph.
+            The compiled workflow graph (an `AbstractCompose`) being executed.
         """
         return self._graph
 
@@ -257,24 +262,24 @@ class WorkflowInterpreter(Generic[io_T]):
         """Whether cached DI entries are still valid under the current args.
 
         This is a *cache-validity* gate, not a hash-correctness assertion.
-        Any write to ``_ava_args`` / ``_ava_kwargs`` sets this to ``False``
-        (the cached hash may be stale).  Call ``rehash_args()`` to recalculate
+        Any write to `_ava_args` / ``_ava_kwargs`` sets this to `False`
+        (the cached hash may be stale).  Call `rehash_args()` to recalculate
         the hash and restore trust.
         """
         return self._di_cache.hash_trustable
 
     @property
     def args_hash(self) -> int:
-        """Fingerprint of the current args type-signature (see ``_fingerprint_args``)."""
+        """Fingerprint of the current args type-signature (see `_fingerprint_args`)."""
         return self._di_cache.args_hash
 
     def rehash_args(self) -> None:
         """Recalculate the args hash and mark the DI cache as trusted again.
 
         Lifecycle:
-        1. Any setter of ``_ava_args`` / ``_ava_kwargs`` sets ``hash_trustable=False``.
-        2. ``run_step_by`` (and other entry points) call this method after
-           resolving any ``DependsFactory`` instances in the session args.
+        1. Any setter of `_ava_args` / ``_ava_kwargs`` sets `hash_trustable=False`.
+        2. `run_step_by` (and other entry points) call this method after
+           resolving any `DependsFactory` instances in the session args.
         3. If the type-signature actually changed, clear the LRU payload
            so stale entries are not served.
         """
@@ -322,7 +327,7 @@ class WorkflowInterpreter(Generic[io_T]):
 
     def fork_interpreter(
         self,
-        compose: NodeComposeRendered | None,
+        compose: AbstractCompose[AddressCalculator] | None,
         middleware: Callable[[WorkflowInterpreter], Awaitable[Any]]
         | None
         | object = UNSET,
@@ -335,21 +340,21 @@ class WorkflowInterpreter(Generic[io_T]):
         This method creates a new WorkflowInterpreter instance that shares the same
         state, but you can custom the workflow graph and middleware for the sub-interpreter.
 
-        Since v0.3.2, ``SuspendObjectStream`` is concurrency-safe via the
+        Since v0.3.2, `SuspendObjectStream` is concurrency-safe via the
         **CLCA (Cross Loop Callback-Allocate)** signal design pattern, so the
-        parent's ``object_io`` can be safely shared with child interpreters.
+        parent's `object_io` can be safely shared with child interpreters.
 
         Args:
-            compose (NodeComposeRendered | None): The workflow graph for the sub-interpreter.
+            compose (AbstractCompose[AddressCalculator] | None): The workflow graph for the sub-interpreter.
                 If None, it will use the same graph as the parent.
             middleware (Callable[[WorkflowInterpreter], Awaitable[Any]] | None | object):
                 The middleware to be used for the sub-interpreter.
                 If UNSET, it will use the same middleware as the parent.
                 If None, it will not use any middleware.
             object_io (io_T | None): The object I/O stream for the sub-interpreter.
-                If None, reuses the parent interpreter's ``object_io`` instance.
-                Safe sharing is guaranteed for ``SuspendObjectStream`` (CLCA-safe since v0.3.2);
-                other ``io_T`` subtypes must ensure their own thread safety if passed explicitly.
+                If None, reuses the parent interpreter's `object_io` instance.
+                Safe sharing is guaranteed for `SuspendObjectStream` (CLCA-safe since v0.3.2);
+                other `io_T` subtypes must ensure their own thread safety if passed explicitly.
             ava_args (tuple | None): The arguments to be **merge** and passed to the sub-interpreter.
                 If None, it will use the same arguments as the parent.
             ava_kwargs (dict[str, Any] | None): The keyword arguments to **merge** and be passed to the sub-interpreter.
@@ -886,9 +891,9 @@ class WorkflowInterpreter(Generic[io_T]):
     async def _refresh_di_cache_full(self):
         """Pre-warm the DI cache by resolving every node in the graph.
 
-        Only safe during initialization (after ``rehash_args()`` has been
-        called).  Requires ``hash_trustable=True`` — otherwise the cache
-        keys would be built from a stale ``args_hash``.
+        Only safe during initialization (after `rehash_args()` has been
+        called).  Requires `hash_trustable=True` — otherwise the cache
+        keys would be built from a stale `args_hash`.
         """
         if not self._di_cache.hash_trustable:
             raise DependsResolveFailed(
@@ -1028,7 +1033,9 @@ class WorkflowInterpreter(Generic[io_T]):
 
         return self.get_graph().calc.advance(ptr if ptr is not None else self._pointer)
 
-    def find_node_alias(self, alias: str) -> BaseNode | NodeComposeRendered:
+    def find_node_alias(
+        self, alias: str
+    ) -> BaseNode | AbstractCompose[AddressCalculator]:
         """Find a node by its alias and return the node object.
 
         Args:
@@ -1041,45 +1048,9 @@ class WorkflowInterpreter(Generic[io_T]):
             self.get_graph().calc.resolve_alias(alias)
         )
 
-    @deprecated(
-        "This method is no longer used, please use '.calc.find_addr(addr)' instead!",
-        category=DeprecationWarning,
-    )
-    def find_addr(self, addr: list[int]) -> BaseNode | NodeComposeRendered:
-        """Find a node at the specified address.
-
-        Args:
-            addr: Address vector to look up.
-
-        Returns:
-            The node at the specified address.
-
-        Raises:
-            NullPointerException: If the address does not exist in the graph.
-        """
-        return self.get_graph().calc.find_addr(addr)
-
-    @deprecated(
-        "This method is no longer used, please use '.calc.resolve_alias(addr)' instead!",
-        category=DeprecationWarning,
-    )
-    def find_addr_alias(self, alias: str) -> list[int]:
-        """Find the address vector for a node by its alias.
-
-        Args:
-            alias: The alias name of the target node.
-
-        Returns:
-            The address vector (list of indices) pointing to the node.
-
-        Raises:
-            NullPointerException: If the alias does not exist in the graph.
-        """
-        return self.get_graph().calc.resolve_alias(alias)
-
     def _find_addr_or_none(
         self, addr: list[int]
-    ) -> BaseNode | NodeComposeRendered | None:
+    ) -> BaseNode | AbstractCompose[AddressCalculator] | None:
         return self.get_graph().calc.find_addr_safe(addr)
 
     async def _rslv_node(
@@ -1118,11 +1089,11 @@ class WorkflowInterpreter(Generic[io_T]):
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         """Resolve static dependencies and cacheable factories for a node.
 
-        Returns a ``(static_kwargs, non_cacheable_factories)`` tuple.
+        Returns a `(static_kwargs, non_cacheable_factories)` tuple.
 
-        *   ``cacheable=True`` factories are resolved immediately — their
-            results are merged into ``static_kwargs`` and **will be cached**.
-        *   ``cacheable=False`` (default) factories are returned as-is in the
+        *   `cacheable=True` factories are resolved immediately — their
+            results are merged into `static_kwargs` and **will be cached**.
+        *   `cacheable=False` (default) factories are returned as-is in the
             second dict for **per-call** resolution.
         """
         fun = node.func
@@ -1163,7 +1134,9 @@ class WorkflowInterpreter(Generic[io_T]):
 
     async def _call(
         self,
-        addr_getter: Callable[[list[int]], BaseNode | NodeComposeRendered]
+        addr_getter: Callable[
+            [list[int]], BaseNode | AbstractCompose[AddressCalculator]
+        ]
         | None = None,
         *extra_args: Any,
         no_cache: bool = False,
@@ -1173,20 +1146,20 @@ class WorkflowInterpreter(Generic[io_T]):
 
         Dependency resolution has **two orthogonal concerns**:
 
-        1. **cacheable vs non-cacheable** — handled by ``_rslv_node_static``.
-           ``cacheable=True`` factories are resolved at cache-write time and
-           merged into ``static_kwargs``.  ``cacheable=False`` factories are
+        1. **cacheable vs non-cacheable** — handled by `_rslv_node_static`.
+           `cacheable=True` factories are resolved at cache-write time and
+           merged into `static_kwargs`.  `cacheable=False` factories are
            stored as-is and re-resolved on every call.
 
-        2. **cache validity** — controlled by ``hash_trustable`` / ``no_cache`` /
-           ``WORKFLOW_DI_NO_CACHE``.  When the cache is not trusted, we still
+        2. **cache validity** — controlled by `hash_trustable` / `no_cache` /
+           `WORKFLOW_DI_NO_CACHE`.  When the cache is not trusted, we still
            split cacheable/non-cacheable factories, but skip the LRU read/write.
 
         Args:
             addr_getter: Optional function to retrieve the node at a specific address.
             *extra_args: Additional positional arguments for the node execution.
             no_cache: If True, skip the LRU cache for this call (still respects
-                      ``cacheable`` flags via ``_rslv_node_static``).
+                      `cacheable` flags via `_rslv_node_static`).
             **extra_kwargs: Additional keyword arguments for the node execution.
 
         Returns:
@@ -1197,8 +1170,10 @@ class WorkflowInterpreter(Generic[io_T]):
             DependsInjectFailed: If dependency injection fails at runtime.
         """
         addr_getter = addr_getter or self.get_graph().calc.find_addr
-        node: BaseNode | NodeComposeRendered = addr_getter(self._pointer.base_addr)
-        while isinstance(node, NodeComposeRendered):
+        node: BaseNode | AbstractCompose[AddressCalculator] = addr_getter(
+            self._pointer.base_addr
+        )
+        while isinstance(node, AbstractCompose):
             if not node:
                 return
             self._pointer.append(0)

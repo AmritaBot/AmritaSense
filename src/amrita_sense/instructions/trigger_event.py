@@ -7,7 +7,8 @@ from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.hook.matcher import MatcherFactory
 from amrita_sense.instructions.enum import BuiltinTags
 from amrita_sense.instructions.workfl_ctrl import NOP
-from amrita_sense.node.core import BaseNode, Node, NodeCompose
+from amrita_sense.node.abc_base import AbstractComposeOriginal
+from amrita_sense.node.core import BaseNode, Node
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 
@@ -56,7 +57,7 @@ class TriggerInstruction(SelfCompileInstruction):
             event.constructor, BuiltinTags.TRIGGER_CONSTRUCTOR, False, False
         )
 
-    def extract(self) -> NodeCompose:
+    def extract(self) -> AbstractComposeOriginal:
         return EventTrigger(1, 2) >> self._constructor >> NOP
 
 

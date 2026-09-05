@@ -8,7 +8,8 @@ from typing_extensions import Never, Self
 
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.workfl_ctrl import NOP
-from amrita_sense.node.core import BaseNode, Node, NodeCompose, NodeComposeRendered
+from amrita_sense.node.abc_base import AbstractCompose, AbstractComposeOriginal
+from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 
@@ -22,16 +23,18 @@ def _check_do(pl: BaseNode) -> None: ...
 
 @overload
 def _check_do(
-    pl: NodeComposeRendered | SelfCompileInstruction | NodeCompose,
+    pl: AbstractCompose | AbstractComposeOriginal | SelfCompileInstruction,
 ) -> Never: ...
 
 
 def _check_do(
-    pl: BaseNode | NodeCompose | NodeComposeRendered | SelfCompileInstruction,
+    pl: BaseNode | AbstractCompose | AbstractComposeOriginal | SelfCompileInstruction,
 ):
-    if isinstance(pl, (NodeCompose, NodeComposeRendered, SelfCompileInstruction)):
+    if isinstance(
+        pl, (AbstractCompose, AbstractComposeOriginal, SelfCompileInstruction)
+    ):
         raise TypeError(
-            "DO cannot be a NodeCompose, NodeComposeRendered or SelfCompileInstruction,"
+            "DO cannot be a composition or SelfCompileInstruction,"
             + " please use FUN_BLOCK to wrap the sub component."
         )
 

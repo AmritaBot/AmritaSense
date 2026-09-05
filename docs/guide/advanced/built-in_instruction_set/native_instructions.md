@@ -175,7 +175,9 @@ Single-node bodies are auto-wrapped the same way (`NodeCompose(body, CONTINUE())
 ### Underlying Nodes
 
 - `NativeDoWhileNode` (`_core.py`): DO-WHILE back-edge node. When condition is true, `jump_near(loop_pos)` back to body entry (`NativeBubbleEnterNode` handles re-entry); when false, `jump_near(exit_pos)` to exit.
-- `NativeBubbleEnterNode` (`_core.py`): Bubble entry helper. Always `PUSH`es a sentinel (its own address) then `jump_far_ptr`s into the body, so `CONTINUE()` / `BREAK_LOOP()` can pop it. Constructor takes only `body_pos` (the `ret_pos` parameter was removed in v0.6.0).
+- `NativeBubbleEnterNode` (`_core.py`): Bubble entry helper used when a native body is entered via a jump (`DO` body, `ELSE` body). Constructor takes `body_pos` and `push` (the `ret_pos` parameter was removed in v0.6.0; `push` was added in v0.6.1).
+  - `push=True` (default, `DO`): `PUSH`es a sentinel (its own address) onto `_ret_addr_stack` then `jump_far_ptr`s into the body, so `CONTINUE()` / `BREAK_LOOP()` can pop it.
+  - `push=False` (`ELSE` branch, since v0.6.1): no sentinel is pushed — the body flows back to the merge point naturally via `advance_pointer`, like a Python `else` block.
 
 ## BREAK_LOOP
 

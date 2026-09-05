@@ -18,8 +18,8 @@ class SelfCompileInstruction(ABC):
 
 **Core methods**
 
-- `extract() -> NodeCompose`: Expands the instruction into a low-level node composition. Must return a `NodeCompose` instance, which the framework will recursively render automatically.
-- `__rshift__(other) -> NodeCompose`: Supports the `>>` operator so that self-compile instructions can be composed directly with regular nodes. Syntactic sugar: `instruction >> node` is equivalent to `NodeCompose(instruction, node)`.
+- `extract() -> AbstractComposeOriginal`: Expands the instruction into a low-level node composition. The framework accepts any source composition here; in practice you return a `NodeCompose` (its default implementation), which is recursively rendered automatically.
+- `__rshift__(other) -> AbstractComposeOriginal`: Supports the `>>` operator so that self-compile instructions can be composed directly with regular nodes. Syntactic sugar: `instruction >> node` is equivalent to `NodeCompose(instruction, node)`.
 
 **Design philosophy**
 
@@ -59,7 +59,7 @@ The `CallNode` corresponding to the `CALL` instruction inherits directly from `B
 
 1. **Subclass `SelfCompileInstruction`**
 2. **Accept construction parameters in `__init__`**: These parameters determine how the node composition will expand.
-3. **Implement `extract() -> NodeCompose`**: Perform all address calculation and node assembly inside this method; return the final `NodeCompose`.
+3. **Implement `extract() -> AbstractComposeOriginal`**: Perform all address calculation and node assembly inside this method; return the final composition (usually a `NodeCompose`).
 
 ### Simple example
 

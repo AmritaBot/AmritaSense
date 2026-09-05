@@ -150,9 +150,9 @@ class WeakValueLRUCache(Generic[K, V]):
         LRU eviction with weak-reference awareness:
         - If the key already exists, remove the old entry first (no eviction).
         - Otherwise, if adding would exceed `capacity`, scan from oldest to newest
-          up to ``len(self._cache)`` steps:
-            * **loose_mode** + alive → ``move_to_end`` (skip, keep it).
-            * Otherwise → ``pop`` (evict expired or force-evict in normal mode).
+          up to `len(self._cache)` steps:
+            * **loose_mode** + alive → `move_to_end` (skip, keep it).
+            * Otherwise → `pop` (evict expired or force-evict in normal mode).
         - Eviction stops once enough slots are freed.  The bounded for-loop
           prevents infinite looping when loose_mode keeps all entries alive.
 

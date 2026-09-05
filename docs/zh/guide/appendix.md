@@ -26,23 +26,27 @@ AmritaSense 提供的一套完备的控制流原语，包括 `IF/ELIF/ELSE`（�
 
 实现 `SelfCompileInstruction` 接口的指令类。它们在 `render()` 阶段通过 `extract()` 方法自动展开为标准的 `NodeCompose` 结构。内置指令和开发者自定义指令都基于这一机制，实现了编译期优化和运行时的零开销。
 
-### 9.1.7 Interrupt（流程中断）
+### 9.1.7 Compose Contract（组合契约）
+
+AmritaSense 中的“组合”由 `amrita_sense.node.abc_base` 中的两个抽象契约描述：`AbstractComposeOriginal`（源组合——可迭代、可链式追加、可渲染）与 `AbstractCompose[AddressCalculator]`（渲染图——只读、可索引、绑定 `calc`）。日常代码中使用的具体类 `NodeCompose` 与 `NodeComposeRendered` 是这两个契约的**默认实现**，功能完备。抽象契约只为 Mock 与扩展而设：任何满足契约的对象都可被渲染器或 `WorkflowInterpreter` 消费。参见 [Compose 契约](/zh/guide/advanced/compose-contracts)。
+
+### 9.1.8 Interrupt（流程中断）
 
 AmritaSense 提供的协作式中断机制。工作流在指定标记点主动挂起，将控制权交还给外部系统。外部系统可以在此窗口期内检查状态、修改变量，然后通过 `resume()` 恢复执行。这是构建调试器和外部监控系统的基础能力。
 
-### 9.1.8 Depends（依赖注入）
+### 9.1.9 Depends（依赖注入）
 
 借鉴 FastAPI 的依赖注入模式。节点通过在函数签名中声明 `Depends(factory)` 来声明自己需要的资源。AmritaSense 的依赖解析系统支持并发解析、运行时注入和类型匹配。若工厂函数返回 `None`，工作流将直接终止。
 
-### 9.1.9 Alias（别名）
+### 9.1.10 Alias（别名）
 
 通过 `ALIAS` 指令为节点绑定的全局唯一符号名。编译期注册到 `alias2vector_map`，供 `GOTO` 和 `CALL` 在运行时查表解析。这是 AmritaSense 符号寻址体系的基础。
 
-### 9.1.10 Subprogram（子程序）
+### 9.1.11 Subprogram（子程序）
 
 通过 `ARCHIVED_NODES` 指令定义的、被 `SubprogramJumpNode` 跳过、仅通过 `CALL` 或外部注入访问的节点序列。子程序可以存储中断处理逻辑、调试工具或可复用的功能模块，正常执行流不受其存在的影响。若要归档完整节点组合（如函数体），改用 `ARCHIVED_SEGMENT`；`FN` / `INTER_FN` 在其上构建命名函数块（参见[函数块调用](/zh/guide/advanced/function-block-call)）。
 
-### 9.1.11 其他核心术语
+### 9.1.12 其他核心术语
 
 - **解释锁（Interpret Lock）**：`aiologic.Lock` 实例，保证每次只有一个节点在执行，是外部安全调用的互斥基础
 - **跳转标记（Jump Mark）**：`_jump_marked` 标志，为 `True` 时解释器跳过常规的指针推进步骤，下一轮从跳转目标开始
@@ -53,7 +57,7 @@ AmritaSense 提供的协作式中断机制。工作流在指定标记点主动�
 - **Debugger（调试器）**（v0.5.0+）：`amrita_sense.debugger` 模块提供的一套 REPL 优先的纯函数式调试工具包。包含状态检查（`inspect`、`where`、`backtrace`、`list_nodes`、`list_sub_intp`）、步进执行（`step`、`step_over`、`step_out`、`cont`）和断点管理（`break_at_tag`、`break_at_addr`、`clear_break_*`、`list_breaks`）。通过组合式中间件（middleware）注入实现，不修改核心运行时。同步函数可直接在 REPL 中调用而无需 `await`。
 - **Breakpoint（断点）**（v0.5.0+）：标记在特定节点标签或地址上的执行暂停点。通过 `amrita_sense.debugger` 的 `break_at_tag()` 和 `break_at_addr()` 设置，支持条件表达式（`condition` 参数）。命中断点时抛出 `BreakpointHit`（继承 `BaseException` 而非 `Exception`，避免触发 panic 机制），由 `cont()` 捕获后暂停执行。
 
-### 9.1.12 缩写词
+### 9.1.13 缩写词
 
 - **API**：Application Programming Interface（应用程序编程接口）
 - **DI**：Dependency Injection（依赖注入）
@@ -62,7 +66,7 @@ AmritaSense 提供的协作式中断机制。工作流在指定标记点主动�
 - **HTTP**：Hypertext Transfer Protocol（超文本传输协议）
 - **ISA**：Instruction Set Architecture（指令集架构）
 
-### 9.1.13 原语（Primitive）
+### 9.1.14 原语（Primitive）
 
 **原语**是计算机体系结构中的核心概念，指处理器指令集架构（ISA）中定义的**不可再分的最小操作单元**。在 ISA 中，原语指示了处理器能够执行的最基本能力——如加法、数据加载、条件跳转——所有复杂的程序最终都由这些原语组合而成。原语决定了"硬件能做什么"，软件则通过原语的组合实现任意复杂的逻辑。
 

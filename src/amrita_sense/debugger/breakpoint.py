@@ -3,12 +3,12 @@
 Breakpoints are checked inside a composite middleware that wraps the
 user's original middleware.  When a breakpoint matches the current node,
 a :class:`BreakpointHit` exception is raised, which propagates out of
-``run_step_by()`` and is caught by :func:`cont`.
+`run_step_by()` and is caught by :func:`cont`.
 
-Module-level state is kept in ``_debug_state``, keyed by interpreter id;
-each value is a dict with ``breakpoints`` (list[Breakpoint]),
-``saved_user_mw`` (the original middleware), ``stepping`` (True skips
-breakpoint checks) and ``debug_active`` (True after ``_ensure_debug_mw``).
+Module-level state is kept in `_debug_state`, keyed by interpreter id;
+each value is a dict with `breakpoints` (list[Breakpoint]),
+`saved_user_mw` (the original middleware), `stepping` (True skips
+breakpoint checks) and `debug_active` (True after `_ensure_debug_mw`).
 """
 
 from __future__ import annotations
@@ -55,9 +55,9 @@ class Breakpoint:
 
     Attributes:
         target: The tag string or address list to match against.
-        kind: ``"tag"`` matches ``BaseNode.tag``; ``"addr"`` matches the
-              pointer's ``base_addr``.
-        condition: Optional callable ``(WorkflowInterpreter) -> bool``.
+        kind: `"tag"` matches ``BaseNode.tag``; `"addr"` matches the
+              pointer's `base_addr`.
+        condition: Optional callable `(WorkflowInterpreter) -> bool`.
         hit_count: How many times this breakpoint has been triggered.
         enabled: Whether this breakpoint is currently active.
     """
@@ -170,10 +170,10 @@ def break_at_tag(
     *,
     condition: Callable[[WorkflowInterpreter], bool] | None = None,
 ) -> Breakpoint:
-    """Set a breakpoint on every node whose ``tag`` matches *tag*.
+    """Set a breakpoint on every node whose `tag` matches *tag*.
 
     Returns the :class:`Breakpoint` instance so callers can inspect
-    ``hit_count`` or toggle ``enabled`` later.
+    `hit_count` or toggle `enabled` later.
     """
     _ensure_debug_middleware(inter)
     bp = Breakpoint(target=tag, kind="tag", condition=condition)
@@ -192,8 +192,8 @@ def break_at_addr(
 
     *addr* can be:
 
-    * ``list[int]`` – raw address vector, e.g. ``[0, 1]``
-    * ``str``      – alias resolved via ``AddressCalculator.resolve_alias()``
+    * `list[int]` – raw address vector, e.g. `[0, 1]`
+    * `str`      – alias resolved via `AddressCalculator.resolve_alias()`
     """
     _ensure_debug_middleware(inter)
     resolved = _resolve_addr(inter, addr)
@@ -250,8 +250,8 @@ def cleanup(inter: WorkflowInterpreter) -> None:
     """Release all debug state for *inter* and restore its original middleware.
 
     Call this when you no longer need to debug *inter* (e.g. after
-    ``terminate()`` or when the interpreter instance is about to be
-    garbage-collected).  Without it, ``_debug_state`` grows unboundedly
+    `terminate()` or when the interpreter instance is about to be
+    garbage-collected).  Without it, `_debug_state` grows unboundedly
     in long-lived processes that create many short-lived interpreters.
     """
     state = _debug_state.pop(inter.id, None)

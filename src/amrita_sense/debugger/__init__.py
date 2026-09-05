@@ -5,13 +5,13 @@ Import everything with::
     from amrita_sense.debugger import *
 
 All functions take a :class:`WorkflowInterpreter` as their first argument.
-Sync versions (``step``, ``cont``, …) work directly in a REPL.
-Async versions (``step_async``, ``cont_async``, …) are available for use
+Sync versions (`step`, `cont`, …) work directly in a REPL.
+Async versions (`step_async`, `cont_async`, …) are available for use
 inside existing event loops.
 
-**Security:**  Set the environment variable ``REMOVE_DEBUGGER=true`` to
+**Security:**  Set the environment variable `REMOVE_DEBUGGER=true` to
 physically gut the module at import time.  Any attempt to access
-``amrita_sense.debugger`` will then raise ``AttributeError``.  This
+`amrita_sense.debugger` will then raise `AttributeError`.  This
 prevents SSTI-based leakage of debugger internals into production
 environments.
 """

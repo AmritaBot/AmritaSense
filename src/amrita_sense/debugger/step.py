@@ -2,15 +2,15 @@
 
 Two API flavours are provided:
 
-* **sync**  (``step``, ``step_over``, ``step_out``, ``cont``) —
-  callable directly in a Python REPL **without** ``await``.  Each wraps
-  ``asyncio.run()`` internally and catches ``BreakpointHit`` /
-  ``KeyboardInterrupt`` so the REPL stays clean.
+* **sync**  (`step`, ``step_over``, ``step_out``, `cont`) —
+  callable directly in a Python REPL **without** `await`.  Each wraps
+  `asyncio.run()` internally and catches `BreakpointHit` /
+  `KeyboardInterrupt` so the REPL stays clean.
 
-* **async** (``step_async``, ``step_over_async``, …) —
+* **async** (`step_async`, `step_over_async`, …) —
   the raw async implementations for use inside an existing event loop.
 
-Both sets are exported from ``amrita_sense.debugger``.
+Both sets are exported from `amrita_sense.debugger`.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 
 async def _step_one(inter: WorkflowInterpreter[SuspendObjectStream]) -> None:
-    """Execute exactly **one** node using direct ``_call()`` + lock."""
+    """Execute exactly **one** node using direct `_call()` + lock."""
     ### recover from panic (mimics run_step_by preamble) ###
     if inter._panic_exc is not None:
         inter._panic_exc = None
@@ -70,9 +70,9 @@ async def _step_one(inter: WorkflowInterpreter[SuspendObjectStream]) -> None:
 async def step_async(inter: WorkflowInterpreter[SuspendObjectStream]) -> None:
     """Execute exactly **one** node and stop (async).
 
-    Breakpoints are **skipped** during stepping (the ``stepping`` flag
+    Breakpoints are **skipped** during stepping (the `stepping` flag
     is set, so the composite middleware only checks breakpoints during
-    ``cont_async()``).
+    `cont_async()`).
     """
     state = _get_state(inter)
     state["stepping"] = True
@@ -112,7 +112,7 @@ async def step_out_async(inter: WorkflowInterpreter) -> None:
 async def cont_async(inter: WorkflowInterpreter[SuspendObjectStream]) -> None:
     """Continue until a breakpoint or workflow end (async).
 
-    Breakpoints are active — the ``stepping`` flag is cleared.
+    Breakpoints are active — the `stepping` flag is cleared.
     """
     state = _get_state(inter)
     state["stepping"] = False
@@ -129,8 +129,8 @@ async def cont_async(inter: WorkflowInterpreter[SuspendObjectStream]) -> None:
 
 
 def _run_sync(coro, inter: WorkflowInterpreter) -> None:
-    """Run *coro* synchronously.  Only ``BreakpointHit`` and
-    ``KeyboardInterrupt`` are caught & printed; other exceptions
+    """Run *coro* synchronously.  Only `BreakpointHit` and
+    `KeyboardInterrupt` are caught & printed; other exceptions
     propagate so the user can see the real error."""
     try:
         loop = asyncio.get_running_loop()

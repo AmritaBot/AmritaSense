@@ -60,14 +60,6 @@ By default, `InterruptNotice` and `BreakLoop` are automatically added to `_exc_i
 
 **When to use**: When you need `TRY/CATCH` blocks to intercept `BreakLoop` or `InterruptNotice`, or when you want fully manual control over which exceptions penetrate.
 
-### `ALLOW_CALL_NODECOMPOSE` — Removed (0.6.0+)
-
-```python
-ALLOW_CALL_NODECOMPOSE: bool = False  # no effect; kept for compatibility
-```
-
-> **Removed since 0.6.0.** The flag field still exists in `_Flags` for backwards compatibility, but it has **no effect**: since v0.6.0, `_call()` automatically descends into a `NodeComposeRendered` (appending `0` to the pointer in a **loop** — no recursion, so deeply nested compositions cannot overflow the stack) instead of raising `RuntimeError` — the behavior this flag used to toggle is now the default. Do not rely on it.
-
 ### `NO_DEPENDENCY_META_CACHE`
 
 ```python
@@ -162,14 +154,13 @@ Several built-in instructions and the matcher system read flags at key decision 
 
 ## Summary
 
-| Flag                        | Default | Effect                                                   |
-| --------------------------- | ------- | -------------------------------------------------------- |
-| `FORCE_NOT_WRAP_TO_ASYNC`   | `False` | Force sync nodes to stay sync                            |
-| `DISABLE_EXC_IGNORED`       | `False` | Disable automatic exception penetration                  |
-| `NO_DEPENDENCY_META_CACHE`  | `False` | Re-resolve dependency metadata each call                 |
-| `NO_SHARED_MIDDLEWARE`      | `False` | Don't inherit parent middleware in forks                 |
-| `SQUASHED_LOOP`             | `False` | Squash while/do-while into native loops                  |
-| `WORKFLOW_DI_NO_CACHE`      | `False` | Disable DI result caching (repeatable)                   |
-| `WORKFLOW_DI_PRELOAD_CACHE` | `False` | Pre-resolve DI for all nodes at startup                  |
-| `WORKFLOW_DI_PRELOAD_BATCH` | `10`    | Batch size for DI preloading (repeatable)                |
-| `ALLOW_CALL_NODECOMPOSE`    | `False` | **Removed (0.6.0+)** — no effect, kept for compatibility |
+| Flag                        | Default | Effect                                    |
+| --------------------------- | ------- | ----------------------------------------- |
+| `FORCE_NOT_WRAP_TO_ASYNC`   | `False` | Force sync nodes to stay sync             |
+| `DISABLE_EXC_IGNORED`       | `False` | Disable automatic exception penetration   |
+| `NO_DEPENDENCY_META_CACHE`  | `False` | Re-resolve dependency metadata each call  |
+| `NO_SHARED_MIDDLEWARE`      | `False` | Don't inherit parent middleware in forks  |
+| `SQUASHED_LOOP`             | `False` | Squash while/do-while into native loops   |
+| `WORKFLOW_DI_NO_CACHE`      | `False` | Disable DI result caching (repeatable)    |
+| `WORKFLOW_DI_PRELOAD_CACHE` | `False` | Pre-resolve DI for all nodes at startup   |
+| `WORKFLOW_DI_PRELOAD_BATCH` | `10`    | Batch size for DI preloading (repeatable) |

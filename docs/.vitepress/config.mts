@@ -201,6 +201,14 @@ export default withMermaid({
                 text: "Custom Instructions",
                 link: "/guide/advanced/custom_instruction",
               },
+              {
+                text: "Compose Contracts",
+                link: "/guide/advanced/compose-contracts",
+              },
+              {
+                text: "Dynamic Linking Feature",
+                link: "/guide/advanced/dll_feature",
+              },
               { text: "Unsafe Features", link: "/guide/advanced/unsafe" },
             ],
           },
@@ -389,6 +397,14 @@ export default withMermaid({
               {
                 text: "自定义指令集",
                 link: "/zh/guide/advanced/custom_instruction",
+              },
+              {
+                text: "Compose 契约",
+                link: "/zh/guide/advanced/compose-contracts",
+              },
+              {
+                text: "动态链接特性",
+                link: "/zh/guide/advanced/dll_feature",
               },
               { text: "Unsafe 特性", link: "/zh/guide/advanced/unsafe" },
             ],

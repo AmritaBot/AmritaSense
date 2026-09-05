@@ -10,6 +10,7 @@ from amrita_sense.exceptions import IllegalState
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.enum import BuiltinTags
 from amrita_sense.instructions.workfl_ctrl import NOP
+from amrita_sense.node.abc_base import AbstractComposeOriginal
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
 from amrita_sense.runtime.workflow import WorkflowInterpreter
@@ -132,7 +133,7 @@ class TryClause(SelfCompileInstruction):
 
         return _inner
 
-    def extract(self) -> NodeCompose:
+    def extract(self) -> AbstractComposeOriginal:
         if not self._catch_then and not self._finally:
             raise IllegalState("Try Clause must have at least one catch or finally")
         cp: list[BaseNode] = [NOP, self._do]

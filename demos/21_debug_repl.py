@@ -5,7 +5,7 @@ This script demonstrates the complete REPL debugging toolkit::
 
     from amrita_sense.debugger import *
 
-**All functions are sync** — no ``await``, no ``asyncio.run`` needed.
+**All functions are sync** — no `await`, no `asyncio.run` needed.
 Just call them directly in a REPL.
 
 It walks through:

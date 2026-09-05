@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from amrita_sense.node.core import BaseNode, NodeComposeRendered
+from amrita_sense.node.abc_base import AbstractCompose
+from amrita_sense.node.addressing import AddressCalculator
+from amrita_sense.node.core import BaseNode
 
 if TYPE_CHECKING:
     from amrita_sense.runtime.workflow import WorkflowInterpreter
@@ -25,17 +27,17 @@ def _fmt_ptr(inter: WorkflowInterpreter) -> str:
 
 
 def _walk_graph(
-    graph: NodeComposeRendered, prefix: list[int] | None = None
+    graph: AbstractCompose[AddressCalculator], prefix: list[int] | None = None
 ) -> list[tuple[list[int], BaseNode]]:
     """Flatten the graph into (address, BaseNode) pairs (DFS)."""
     result: list[tuple[list[int], BaseNode]] = []
     if prefix is None:
         prefix = []
-    for idx, item in enumerate(graph._graph):
+    for idx, item in enumerate(graph):
         addr = [*prefix, idx]
         if isinstance(item, BaseNode):
             result.append((addr, item))
-        elif isinstance(item, NodeComposeRendered):
+        elif isinstance(item, AbstractCompose):
             result.extend(_walk_graph(item, addr))
     return result
 
@@ -166,7 +168,7 @@ def backtrace(inter: WorkflowInterpreter) -> None:
 def list_nodes(inter: WorkflowInterpreter) -> None:
     """Print every node in the workflow graph with its address and tag.
 
-    Like ``dis.dis()`` for AmritaSense workflows.
+    Like `dis.dis()` for AmritaSense workflows.
     """
     graph = inter.get_graph()
     nodes = _walk_graph(graph)
