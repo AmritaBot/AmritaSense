@@ -31,6 +31,8 @@ class FuncBlock(BaseNode):
     _io: SuspendObjectStream[Any] | None
     _interpreter: WorkflowInterpreter | None
     _onetime: bool
+    __sdb_dis__ = "FN"
+    __sdb_cmt__ = "FuncBlock"
     __slots__ = (
         "_comp_rendered",
         "_interpreter",

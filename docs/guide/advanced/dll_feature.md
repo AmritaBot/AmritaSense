@@ -105,15 +105,15 @@ The full `apply()` flow:
 1. Remove the symbols **previously registered by this DLL** from the top-level `alias2vector_map` (do not clear the whole table).
 2. Compile the new composition into the same slot; during compilation, aliases in the new content are re-registered into the top-level `alias2vector_map` **prefixed with the DLL slot**.
 3. Record the symbols added this time, as the cleanup list for the next `apply()`.
-4. Re-run the `_post_compile` hooks collected during the build.
+4. Hand the `_post_compile` hooks collected during that build to the host graph, which runs them together with its own once its build finishes (see below).
 
 Before the rebase (after the first render), suppose the DLL occupies slot `[1]` and its content registered two symbols via `ALIAS` (with other DLL-unrelated aliases outside). The top-level symbol table (`alias2vector_map`) is then:
 
 ```python
 # Before rebase
 alias2vector_map = {
-    "a": [0],          # outer symbol (before the DLL), unrelated to the DLL
-    "x": [1, 0],       # prefix [1] means "inside the DLL"
+    "a": [0],  # outer symbol (before the DLL), unrelated to the DLL
+    "x": [1, 0],  # prefix [1] means "inside the DLL"
     "y": [1, 1],
 }
 ```
@@ -123,8 +123,11 @@ After rebasing with `dll.apply(ALIAS(y, "y") >> ALIAS(x, "x"))`, old symbols are
 ```python
 # After rebase
 alias2vector_map = {
-    "a": [0],          # outer symbol unaffected
-    "y": [1, 0],       # re-registered under the same prefix — absolute address [1, 0] now points to y
+    "a": [0],  # outer symbol unaffected
+    "y": [
+        1,
+        0,
+    ],  # re-registered under the same prefix — absolute address [1, 0] now points to y
     "x": [1, 1],
 }
 ```
@@ -154,4 +157,5 @@ Keep in mind:
 - **Null references & invalid addresses**: calling `apply()` on an unbuilt DLL raises **GraphBuildError** (there is no bound placeholder container or slot path to relink); only **runtime** lookups of nonexistent addresses or old symbols cleaned up by a rebase cause an **NPE**.
 - **Single binding**: a `DLLCompose` instance can only be rendered and bound once — hot-update by repeatedly `apply()`-ing the same instance rather than re-rendering it.
 - **Compilation timing**: the source Compose inside a DLL is compiled only when the placeholder container is built (render / apply), so `_post_compile` hooks re-run after every rebase — do not assume they run only once.
+- **Hook collection belongs to the host**: a slot collects its payload's hooks into a *private* list and hands them back to the host graph rather than running them itself. The host runs every hook once its own build finishes, so a payload hook may resolve any alias — including one declared *after* the slot — and may use the host's address calculator. Rebasing (`apply()`) happens after the host is built, so those hooks run immediately. A slot therefore never discards the hooks of nodes appearing before it, and never leaves the host's collector in a broken state.
 - **Address stability**: hard-coded absolute addresses are discouraged and unstable; use aliases / relative addressing.

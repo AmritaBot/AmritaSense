@@ -23,6 +23,8 @@ class EventTrigger(BaseNode):
     _c_offset: int
     _e_offset: int
 
+    __sdb_dis__ = "EVENT"
+    __sdb_cmt__ = "EventTrigger"
     __slots__ = (
         "_c_offset",
         "_e_offset",

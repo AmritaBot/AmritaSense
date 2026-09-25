@@ -1,12 +1,14 @@
 import asyncio
+from typing import Any
 
 import pytest
 
 from amrita_sense import Node, WorkflowInterpreter
 from amrita_sense.exceptions import GraphBuildError, NullPointerException
-from amrita_sense.instructions import NOP
+from amrita_sense.instructions import CALL, GOTO, NOP
 from amrita_sense.instructions.alias import ALIAS
 from amrita_sense.node import DLLCompose, NodeCompose
+from amrita_sense.node.core import BaseNode
 
 
 @pytest.fixture
@@ -20,6 +22,21 @@ def make_node(name: str, log: list):
         log.append(name)
 
     return node
+
+
+class ResolveOnCompile(BaseNode):
+    """Node whose `_post_compile` resolves an alias through the host calculator."""
+
+    def __init__(self, alias: str) -> None:
+        self._alias = alias
+        self._addr: list[int] = []
+        self._init(self.__call__, tag=None, wrap_to_async=False, address_able=True)
+
+    def __call__(self, *args: Any, **kwds: Any) -> Any: ...
+    def _pre_check(self, pointer: Any) -> None: ...
+
+    def _post_compile(self, compose: Any) -> None:
+        self._addr = compose.calc.resolve_alias(self._alias)
 
 
 def test_dll_initial_render(log):
@@ -173,13 +190,11 @@ def test_dll_apply_rejects_non_nodecompose_payload(log):
     (a >> dll >> NOP).render()
     proxy = dll.get_proxy()
 
-    # A bare node is not a source composition: apply() rejects it up front
-    # (mirroring __init__) instead of starting a rebuild.
+    # A bare node is not a source composition: apply() rejects it up front (mirroring __init__) instead of starting a rebuild.
     with pytest.raises(GraphBuildError):
         dll.apply(a)  # type: ignore[reportArgumentType]
 
-    # Rejection happens before any mutation: the proxy still serves the
-    # previously applied payload.
+    # Rejection happens before any mutation: the proxy still serves the previously applied payload.
     assert proxy[0] is b
     assert list(iter(proxy)) == [b]
     assert len(proxy) == 1
@@ -221,6 +236,99 @@ def test_dll_alias_cleanup_and_reregister(log):
     # Rebasing back re-registers the symbol at the same slot.
     dll.apply((ALIAS(b, "dll_main")).as_compose())
     assert r_comp.alias2vector_map["dll_main"] == [1, 0]
+
+
+#  post-compile hook collection: a DLL slot must not disturb the host graph's hook collector, which the host owns and runs once its own build finishes.
+
+
+def test_dll_slot_keeps_hooks_collected_before_it(log):
+    """A node before the slot still gets its `_post_compile` run."""
+    a, b = make_node("A", log), make_node("B", log)
+    dll = DLLCompose(b.as_compose())
+    r_comp = (ALIAS(a, "top") >> GOTO("top") >> dll >> NOP).render()
+    assert r_comp[1]._node_addr == [0]  # type: ignore[attr-defined]
+
+
+def test_dll_slot_allows_hook_nodes_after_it(log):
+    """A hook-bearing node after the slot must not break the build."""
+    a, b = make_node("A", log), make_node("B", log)
+    dll = DLLCompose(b.as_compose())
+    r_comp = (ALIAS(a, "top") >> dll >> GOTO("top")).render()
+    assert r_comp[2]._node_addr == [0]  # type: ignore[attr-defined]
+
+
+def test_dll_internal_hook_can_use_the_host_calculator(log):
+    """A payload hook runs once the host calculator exists, so `calc` works."""
+    a, b = make_node("A", log), make_node("B", log)
+    probe = ResolveOnCompile("sym")
+    dll = DLLCompose(NodeCompose(probe))
+    (a >> dll >> NOP >> ALIAS(b, "sym")).render()
+    assert probe._addr == [3]
+
+
+def test_dll_internal_hook_sees_aliases_declared_later(log):
+    """Payload hooks are deferred, so they can resolve aliases declared after
+    the slot — a payload is compiled mid-walk, but hooks run at the end."""
+    a, b = make_node("A", log), make_node("B", log)
+    probe = ResolveOnCompile("late")
+    dll = DLLCompose(NodeCompose(probe))
+    (a >> dll >> NOP >> ALIAS(b, "late")).render()
+    assert probe._addr == [3]
+
+
+def test_multiple_dlls_each_keep_their_hooks(log):
+    """Two slots must not clobber each other's hooks."""
+    a, b = make_node("A", log), make_node("B", log)
+    first, second = ResolveOnCompile("sym"), ResolveOnCompile("sym")
+    d1, d2 = DLLCompose(NodeCompose(first)), DLLCompose(NodeCompose(second))
+    (a >> d1 >> d2 >> ALIAS(b, "sym")).render()
+    assert first._addr == [3]
+    assert second._addr == [3]
+
+
+def test_apply_still_reruns_payload_hooks(log):
+    """Rebasing recompiles the payload, so its hooks run again immediately."""
+    a, b = make_node("A", log), make_node("B", log)
+    probe = ResolveOnCompile("x")
+    dll = DLLCompose(NodeCompose(ALIAS(a, "x"), probe))
+    (b >> dll >> NOP).render()
+    assert probe._addr == [1, 0]
+
+    dll.apply(NodeCompose(probe, ALIAS(b, "x")))
+    assert probe._addr == [1, 1]
+
+
+def test_host_hook_collector_is_restored(log):
+    """The host keeps its collector after a slot is built."""
+    a, b = make_node("A", log), make_node("B", log)
+    dll = DLLCompose(b.as_compose())
+    r_comp = (a >> dll >> NOP).render()
+    assert r_comp._collected_hooks is not None
+
+
+def test_goto_across_a_dll_slot_skips_the_payload(log):
+    """Runtime: a jump resolved across a slot lands on the alias target."""
+    a = make_node("A", log)
+    payload = make_node("payload", log)
+    target = make_node("target", log)
+    dll = DLLCompose(payload.as_compose())
+
+    r_comp = (a >> GOTO("tgt") >> dll >> NOP >> ALIAS(target, "tgt")).render()
+    asyncio.run(WorkflowInterpreter(r_comp).run())
+    assert log == ["A", "target"]
+
+
+def test_call_across_a_dll_slot_reaches_the_target(log):
+    """Runtime: a call resolved across a slot reaches the alias target."""
+    a = make_node("A", log)
+    payload = make_node("payload", log)
+    target = make_node("target", log)
+    dll = DLLCompose(payload.as_compose())
+
+    r_comp = (a >> CALL("tgt") >> dll >> NOP >> ALIAS(target, "tgt")).render()
+    asyncio.run(WorkflowInterpreter(r_comp).run())
+    #  CALL reaches the target, returns, then the walk reaches the DLL payload and finally the ALIAS node, which runs the aliased target once more.
+    assert log == ["A", "target", "payload", "target"]
 
 
 def test_dll_alias_prefix_kept_inside_bubble_across_apply(log):

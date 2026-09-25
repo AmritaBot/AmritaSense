@@ -86,6 +86,8 @@ class BatchRun(BaseNode):
         self._mdw = middleware
         self._init(self.__call__, BuiltinTags.BATCH_RUN, False, True)
         self._interpreters = []
+        #  Instance assignment, not a property: _origin is dropped on first compile
+        self.__sdb_dis__ = f"BATCH {len(payload)}"
 
     def _post_compile(self, compose: NodeComposeRendered) -> None:
         # `_origin` is deleted on first compile; its absence marks this node as already compiled.

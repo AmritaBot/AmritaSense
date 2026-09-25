@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import threading
-from collections.abc import Iterator
-from typing import TYPE_CHECKING
+from collections.abc import Callable, Iterator
+from typing import TYPE_CHECKING, Any
 
 from typing_extensions import Never, Self
 
@@ -101,6 +101,12 @@ class DLLComposeProxy(AbstractCompose[Never]):
         is held would deadlock, so the real logic lives in _build_unlocked,
         which _apply also reuses.
 
+        Hooks are *not* run here.  This method is called from the middle of
+        the host graph's build, where the host has not bound its address
+        calculator yet and may still collect hooks for nodes it has not
+        reached; the collected hooks are handed back to the host instead (see
+        _build_unlocked).
+
         Args:
             current_path: Address path of this proxy inside the graph.
             top: The top-level rendered compose owning this proxy.
@@ -110,12 +116,14 @@ class DLLComposeProxy(AbstractCompose[Never]):
                 either current_path or top is None.
         """
         with self._lock:
-            self._build_unlocked(current_path, top)
+            self._build_unlocked(current_path, top, run_hooks=False)
 
     def _build_unlocked(
         self,
         current_path: list[int] | None,
         top: NodeComposeRendered | None,
+        *,
+        run_hooks: bool,
     ) -> None:
         """Run the full compilation lifecycle; the caller must hold the lock.
 
@@ -130,17 +138,32 @@ class DLLComposeProxy(AbstractCompose[Never]):
            of this proxy then forward to it.
         3. Record the alias symbols added by this build as the delta to clean
            up on the next lifecycle.
-        4. Run the post-compile hooks collected on top during the build.
+        4. Deal with the post-compile hooks collected during that build.
+
+        Hooks are collected into a *private* list and the host's collector is
+        restored afterwards, because the host owns it: sharing the host list
+        would discard the hooks the host already collected for nodes appearing
+        before this slot, and clearing it would make the host fail on the next
+        hook-bearing node it meets.
+
+        Where the hooks run depends on *run_hooks*.  A first render happens in
+        the middle of the host's build, so the hooks are appended to the host's
+        collector and run once the host finishes — by then the host's address
+        calculator exists and the symbol table is complete, so a hook may
+        resolve any alias, including one declared after this slot.  A re-apply
+        happens after the host is fully built, so the hooks run immediately.
 
         On failure the partial state is rolled back (the rendered compose
         and the symbol delta are cleared). Either way the per-lifecycle
-        scratch state is released in the end — the hook collector on top is
-        reset and the source compose is dropped, since the proxy may be
+        scratch state is released in the end — the host's hook collector is
+        restored and the source compose is dropped, since the proxy may be
         re-applied with a fresh source compose later.
 
         Args:
             current_path: Address path of this proxy inside the graph.
             top: The top-level rendered compose owning this proxy.
+            run_hooks: Whether to run the collected hooks here instead of
+                handing them to the host graph.
 
         Raises:
             GraphBuildError: If there is no source compose to compile (the
@@ -172,9 +195,13 @@ class DLLComposeProxy(AbstractCompose[Never]):
                 top.alias2vector_map.pop(symbol, None)
 
         symbols = set(top.alias2vector_map)
+        outer_hooks = top._collected_hooks
+        if outer_hooks is None:
+            #  A DLL is always rendered inside a host graph, which owns the collector; stay tolerant if this is ever driven directly.
+            outer_hooks = []
+        top._collected_hooks = []
+        collected: list[Callable[[NodeComposeRendered], Any]] = []
         try:
-            top._collected_hooks = []
-
             origin = self._original
             self._compose = origin.get_builder()(origin)
             self._compose._build(current_path, top)
@@ -182,16 +209,22 @@ class DLLComposeProxy(AbstractCompose[Never]):
             self._symbols_delta = (
                 top.alias2vector_map.keys() - symbols
             ) or None  # delta of symbols, None if no delta
-
-            for hook in top._collected_hooks:  # Run post-compile hooks
-                hook(top)
+            collected = top._collected_hooks or []
         except Exception:  # For cleanup
             self._compose = None
             self._symbols_delta = None
             raise
         finally:
-            top._collected_hooks = None
+            top._collected_hooks = outer_hooks
             self._original = None
+
+        if run_hooks:
+            #  Re-apply: the host graph is already built, so its calculator is bound and the symbol table is final — run them right away.
+            for hook in collected:
+                hook(top)
+        else:
+            #  First render: hand them to the host, which runs every collected hook once its own build has finished.
+            outer_hooks.extend(collected)
 
     def _apply(self, comp: NodeCompose):
         """Swap the source compose and rerun the full compilation lifecycle.
@@ -207,7 +240,7 @@ class DLLComposeProxy(AbstractCompose[Never]):
         """
         with self._lock:
             self._original = comp
-            self._build_unlocked(self._prefix, self._top)
+            self._build_unlocked(self._prefix, self._top, run_hooks=True)
 
     def __getitem__(self, key: int) -> NodeComposeRendered | BaseNode:
         """Return the child at the given key from the rendered compose.

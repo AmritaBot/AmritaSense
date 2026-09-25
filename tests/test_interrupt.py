@@ -324,9 +324,7 @@ async def test_push_context_e2e():
         >> ALIAS(NOP, "done")
     )
     await WorkflowInterpreter(c.render()).run()
-    # PUSH_CONTEXT pushes context but does NOT jump — execution continues
-    # linearly (main → back → GOTO done).  sub_entry is only reached if an
-    # INTERRUPT_RET or explicit jump targets it.
+    # PUSH_CONTEXT pushes context but does NOT jump — execution continues linearly (main → back → GOTO done); sub_entry is only reached if an INTERRUPT_RET or explicit jump targets it.
     assert log == ["main", "back"]
 
 

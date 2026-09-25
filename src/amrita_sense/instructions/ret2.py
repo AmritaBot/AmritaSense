@@ -67,6 +67,8 @@ def PUSH_STACK(alias_or_idata: str | list[int]) -> NodeType[None]:
         else:
             addr = alias_or_idata
 
+        call.__sdb_dis__ = f"PUSH {addr}"
+
     call._post_compile = _post_compile
 
     return call
@@ -123,6 +125,10 @@ def PUSH_AND_GOTO(
             to_addr = compose.calc.resolve_alias(to_adr)
         else:
             to_addr = to_adr
+
+        call.__sdb_dis__ = (
+            f"CALL.FAR {frm_addr if frm_addr is not None else '?'} -> {to_addr}"
+        )
 
     call._post_compile = _post_compile
 

@@ -45,8 +45,7 @@ def test_far_offset_computation():
 
 def test_near_offset_same_level():
     pc = _FakePointer([1, 5], {"t": [1, 2]})
-    # When the target alias is at the same nesting level, the near offset
-    # should return the last dimension difference without raising.
+    # When the target alias is at the same nesting level, the near offset returns the last dimension difference without raising.
     assert NEAR_OFFSET("t")(cast(WorkflowInterpreter[Any], pc)) == 3
 
 

@@ -20,8 +20,7 @@ class TimedWrapper(SelfCompileInstruction):
     def extract(self):
         from amrita_sense.node.core import NodeCompose
 
-        # Return values are not auto-injected between nodes —
-        # capture the inner node's result via a closure box instead.
+        # Return values are not auto-injected between nodes — capture the inner node's result via a closure box instead.
         box: dict[str, str] = {}
 
         @Node()
@@ -46,8 +45,7 @@ async def do_work() -> str:
 
 
 async def main() -> None:
-    # SelfCompileInstruction can be passed straight to the interpreter
-    # (it extracts + renders internally) — no trailing NOP needed.
+    # SelfCompileInstruction can be passed straight to the interpreter (it extracts + renders internally) — no trailing NOP needed.
     await WorkflowInterpreter(TimedWrapper(do_work)).run()
 
 

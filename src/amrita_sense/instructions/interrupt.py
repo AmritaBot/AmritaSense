@@ -78,6 +78,8 @@ def PUSH_CONTEXT(
         else:
             addr = alias_or_idata
 
+        call.__sdb_dis__ = f"PUSHCTX {addr}"
+
     call._post_compile = _post_compile
 
     return call
@@ -197,6 +199,10 @@ def INTERRUPT_INTO(
                 if isinstance(ret_to, str)
                 else ret_to
             )
+
+        call.__sdb_dis__ = (
+            f"INTINTO {jmp_addr} -> {ret_addr if ret_addr is not None else '?'}"
+        )
 
     call._post_compile = _post_compile
 

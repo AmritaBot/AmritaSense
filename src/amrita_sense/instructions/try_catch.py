@@ -63,6 +63,29 @@ class TryNode(BaseNode):
             wrap_to_async=False,
         )
 
+    @property
+    def __sdb_dis__(self) -> str:
+        """Mnemonic listing the handlers (``TRY catch=ValueError#3``).
+
+        Each handler address is a slot index inside this node's segment
+        (`call_near` replaces the innermost coordinate).
+        """
+        chain = ",".join(
+            f"{exc.__name__}#{addr}" for exc, addr in self._catch_addr_chain
+        )
+        return f"TRY catch={chain}" if chain else "TRY"
+
+    @property
+    def __sdb_cmt__(self) -> str:
+        """Comment listing the resolved escape points of this try block."""
+        parts: list[str] = []
+        if self._else_addr is not None:
+            parts.append(f"else=#{self._else_addr}")
+        if self._finally_addr is not None:
+            parts.append(f"finally=#{self._finally_addr}")
+        parts.append(f"escape=#{self._escape_addr}")
+        return " ".join(parts)
+
     async def _worker(self, pc: WorkflowInterpreter):
         try:
             await pc.call_near(self._do_node_addr)

@@ -191,9 +191,53 @@ class ExecuteWhenElse(SelfCompileInstruction):
         return NodeCompose(IF(self._cond, self._action).ELSE(self._other))
 ```
 
+## 4.7.5 Disassembly annotation: `__sdb_dis__` / `__sdb_cmt__`
+
+A custom instruction expands into nodes the user never wrote, so a debugger listing shows framework internals by default. A node can describe its own line with two **soft-constraint magic attributes** read by the REPL debugger's disassembler:
+
+| Attribute     | Effect                                                                      |
+| ------------- | --------------------------------------------------------------------------- |
+| `__sdb_dis__` | The mnemonic shown in the instruction column.                                |
+| `__sdb_cmt__` | When not `None`, overrides the comment after `;` (defaults to the node `tag`). |
+
+Both are read through a plain `getattr` at disassembly time — the input is an *already compiled* graph, so an operand such as a jump target is resolved by then. Prefer a `@property` when the value depends on compilation: it re-reads instance state on every listing, so nothing has to be re-assigned after a recompile.
+
+```python
+class RetryJump(BaseNode):
+    """Jump back to the body while the counter is below the limit."""
+
+    __sdb_cmt__ = "retry back-edge"
+
+    def __init__(self, limit: int) -> None:
+        self._limit = limit
+        self._body: list[int] = []
+        self._init(self.__call__, tag=None, wrap_to_async=False, address_able=True)
+
+    @property
+    def __sdb_dis__(self) -> str:
+        #  re-read every listing, so a recompile needs no re-assignment step
+        return f"RETRY {self._limit} -> {self._body or '?'}"
+
+    def __call__(self, pc: WorkflowInterpreter) -> None: ...
+
+    def _post_compile(self, compose: NodeComposeRendered) -> None:
+        #  operands are resolved here — the property picks the value up for free
+        self._body = compose.calc.resolve_alias("body")
+```
+
+Four details are worth remembering:
+
+- A `@property` is a data descriptor, so the node rejects `self.__sdb_dis__ = ...` — that is what keeps the value single-sourced. Use a class attribute for a fixed mnemonic, or an instance attribute when the operand only exists inside a closure (`PUSH_STACK`, `INTERRUPT_INTO`, …).
+- Neither name is subject to name mangling (two trailing underscores), so `self.__sdb_dis__ = ...` inside a class body is safe.
+- `_post_compile` runs again after every DLL `apply()` rebase, and a property picks up the new operand automatically — so a mnemonic that embeds an address stays correct when the slot is relinked.
+- A node never knows its own address, so an operand relative to its own segment must be written as `#N` (a `near_to` slot) or `+N` (an `offset` delta) instead of a full address.
+
+See [REPL Debugging](../practice/repl-debugging#disassembly-view) for the listing format and the mnemonics the built-in instruction set declares.
+
 ## Design principles for custom instructions
 
 1. **Encapsulate patterns, not logic**: custom instructions should encapsulate recurring composition patterns (retry, conditional execution, timeout protection), not concrete business logic. Business logic belongs inside nodes.
 2. **Leverage existing instructions**: prefer composing built-in primitives like `IF`, `WHILE`, and `TRY` rather than manually managing jump offsets. Only calculate addresses manually when built-in instructions cannot express the needed flow.
 3. **Keep it transparent**: the expanded structure should match a hand-written composition and should not break debugging, suspension, or interruption behavior.
 4. **Use semantic naming**: instruction names should convey the control flow intent clearly (for example, `Retry`, `Timeout`, `Parallel`), so the composition reads like natural language.
+5. **Annotate the mnemonic**: give your node a `__sdb_dis__` so a debugger listing shows `RETRY 3 -> [1, 0]` instead of an anonymous internal node — custom instructions are exactly the ones that most need it.

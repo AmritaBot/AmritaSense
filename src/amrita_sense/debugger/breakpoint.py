@@ -8,7 +8,9 @@ a :class:`BreakpointHit` exception is raised, which propagates out of
 Module-level state is kept in `_debug_state`, keyed by interpreter id;
 each value is a dict with `breakpoints` (list[Breakpoint]),
 `saved_user_mw` (the original middleware), `stepping` (True skips
-breakpoint checks) and `debug_active` (True after `_ensure_debug_mw`).
+breakpoint checks), `debug_active` (True after `_ensure_debug_mw`) and
+`resume_at` (the address a `cont()` stopped on, so the next `cont()`
+executes that node instead of re-hitting the same breakpoint).
 """
 
 from __future__ import annotations
@@ -32,6 +34,7 @@ def _get_state(inter: WorkflowInterpreter) -> dict:
             "saved_user_mw": None,
             "stepping": False,
             "debug_active": False,
+            "resume_at": None,
         }
     return _debug_state[inter.id]
 
@@ -87,18 +90,21 @@ def _create_debug_middleware(
     async def debug_mw(pc: WorkflowInterpreter) -> object:
         state = _debug_state.get(pc.id, {})
         if not state.get("stepping", False):
-            #  check breakpoints
-            node = pc.get_graph().calc.find_addr_safe(pc._pointer.base_addr)
-            if not isinstance(node, BaseNode):
-                raise RuntimeError(
-                    f"{pc.id}: node not found at {pc._pointer.base_addr}"
-                )
-            for bp in list(state.get("breakpoints", [])):
-                if not bp.enabled:
-                    continue
-                if _bp_match(bp, node, pc):
-                    bp.hit_count += 1
-                    raise BreakpointHit(bp)
+            addr = list(pc._pointer.base_addr)
+            if state.get("resume_at") == addr:
+                #  Stopped here already and the caller asked to continue, so let this node run once — otherwise the check below re-hits the same breakpoint forever and `cont()` cannot progress.
+                state["resume_at"] = None
+            else:
+                #  check breakpoints
+                node = pc.get_graph().calc.find_addr_safe(addr)
+                if not isinstance(node, BaseNode):
+                    raise RuntimeError(f"{pc.id}: node not found at {addr}")
+                for bp in list(state.get("breakpoints", [])):
+                    if not bp.enabled:
+                        continue
+                    if _bp_match(bp, node, pc):
+                        bp.hit_count += 1
+                        raise BreakpointHit(bp)
 
         #  call user middleware or direct
         if user_mw is not None:

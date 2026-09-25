@@ -29,10 +29,7 @@ from amrita_sense.node.abc_base import AbstractComposeOriginal
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
 
-#: Body payload accepted by the native IF/ELIF/ELSE clauses — a single
-#: node, any source composition (`AbstractComposeOriginal`, e.g.
-#: `NodeCompose` or a custom composition), or a self-compiling
-#: instruction.
+#: Body payload accepted by the native IF/ELIF/ELSE clauses — a single node, any source composition (`AbstractComposeOriginal`, e.g. `NodeCompose` or a custom composition), or a self-compiling instruction.
 _NativeBody = BaseNode | AbstractComposeOriginal | SelfCompileInstruction
 
 
