@@ -66,4 +66,4 @@ Key capabilities:
 - **Breakpoint system** — set breakpoints by tag (`break_at_tag`) or address (`break_at_addr`), with conditional expressions
 - **Step control** — `step()`, `step_over()`, `step_out()`, `cont()`, with both sync and async API flavors
 - **Crash recovery** — after a node exception, the panic state is fully preserved; use `inspect()` to examine the crash site, `advance_pointer()` to skip the failing node, then `cont()` to resume
-- **Security guard** — set `REMOVE_DEBUGGER=true` to physically destroy the debugger module, preventing SSTI leakage in production
+- **GDB-style disassembly** — `dis()` renders the compiled graph as address-mapped segments with `=>` marking the program counter; nodes describe their own mnemonics through the `__sdb_dis__` / `__sdb_cmt__` magic attributes, and the listing is colourised when stdout is a terminal

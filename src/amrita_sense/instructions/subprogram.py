@@ -43,6 +43,19 @@ class SubprogramJumpNode(BaseNode):
             address_able=True,
         )
 
+    @property
+    def __sdb_dis__(self) -> str:
+        """Mnemonic showing the target slot (``JMP.NEAR #3``).
+
+        The target is a slot index inside the segment holding this node
+        (`jump_near` sets the innermost coordinate to an absolute value).
+        """
+        return f"JMP.NEAR #{self._target_near}"
+
+    @property
+    def __sdb_cmt__(self) -> str:
+        return "SubprogramJumpNode"
+
     def __call__(self, pc: WorkflowInterpreter):
         pc.jump_near(self._target_near)
 
@@ -86,6 +99,15 @@ class CallNode(BaseNode):
         self._alias = alias
         self._addr = []
         self._init(self.__call__, tag, False, True)
+
+    @property
+    def __sdb_dis__(self) -> str:
+        """Mnemonic showing the resolved callee (``CALL sym -> [0]``)."""
+        return f"CALL {self._alias} -> {self._addr or '?'}"
+
+    @property
+    def __sdb_cmt__(self) -> str:
+        return "CallNode"
 
     @override
     def _post_compile(self, compose: NodeComposeRendered) -> None:

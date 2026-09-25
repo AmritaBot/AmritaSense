@@ -51,6 +51,18 @@ class WhileNode(BaseNode):
         self._else_addr = else_addr
         self._init(self._while_worker, None, False, True)
 
+    @property
+    def __sdb_dis__(self) -> str:
+        """Mnemonic showing both exit slots (``WHILE checkup=#3 else=#5``).
+
+        Both are slot indices in this segment (`jump_near`).
+        """
+        return f"WHILE checkup=#{self._checkup_addr} else=#{self._else_addr}"
+
+    @property
+    def __sdb_cmt__(self) -> str:
+        return "WhileNode"
+
     async def _while_worker(self, pc: WorkflowInterpreter):
         if not __flags__.SQUASHED_LOOP:
             if await pc.call_offset(self._condi_offset):
@@ -97,6 +109,15 @@ class CheckUpNode(BaseNode):
     def __init__(self, jump_near: int):
         self._jump_addr = jump_near
         self._init(self._while_checkup, None, False, False)
+
+    @property
+    def __sdb_dis__(self) -> str:
+        """Mnemonic showing the loop head slot (``WHILE.CHECK back=#0``)."""
+        return f"WHILE.CHECK back=#{self._jump_addr}"
+
+    @property
+    def __sdb_cmt__(self) -> str:
+        return "CheckUpNode"
 
     def _while_checkup(self, pc: WorkflowInterpreter):
         pc.jump_near(self._jump_addr)

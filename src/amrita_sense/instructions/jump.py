@@ -36,6 +36,16 @@ class JumpNode(BaseNode):
         self._node_addr = []
         self._init(self._jump, None, False, True)
 
+    @property
+    def __sdb_dis__(self) -> str:
+        """Mnemonic showing the resolved jump target (``JMP [0]``)."""
+        return f"JMP {self._node_addr or '?'}"
+
+    @property
+    def __sdb_cmt__(self) -> str:
+        """Comment showing the operand as it was written in the source."""
+        return f"GOTO {self._alias_or_idata!r}"
+
     def _jump(self, pc: WorkflowInterpreter):
         return pc.jump_to(self._node_addr)
 

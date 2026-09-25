@@ -250,14 +250,12 @@ class TestWeakValueLRUCache:
 
         # Expire with specific length - should check first 'length' keys
         cache.expire(3)
-        # After expire, the expired keys in the first 3 positions should be removed
-        # key1 and key3 were expired, so they should be removed from first 3
+        # After expire, the expired keys in the first 3 positions should be removed — key1 and key3 were expired
         assert "key1" not in cache._cache  # Should be removed
         assert "key3" not in cache._cache  # Should be removed
         assert "key2" in cache._cache  # Should remain (not expired)
 
-        # Test expire with default length (1/5 of cache)
-        # Reset cache
+        # Test expire with default length (1/5 of cache) after resetting the cache
         cache.clear()
         for i in range(10):
             obj = TestObject(f"value{i}")
@@ -322,8 +320,7 @@ class TestWeakValueLRUCache:
         # Test with expired object
         del obj1
         gc.collect()
-        # Note: __len__ returns total entries including expired ones
-        # until they are accessed/cleaned up
+        # Note: __len__ returns total entries including expired ones, until they are accessed/cleaned up
         assert len(cache) == 2  # Still 2 until cleanup happens
 
         # Accessing should trigger cleanup

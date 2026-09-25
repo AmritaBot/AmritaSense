@@ -188,6 +188,49 @@ class ExecuteWhenElse(SelfCompileInstruction):
         return NodeCompose(IF(self._cond, self._action).ELSE(self._other))
 ```
 
+## 4.7.5 反汇编标注：`__sdb_dis__` / `__sdb_cmt__`
+
+自定义指令会展开成用户从未写过的节点，因此调试器清单默认显示的是框架内部节点。节点可以用两个**软约束魔术属性**描述自己所在的那一行，由 REPL 调试器的反汇编器读取：
+
+| 属性          | 作用                                                            |
+| ------------- | --------------------------------------------------------------- |
+| `__sdb_dis__` | 指令列显示的助记符。                                            |
+| `__sdb_cmt__` | 非 `None` 时覆盖 `;` 后的注释内容（默认为节点的 `tag`）。        |
+
+两者都通过普通 `getattr` 在**反汇编时**读取——输入是*已编译*的产物，因此像跳转目标这样的操作数此时早已解析完毕。值依赖编译结果时**优先用 `@property`**：它每次列清单都重新读取实例状态，重编译后无需任何重新赋值步骤。
+
+```python
+class RetryJump(BaseNode):
+    """计数器未达上限时跳回循环体。"""
+
+    __sdb_cmt__ = "retry back-edge"
+
+    def __init__(self, limit: int) -> None:
+        self._limit = limit
+        self._body: list[int] = []
+        self._init(self.__call__, tag=None, wrap_to_async=False, address_able=True)
+
+    @property
+    def __sdb_dis__(self) -> str:
+        #  每次列清单重新读取，因此重编译不需要额外的赋值步骤
+        return f"RETRY {self._limit} -> {self._body or '?'}"
+
+    def __call__(self, pc: WorkflowInterpreter) -> None: ...
+
+    def _post_compile(self, compose: NodeComposeRendered) -> None:
+        #  操作数在此处解析——property 会自动取到新值
+        self._body = compose.calc.resolve_alias("body")
+```
+
+四个值得记住的细节：
+
+- `@property` 是**数据描述符**，因此该节点会拒绝 `self.__sdb_dis__ = ...`——这正是让取值保持单一来源的机制。固定助记符请用类属性；操作数只存在于闭包中时（`PUSH_STACK`、`INTERRUPT_INTO` 等）才用实例属性。
+- 两个名字都有双尾下划线，不会触发名字改写，因此在类体内写 `self.__sdb_dis__ = ...` 是安全的。
+- 每次 DLL `apply()` 变基后 `_post_compile` 都会重新执行，而 property 会自动取到新操作数——因此助记符里嵌入的地址在槽位重链接后依然正确。
+- 节点永远不知道自己的地址，因此相对于所在段的操作数只能写成 `#N`（`near_to` 槽位）或 `+N`（`offset` 偏移），无法写成完整地址。
+
+清单格式与内置指令集声明的助记符见 [REPL 调试](../practice/repl-debugging#反汇编视图)。
+
 ## 自定义指令的设计原则
 
 1. **封装模式，而非封装逻辑**：自定义指令应封装反复出现的**编排模式**（如重试、条件执行、超时保护），而非具体的业务逻辑。业务逻辑应留在节点内部
@@ -197,3 +240,5 @@ class ExecuteWhenElse(SelfCompileInstruction):
 3. **保持透明**：自定义指令展开后的结构应与手写编排一致，不影响调试、挂起、中断等机制的正常工作
 
 4. **命名语义化**：指令名称应直接传达其控制流意图（如 `Retry`、`Timeout`、`Parallel`），让编排链读起来像自然语言
+
+5. **标注助记符**：给节点一个 `__sdb_dis__`，让调试器清单显示 `RETRY 3 -> [1, 0]` 而不是匿名内部节点——自定义指令恰恰是最需要它的那一类

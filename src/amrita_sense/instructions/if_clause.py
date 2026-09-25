@@ -94,6 +94,19 @@ class ConditionJumpNode(BaseNode):
         self._then_addr = then_addr
         self._false_offset = false_offset
 
+    @property
+    def __sdb_dis__(self) -> str:
+        """Mnemonic showing both branch targets (``JMPIF then=#3 else=+2``).
+
+        The taken branch is a slot index in this segment (`jump_near`),
+        the false branch a delta in this segment (`jump_offset`).
+        """
+        return f"JMPIF then=#{self._then_addr} else={self._false_offset:+d}"
+
+    @property
+    def __sdb_cmt__(self) -> str:
+        return "ConditionJumpNode"
+
     async def _do(self, pc: WorkflowInterpreter):
         if await pc.call_offset(
             self._condition_offset
@@ -247,6 +260,15 @@ class ELSENode(BaseNode):
         self._init(self._else_worker, tag=None, wrap_to_async=True, address_able=True)
         self._do_offset = do_offset
         self._then_offset = then_offset
+
+    @property
+    def __sdb_dis__(self) -> str:
+        """Mnemonic showing both deltas (``ELSE do=+1 then=+3``)."""
+        return f"ELSE do={self._do_offset:+d} then={self._then_offset:+d}"
+
+    @property
+    def __sdb_cmt__(self) -> str:
+        return "ELSENode"
 
     async def _else_worker(self, pc: WorkflowInterpreter):
         await pc.call_offset(self._do_offset)  # CALL DO (intra-chunk relative)

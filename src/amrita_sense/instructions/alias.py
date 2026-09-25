@@ -60,6 +60,16 @@ class AliasNode(BaseNode):
         )
         self.alias = alias
 
+    @property
+    def __sdb_dis__(self) -> str:
+        """Mnemonic showing the symbol this node registers (``ALIAS sym``)."""
+        return f"ALIAS {self.alias}"
+
+    @property
+    def __sdb_cmt__(self) -> str:
+        """Comment pointing at the aliased node's tag."""
+        return f"alias for {self.node.tag}"
+
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         """Execute the underlying node with the given arguments.
 

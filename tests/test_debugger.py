@@ -129,8 +129,7 @@ class TestStep:
     def test_step_executes_one_node(self, simple_inter: WorkflowInterpreter) -> None:
         async def run():
             await step_async(simple_inter)
-            # After step on a single-node graph, advance_pointer returns
-            # False and the pointer is cleared.
+            # After step on a single-node graph, advance_pointer returns False and the pointer is cleared.
             assert not simple_inter._pointer
 
         asyncio.run(run())
@@ -250,6 +249,82 @@ class TestBreakpoint:
                 await cont_async(crashing_inter)
             except RuntimeError:
                 pass
+
+        asyncio.run(run())
+
+
+# Breakpoint resume tests
+
+
+class TestBreakpointResume:
+    """A breakpoint stops *before* its node runs, so `cont()` must then
+    execute that node and move on.
+
+    Regression: the middleware re-checked breakpoints at the same address
+    before the node had run, so `cont()` re-hit the same breakpoint forever
+    and could never make progress.
+    """
+
+    def test_cont_executes_the_node_it_stopped_on(
+        self, multi_inter: WorkflowInterpreter
+    ) -> None:
+        async def run():
+            bp = break_at_tag(multi_inter, "noop")
+            await cont_async(multi_inter)  # runs "simple", stops before "noop"
+            assert multi_inter._pointer.base_addr == [1]
+            assert bp.hit_count == 1
+
+            await cont_async(multi_inter)  # runs "noop" and reaches the end
+            assert bp.hit_count == 1
+
+        asyncio.run(run())
+
+    def test_hit_count_increments_once_per_visit(
+        self, multi_inter: WorkflowInterpreter
+    ) -> None:
+        async def run():
+            bp = break_at_tag(multi_inter, "noop")
+            await cont_async(multi_inter)
+            await cont_async(multi_inter)
+            assert bp.hit_count == 1
+
+            # The finished workflow restarts at [0] and visits "noop" again.
+            await cont_async(multi_inter)
+            assert bp.hit_count == 2
+
+        asyncio.run(run())
+
+    def test_only_the_stopped_address_is_skipped(
+        self, multi_inter: WorkflowInterpreter
+    ) -> None:
+        async def run():
+            first = break_at_tag(multi_inter, "simple")
+            second = break_at_tag(multi_inter, "noop")
+
+            await cont_async(multi_inter)  # stops before "simple"
+            assert first.hit_count == 1
+            assert second.hit_count == 0
+
+            await cont_async(multi_inter)  # runs "simple", stops before "noop"
+            assert first.hit_count == 1
+            assert second.hit_count == 1
+
+        asyncio.run(run())
+
+    def test_step_discards_a_pending_resume(
+        self, simple_inter: WorkflowInterpreter
+    ) -> None:
+        async def run():
+            bp = break_at_tag(simple_inter, "simple")
+            await cont_async(simple_inter)  # stops before "simple"
+            assert bp.hit_count == 1
+
+            await step_async(simple_inter)  # an explicit step supersedes it
+            assert bp.hit_count == 1
+
+            simple_inter._pointer.far_to([0])  # back onto the same node
+            await cont_async(simple_inter)
+            assert bp.hit_count == 2  # the breakpoint still fires
 
         asyncio.run(run())
 

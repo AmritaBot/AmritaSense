@@ -1,7 +1,7 @@
-"""21_native_if.py — NATIVE_IF / NATIVE_WHILE / NATIVE_DO demo.
+"""22_native_if.py — NATIVE_IF / NATIVE_WHILE / NATIVE_DO demo.
 
 Usage:
-    python demos/21_native_if.py
+    python demos/22_native_if.py
 """
 
 import asyncio

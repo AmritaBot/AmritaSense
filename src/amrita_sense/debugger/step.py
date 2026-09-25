@@ -19,12 +19,27 @@ import asyncio
 import threading
 from typing import TYPE_CHECKING
 
+from amrita_sense.debugger import code_disp
 from amrita_sense.debugger.breakpoint import BreakpointHit, _get_state
 from amrita_sense.runtime.workflow import PC_CHECKPOINT
 
 if TYPE_CHECKING:
     from amrita_sense.runtime.workflow import WorkflowInterpreter
     from amrita_sense.streaming import SuspendObjectStream
+
+
+def _show(inter: WorkflowInterpreter) -> None:
+    """Print the disassembly at the current program counter.
+
+    Rendering must never break a debugging session, so any failure here is
+    reported and swallowed instead of propagating into the caller.
+    """
+    if not code_disp.AUTO_DIS:
+        return
+    try:
+        code_disp.dis(inter)
+    except Exception as e:  #  never let the view break the session
+        print(f"⚠️  Disassembly unavailable: {e!r}")
 
 
 # Internal async primitive
@@ -67,15 +82,25 @@ async def _step_one(inter: WorkflowInterpreter[SuspendObjectStream]) -> None:
 # Async API  (step_async, step_over_async, …)
 
 
-async def step_async(inter: WorkflowInterpreter[SuspendObjectStream]) -> None:
+async def step_async(
+    inter: WorkflowInterpreter[SuspendObjectStream], *, show: bool = True
+) -> None:
     """Execute exactly **one** node and stop (async).
 
     Breakpoints are **skipped** during stepping (the `stepping` flag
     is set, so the composite middleware only checks breakpoints during
     `cont_async()`).
+
+    Args:
+        inter: The interpreter to step.
+        show: Print the disassembly at the new program counter. Set to
+            `False` by `step_over` / `step_out`, which show only once when
+            the whole movement finishes.
     """
     state = _get_state(inter)
     state["stepping"] = True
+    #  An explicit step supersedes a pending `cont()` resume point.
+    state["resume_at"] = None
     try:
         await _step_one(inter)
     except BreakpointHit as bp:
@@ -84,17 +109,21 @@ async def step_async(inter: WorkflowInterpreter[SuspendObjectStream]) -> None:
         print(f"⏸️  Stop at: {inter._pointer.base_addr}")
     finally:
         state["stepping"] = False
+        if show:
+            _show(inter)
 
 
 async def step_over_async(inter: WorkflowInterpreter[SuspendObjectStream]) -> None:
     """Execute nodes until the return-address stack depth ≤ current (async)."""
     base_depth = len(inter._ret_addr_stack)
     try:
-        await step_async(inter)
+        await step_async(inter, show=False)
         while len(inter._ret_addr_stack) > base_depth:
-            await step_async(inter)
+            await step_async(inter, show=False)
     except KeyboardInterrupt:
         print(f"⏸️  Stop at: {inter._pointer.base_addr}")
+    finally:
+        _show(inter)
 
 
 async def step_out_async(inter: WorkflowInterpreter) -> None:
@@ -104,15 +133,19 @@ async def step_out_async(inter: WorkflowInterpreter) -> None:
         while len(inter._ret_addr_stack) >= base_depth:
             if not inter._pointer:
                 break
-            await step_async(inter)
+            await step_async(inter, show=False)
     except KeyboardInterrupt:
         print(f"⏸️  Stop at: {inter._pointer.base_addr}")
+    finally:
+        _show(inter)
 
 
 async def cont_async(inter: WorkflowInterpreter[SuspendObjectStream]) -> None:
     """Continue until a breakpoint or workflow end (async).
 
-    Breakpoints are active — the `stepping` flag is cleared.
+    Breakpoints are active — the `stepping` flag is cleared.  A breakpoint
+    stops execution *before* its node runs; the next `cont()` executes that
+    node and moves on, so continuing always makes progress.
     """
     state = _get_state(inter)
     state["stepping"] = False
@@ -120,9 +153,13 @@ async def cont_async(inter: WorkflowInterpreter[SuspendObjectStream]) -> None:
         async for _ in inter.run_step_by():
             pass
     except BreakpointHit as bp:
+        #  Remember where we stopped: the node here has not run yet, so the next `cont()` must execute it rather than re-hit the breakpoint.
+        state["resume_at"] = list(inter._pointer.base_addr)
         print(f"⏸️  Hit breakpoint: {bp.bp}")
     except KeyboardInterrupt:
         print(f"⏸️  Stop at: {inter._pointer.base_addr}")
+    finally:
+        _show(inter)
 
 
 # Sync API  (step, step_over, step_out, cont)

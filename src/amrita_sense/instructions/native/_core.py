@@ -142,9 +142,7 @@ def _classify_body(
         return payload, False
 
     if isinstance(payload, AbstractComposeOriginal):
-        # Materialize any custom source composition (e.g. a NodeCompose
-        # alternative).  DLLCompose stays rejected — its payload is
-        # compiled independently at apply() time, not as a body here.
+        # Materialize any custom source composition (e.g. a NodeCompose alternative); DLLCompose stays rejected — its payload is compiled independently at apply() time, not as a body here.
         from amrita_sense.node.dll import DLLCompose
 
         if isinstance(payload, DLLCompose):
@@ -224,6 +222,22 @@ class NativeIfJumpNode(BaseNode):
         self._false_pos = false_pos
         self._is_single = is_single
 
+    @property
+    def __sdb_dis__(self) -> str:
+        """Mnemonic showing the body slot and both exits (``NJMPIF do=#2 ret=#3 false=#4``).
+
+        All three are slot indices in this segment: the body is entered
+        through a far jump into its first child, `ret`/`false` are reached
+        through `jump_near`.
+        """
+        return (
+            f"NJMPIF do=#{self._do_pos} ret=#{self._ret_pos} false=#{self._false_pos}"
+        )
+
+    @property
+    def __sdb_cmt__(self) -> str:
+        return "NativeIfJumpNode"
+
     async def __call__(self, pc: WorkflowInterpreter) -> None:
         if await pc.call_offset(self._condi_offset):
             if self._is_single:
@@ -296,6 +310,15 @@ class NativeWhileNode(BaseNode):
         self._self_pos = self_pos
         self._exit_pos = exit_pos
 
+    @property
+    def __sdb_dis__(self) -> str:
+        """Mnemonic showing body, loop head and exit (``NWHILE body=#2 self=#0 exit=#3``)."""
+        return f"NWHILE body=#{self._body_pos} self=#{self._self_pos} exit=#{self._exit_pos}"
+
+    @property
+    def __sdb_cmt__(self) -> str:
+        return "NativeWhileNode"
+
     async def __call__(self, pc: WorkflowInterpreter) -> None:
         if await pc.call_offset(self._condi_offset):
             parent = list(pc._pointer.base_addr[:-1])
@@ -355,6 +378,15 @@ class NativeDoWhileNode(BaseNode):
         self._loop_pos = loop_pos
         self._exit_pos = exit_pos
 
+    @property
+    def __sdb_dis__(self) -> str:
+        """Mnemonic showing the loop head and exit (``NDO.CHECK loop=#0 exit=#3``)."""
+        return f"NDO.CHECK loop=#{self._loop_pos} exit=#{self._exit_pos}"
+
+    @property
+    def __sdb_cmt__(self) -> str:
+        return "NativeDoWhileNode"
+
     async def __call__(self, pc: WorkflowInterpreter) -> None:
         if await pc.call_offset(self._condi_offset):
             pc.jump_near(self._loop_pos)
@@ -407,6 +439,16 @@ class NativeBubbleEnterNode(BaseNode):
         )
         self._body_pos = body_pos
         self._push = push
+
+    @property
+    def __sdb_dis__(self) -> str:
+        """Mnemonic showing the bubble entry slot (``NENTER body=#2``)."""
+        return f"NENTER body=#{self._body_pos}"
+
+    @property
+    def __sdb_cmt__(self) -> str:
+        """Comment stating whether a return-address sentinel is pushed."""
+        return f"NativeBubbleEnterNode push={self._push}"
 
     def __call__(self, pc: WorkflowInterpreter) -> None:
         parent = list(pc._pointer.base_addr[:-1])

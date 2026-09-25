@@ -37,12 +37,7 @@ async def after_return() -> None:
 
 async def main() -> None:
     print("=== PUSH_AND_GOTO + RET_FAR example ===")
-    # Pattern: PUSH_AND_GOTO(None, entry) -> body -> RET_FAR()
-    #   1) PUSH_AND_GOTO(None, "doing_work") pushes the current pointer
-    #      and jumps into the archived segment
-    #   2) The ALIAS proxy executes doing_work, then RET_FAR() pops the
-    #      saved address, rebases the pointer there, and the interpreter
-    #      advances onto after_return
+    # Pattern: PUSH_AND_GOTO(None, entry) -> body -> RET_FAR() — 1) pushes the current pointer and jumps into the archived segment; 2) the ALIAS proxy executes doing_work, then RET_FAR() pops the saved address, rebases there, and the interpreter advances onto after_return
     comp = (
         start
         >> PUSH_AND_GOTO(None, "doing_work")

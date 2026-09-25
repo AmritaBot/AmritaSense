@@ -43,6 +43,18 @@ class DONode(BaseNode):
         self._break_addr = break_addr
         self._init(self._do_worker, None, True, False)
 
+    @property
+    def __sdb_dis__(self) -> str:
+        """Mnemonic showing the loop back-edge and exit (``DO loop=#3 break=#5``).
+
+        Both are slot indices in this segment (`jump_near`).
+        """
+        return f"DO loop=#{self._jmp_addr} break=#{self._break_addr}"
+
+    @property
+    def __sdb_cmt__(self) -> str:
+        return "DONode"
+
     async def _do_worker(self, ptr: WorkflowInterpreter):
         if not __flags__.SQUASHED_LOOP:
             try:
@@ -98,6 +110,15 @@ class DowhileNode(BaseNode):
         self._then_addr = then_addr
         self._back_addr = back_addr
         self._init(self._do_while_worker, None, False, False)
+
+    @property
+    def __sdb_dis__(self) -> str:
+        """Mnemonic showing both exits (``DO.CHECK back=#0 exit=#3``)."""
+        return f"DO.CHECK back=#{self._back_addr} exit=#{self._then_addr}"
+
+    @property
+    def __sdb_cmt__(self) -> str:
+        return "DowhileNode"
 
     async def _do_while_worker(self, ptr: WorkflowInterpreter):
         if await ptr.call_offset(self._condi_offset):

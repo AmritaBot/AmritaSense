@@ -280,8 +280,7 @@ class TestWorkflowInterpreter:
         def simple_node():
             return "hello"
 
-        # NodeCompose(NodeCompose(simple_node)) → rendered has
-        # NodeComposeRendered at [0] containing simple_node at [0,0]
+        # NodeCompose(NodeCompose(simple_node)) → rendered has NodeComposeRendered at [0] containing simple_node at [0,0]
         rendered = NodeCompose(NodeCompose(simple_node)).render()
         interpreter = WorkflowInterpreter(rendered)
         interpreter._pointer = PointerVector([0])

@@ -64,4 +64,4 @@ AmritaSense v0.5.0 内置了一套完整的 REPL 调试器——无需额外安�
 - **断点系统** — 按标签（`break_at_tag`）或地址（`break_at_addr`）设置断点，支持条件表达式
 - **步进控制** — `step()`、`step_over()`、`step_out()`、`cont()`，支持同步/异步双 API
 - **崩溃恢复** — 节点异常后 panic 状态完整保留，`inspect()` 查看现场，`advance_pointer()` 跳过崩溃节点后 `cont()` 恢复执行
-- **安全检查** — 设置 `REMOVE_DEBUGGER=true` 环境变量可物理销毁调试器模块，防止生产环境 SSTI 泄露
+- **GDB 风格反汇编** — `dis()` 把编译后的图渲染为带地址的分段清单，`=>` 标记程序计数器；节点可通过 `__sdb_dis__` / `__sdb_cmt__` 魔术属性描述自己的助记符，stdout 为终端时清单会着色

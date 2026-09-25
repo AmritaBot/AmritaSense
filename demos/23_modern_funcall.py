@@ -1,7 +1,7 @@
-"""22_modern_funcall.py — FN / INTER_FN modern function-call patterns
+"""23_modern_funcall.py — FN / INTER_FN modern function-call patterns
 
 Usage:
-    python demos/22_modern_funcall.py
+    python demos/23_modern_funcall.py
 
 AmritaSense "function blocks" are control-flow transfers, NOT real
 computer function calls — there is no function context: no stack frame,
@@ -66,15 +66,13 @@ async def after_isr() -> None:
 async def main() -> None:
     print("=== FN / INTER_FN modern function-call demo ===\n")
 
-    # Pattern 1: FN + PUSH_AND_GOTO(None, entrypoint)
-    #   fn_block layout: [_fn_escape, NOP("fn_entry"), fn_body, RET_FAR]
+    # Pattern 1: FN + PUSH_AND_GOTO(None, entrypoint) — fn_block layout: [_fn_escape, NOP("fn_entry"), fn_body, RET_FAR]
     fn_block = FN(
         "fn_entry",
         fn_body,
     )
 
-    # Pattern 2: INTER_FN + INTERRUPT_INTO(entrypoint, None)
-    #   isr_block layout: [_fn_escape, NOP("isr_entry"), isr_body, INTERRUPT_RET]
+    # Pattern 2: INTER_FN + INTERRUPT_INTO(entrypoint, None) — isr_block layout: [_fn_escape, NOP("isr_entry"), isr_body, INTERRUPT_RET]
     isr_block = INTER_FN(
         "isr_entry",
         isr_body,

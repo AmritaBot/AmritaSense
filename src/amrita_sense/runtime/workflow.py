@@ -145,9 +145,7 @@ class WorkflowInterpreter(Generic[io_T]):
         self._interpreter_id = uuid4().hex
         if isinstance(node_compose, SelfCompileInstruction):
             node_compose = node_compose.extract().render()
-        # `node_compose` is either an already-rendered composition or a
-        # self-compiling instruction that has been rendered above, so the
-        # resulting object always conforms to the rendered-compose contract.
+        # `node_compose` is either an already-rendered composition or a self-compiling instruction rendered above, so the result always conforms to the rendered-compose contract.
         self._graph = cast(AbstractCompose[AddressCalculator], node_compose)
         self._pointer = PointerVector()
         self._panic_exc = None

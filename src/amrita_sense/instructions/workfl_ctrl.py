@@ -47,9 +47,16 @@ def _interrupt_keep_ctx() -> NoReturn:
 
 NOP: _Node[None] = _no_operation
 """Constant representing a no-operation node instance. Usually used as a sentinel in control flow constructs."""
+#  Module-level singletons: annotated on the instance, since all three share one class
+NOP.__sdb_dis__ = "NOP"
+NOP.__sdb_cmt__ = "no operation"
 
 INTERRUPT: _Node[NoReturn] = _interrput_operation
 """Constant representing an interrupt node instance."""
+INTERRUPT.__sdb_dis__ = "INT"
+INTERRUPT.__sdb_cmt__ = "interrupt workflow"
 
 INTERRUPT_KEEP_CTX: _Node[NoReturn] = _interrupt_keep_ctx
 """Constant representing an interrupt node instance that retains context."""
+INTERRUPT_KEEP_CTX.__sdb_dis__ = "INT.KEEP"
+INTERRUPT_KEEP_CTX.__sdb_cmt__ = "interrupt, keep context"

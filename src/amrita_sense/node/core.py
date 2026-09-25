@@ -49,6 +49,32 @@ class BaseNode:
     address_able: bool
     fun_frame: FrameType
     fun_sign: DependencyMeta
+    __sdb_dis__: str | property | None
+    """Soft-constraint magic attribute read by the debugger's disassembler.
+
+    Holds the mnemonic displayed for this node in a disassembly listing;
+    `None` means "derive a default from `tag` / the wrapped function".
+    Three declaration forms are supported and all resolve through a plain
+    `getattr`:
+
+    * a **class attribute** — a fixed mnemonic shared by every instance;
+    * a **`@property`** — a value computed from instance state, which stays
+      correct across recompiles without any assignment step;
+    * an **instance attribute** — for factory-created instructions whose
+      operand only exists inside a closure.
+
+    The name has two trailing underscores, so it is never subject to name
+    mangling.  Note that a node cannot know its own address, so a mnemonic
+    that needs one has to be expressed in segment-relative terms.
+    """
+
+    __sdb_cmt__: str | property | None
+    """Soft-constraint magic attribute read by the debugger's disassembler.
+
+    When not `None`, overrides the comment printed after ``;`` in a
+    disassembly listing (which otherwise defaults to `tag`).  Accepts the
+    same three declaration forms as `__sdb_dis__`.
+    """
 
     def _init(
         self,

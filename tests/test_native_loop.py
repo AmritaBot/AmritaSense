@@ -340,7 +340,6 @@ class TestNestedLoops:
         outer_body_comp = NodeCompose(inner_loop, outer_body)
         comp = NATIVE_WHILE(outer_cond).ACTION(outer_body_comp).extract().render()
         await WorkflowInterpreter(comp).run()
-        # inner CONTINUE skips inner_post; inner runs 3 times in first outer
-        # iteration then inner_count=3 so second outer iteration inner is skipped
+        # inner CONTINUE skips inner_post; inner runs 3 times in the first outer iteration, so inner_count=3 and the second outer iteration skips it
         assert results == ["o1", "o2"]
         assert inner_count[0] == 3

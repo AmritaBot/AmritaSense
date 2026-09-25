@@ -16,8 +16,7 @@ class SimpleWorkflow:
         self.value = value
         self.result: str | None = None
 
-        # Node functions must be parameterless — DI cannot resolve `self`.
-        # Closure nodes capture the instance instead.
+        # Node functions must be parameterless — DI cannot resolve `self`; closure nodes capture the instance instead.
         @Node()
         async def double() -> None:
             self.value *= 2
