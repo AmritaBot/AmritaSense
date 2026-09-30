@@ -147,7 +147,7 @@ class WhileClause(SelfCompileInstruction):  # WHILE >> CONDI >> DO >> CHECKUP >>
 
         if isinstance(self._action, JumpNode):
             raise RuntimeError(
-                "Please DO NOT use a GOTO node in a WHILE clause. Which will cause probably problems."
+                "Please DO NOT use a JMP node in a WHILE clause. Which will cause probably problems."
             )
         return NodeCompose(
             WhileNode(condi_offset=1, do_offset=2, checkup_addr=3, else_addr=4),

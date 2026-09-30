@@ -15,7 +15,7 @@ the `_ret_addr_stack` and `jump_far_ptr`'s to the loop head.  The
 target position is configured at compile-time by the enclosing native
 loop's `extract()` via `_configure_loop_control_nodes()`.
 
-Unlike `RET_FAR` (which uses `rebase_ptr` and relies on
+Unlike `RET` (which uses `rebase_ptr` and relies on
 `advance_pointer`), ``CONTINUE`` uses `jump_far_ptr` — a direct
 jump that sets `_jump_marked` so the main loop executes the target
 immediately without an intervening advance step.

@@ -12,7 +12,7 @@ Usage::
 * `AbstractComposeOriginal` (incl. ``NodeCompose``) | `SelfCompileInstruction` — wrapped into a **bubble**
   (a nested container).  The bubble flows back to the merge point naturally
   via `advance_pointer` — like a Python ``if``/`else` block, there is no
-  early-return / RET_FAR mechanism (since v0.6.1).
+  early-return / RET mechanism (since v0.6.1).
 """
 
 from __future__ import annotations
@@ -93,7 +93,7 @@ class NativeIfClause(SelfCompileInstruction):
         """Build the flat native IF layout.
 
         3 slots per IF/ELIF branch (condi_offset=1, do_offset=2) + optional
-        else slot + final NOP merge.  All true branches RET_FAR-jump to the
+        else slot + final NOP merge.  All true branches RET-jump to the
         merge point; false targets chain to the next ELIF, else, or merge.
         """
         ### helpers ###
@@ -101,7 +101,7 @@ class NativeIfClause(SelfCompileInstruction):
         def _wrap_if_body(
             payload: _NativeBody,
         ) -> tuple[BaseNode | NodeCompose, bool]:
-            """IF/ELIF body: single node OR flat NodeCompose bubble (no RET_FAR)."""
+            """IF/ELIF body: single node OR flat NodeCompose bubble (no RET)."""
             body, is_single = _classify_body(payload)
             if is_single:
                 return body, True
@@ -111,7 +111,7 @@ class NativeIfClause(SelfCompileInstruction):
         def _wrap_else(
             payload: _NativeBody,
         ) -> tuple[BaseNode | NodeCompose, bool]:
-            """ELSE body: single node OR NodeCompose (no RET_FAR, natural flow)."""
+            """ELSE body: single node OR NodeCompose (no RET, natural flow)."""
             return _classify_body(payload)
 
         ### build all pieces ###
@@ -206,7 +206,7 @@ def NATIVE_IF(
         body: Branch body — single `BaseNode` or a source composition
             (`AbstractComposeOriginal`, e.g. `NodeCompose` or a
             custom composition; wrapped as a bubble with automatic
-            `RET_FAR`).
+            `RET`).
 
     Returns:
         `NativeIfClause` with fluent ``.ELIF`` / `.ELSE` chain support.

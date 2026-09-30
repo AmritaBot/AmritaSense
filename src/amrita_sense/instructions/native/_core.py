@@ -244,7 +244,7 @@ class NativeIfJumpNode(BaseNode):
                 await pc.call_offset(self._do_offset)
                 pc.jump_near(self._ret_pos)
             else:
-                # Bubble path: no PUSH/RET_FAR — nested container flows back via advance_pointer.
+                # Bubble path: no PUSH/RET — nested container flows back via advance_pointer.
                 parent = list(pc._pointer.base_addr[:-1])
                 pc.jump_far_ptr([*parent, self._do_pos, 0])
         else:
@@ -406,7 +406,7 @@ class NativeBubbleEnterNode(BaseNode):
     it and jump to their configured targets.  With `push=False` (ELSE,
     since v0.6.1), no push is performed — the bubble flows back to the
     merge point naturally via `advance_pointer`, like a Python `else`
-    block (no early-return / RET_FAR semantics).
+    block (no early-return / RET semantics).
     """
 
     tag: str

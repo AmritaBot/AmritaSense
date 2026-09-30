@@ -121,10 +121,10 @@ def INTER_FN(
 ) -> AbstractComposeOriginal:
     """Define an **interrupt service routine** (Sense interrupt handler).
 
-    Appends :func:`~amrita_sense.instructions.interrupt.INTERRUPT_RET` to
+    Appends :func:`~amrita_sense.instructions.interrupt.IRET` to
     `block` so the routine auto-restores the interpreter context when it
     finishes.  Use this together with
-    :func:`~amrita_sense.instructions.interrupt.INTERRUPT_INTO` (the
+    :func:`~amrita_sense.instructions.interrupt.INT` (the
     interrupt dispatcher) and :func:`ARCHIVED_SEGMENT` (to hide the routine
     from normal execution flow).
 
@@ -135,13 +135,13 @@ def INTER_FN(
 
     Returns:
         A :class:`NodeCompose` representing the complete interrupt routine
-        (body + :func:`INTERRUPT_RET`).
+        (body + :func:`IRET`).
     """
-    from amrita_sense.instructions.interrupt import INTERRUPT_RET
+    from amrita_sense.instructions.interrupt import IRET
 
     if isinstance(block, SelfCompileInstruction):
         block = block.extract()
-    return _fn_escape >> ALIAS(NOP, entrypoint) >> block >> INTERRUPT_RET()
+    return _fn_escape >> ALIAS(NOP, entrypoint) >> block >> IRET()
 
 
 def FN(
@@ -150,10 +150,10 @@ def FN(
 ) -> AbstractComposeOriginal:
     """Define a **regular function block** (Sense subroutine).
 
-    Appends :func:`~amrita_sense.instructions.ret2.RET_FAR` to `block` so
+    Appends :func:`~amrita_sense.instructions.ret2.RET` to `block` so
     the function returns via the return-address stack when it finishes.  Use
     this together with
-    :func:`~amrita_sense.instructions.ret2.PUSH_AND_GOTO` (the caller) and
+    :func:`~amrita_sense.instructions.ret2.CALL` (the caller) and
     :func:`ARCHIVED_SEGMENT` (to hide the function body from normal
     execution flow).
 
@@ -164,11 +164,11 @@ def FN(
 
     Returns:
         A :class:`NodeCompose` representing the complete function (body +
-        :func:`RET_FAR`).
+        :func:`RET`).
     """
-    from amrita_sense.instructions.ret2 import RET_FAR
+    from amrita_sense.instructions.ret2 import RET
 
     if isinstance(block, SelfCompileInstruction):
         block = block.extract()
 
-    return _fn_escape >> ALIAS(NOP, entrypoint) >> block >> RET_FAR()
+    return _fn_escape >> ALIAS(NOP, entrypoint) >> block >> RET()
