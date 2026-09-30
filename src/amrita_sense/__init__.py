@@ -4,6 +4,7 @@
 from . import _unsafe
 from .exceptions import (
     AliasNotFoundError,
+    DependsDeclarationError,
     DependsException,
     DependsInjectFailed,
     DependsResolveFailed,
@@ -69,6 +70,7 @@ __all__ = [
     "WHILE",
     "AliasNotFoundError",
     "BaseEvent",
+    "DependsDeclarationError",
     "DependsException",
     "DependsInjectFailed",
     "DependsResolveFailed",

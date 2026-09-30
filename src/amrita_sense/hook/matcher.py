@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import datetime
 import inspect
-import typing
 from collections import defaultdict
 from collections.abc import Awaitable, Callable, Hashable, Iterable
 from enum import Enum
@@ -33,7 +32,14 @@ from .exception import (
     MatcherException,
     PassException,
 )
-from .fun_typing import EMPTY, DependencyMeta, FunctionData, ParamDescriptor, sign_func
+from .fun_typing import (
+    EMPTY,
+    DependencyMeta,
+    FunctionData,
+    ParamDescriptor,
+    sign_func,
+    type_matches,
+)
 
 
 class EventRegistry:
@@ -266,38 +272,31 @@ class MatcherFactory:
                 - A dictionary of resolved keyword arguments
                 - A dictionary of runtime dependencies to resolve
         """
-        filtered_args_types = {}
         f_kwargs: dict[str, Any] = {}
         d_kwargs: dict[str, DependsFactory] = signature["factory_map"]
         required_params: dict[str, ParamDescriptor] = {}
         for k, v in signature["params"].items():
-            if v["type_hint"] is not EMPTY:
-                filtered_args_types[k] = v["type_hint"]
-            else:
+            if v["type_hint"] is EMPTY:
                 return FailedEnum.MISSED_ANNOTATION, {}, {}
             if k in session_kwargs:
                 f_kwargs[k] = session_kwargs[k]
-            if v["default"] == EMPTY:
+            if v["default"] is EMPTY:
                 required_params[k] = v
         for name, param in required_params.items():
-            param_type = typing.cast(type, param["type_hint"])
-            assert param_type is not EMPTY
-            found = False
             if name in f_kwargs:
                 continue
-
+            # Look for positional argument match
+            param_type = param["type_hint"]
+            for arg in session_args:
+                if type_matches(arg, param_type):
+                    f_kwargs[name] = arg
+                    break
             else:
-                # Look for positional argument match
-                for arg in session_args:
-                    if isinstance(arg, param_type):
-                        f_kwargs[name] = arg
-                        found = True
-                        break
-            if not found:
                 return FailedEnum.MISSED_DEPENDENCY, {}, {}
 
-        # Verify all required parameters are resolved
-        if len(f_kwargs) != len(required_params):
+        # Every required parameter was filled by the loop above; this only
+        # guards against one being silently dropped.
+        if not required_params.keys() <= f_kwargs.keys():
             return FailedEnum.RESOLVE_FAILED, {}, {}
 
         return None, f_kwargs, d_kwargs
