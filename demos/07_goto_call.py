@@ -1,4 +1,4 @@
-"""07_goto_call.py — GOTO + CALL + ALIAS + ARCHIVED_NODES
+"""07_goto_call.py — JMP + INVOKE + ALIAS + ARCHIVED_NODES
 
 Usage:
     python demos/07_goto_call.py
@@ -6,7 +6,7 @@ Usage:
 
 import asyncio
 
-from amrita_sense import ALIAS, ARCHIVED_NODES, CALL, GOTO, Node, WorkflowInterpreter
+from amrita_sense import ALIAS, ARCHIVED_NODES, INVOKE, JMP, Node, WorkflowInterpreter
 
 
 @Node()
@@ -21,7 +21,7 @@ async def skip_me() -> None:
 
 @Node()
 async def after_jump() -> None:
-    print("Arrived after GOTO jump")
+    print("Arrived after JMP jump")
 
 
 _greet_result: str = ""
@@ -37,21 +37,21 @@ async def reusable_greet(name: str = "World") -> str:
 
 @Node()
 async def done() -> None:
-    print(f"CALL returned: {_greet_result}")
+    print(f"INVOKE returned: {_greet_result}")
 
 
 async def main() -> None:
-    print("=== GOTO example ===")
+    print("=== JMP example ===")
 
-    # GOTO("target") skips skip_me, goes directly to after_jump
-    comp = start >> GOTO("target") >> skip_me >> ALIAS(after_jump, "target")
+    # JMP("target") skips skip_me, goes directly to after_jump
+    comp = start >> JMP("target") >> skip_me >> ALIAS(after_jump, "target")
     await WorkflowInterpreter(comp.render()).run()
 
-    print("\n=== CALL example ===")
+    print("\n=== INVOKE example ===")
 
-    # CALL("greeter") invokes the subroutine, then returns to continue
+    # INVOKE("greeter") runs the subroutine inline, then returns to continue
     sub = ARCHIVED_NODES(ALIAS(reusable_greet, "greeter"))
-    comp2 = start >> CALL("greeter") >> done >> sub
+    comp2 = start >> INVOKE("greeter") >> done >> sub
     await WorkflowInterpreter(comp2.render()).run()
 
 

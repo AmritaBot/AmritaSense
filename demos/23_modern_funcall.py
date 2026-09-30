@@ -10,12 +10,12 @@ no local variables, no argument passing, no return-value convention.
 Two patterns:
 
 1. FN(entrypoint, block)  — a regular function block.  Call it with
-   PUSH_AND_GOTO(None, entrypoint); the block ends with RET_FAR() which
+   CALL(entrypoint); the block ends with RET() which
    pops the caller's return address and resumes after the call site.
 
 2. INTER_FN(entrypoint, block) — an interrupt service routine.  Enter it
-   with INTERRUPT_INTO(entrypoint, None); the block ends with
-   INTERRUPT_RET() which restores the saved interpreter context.
+   with INT(entrypoint); the block ends with
+   IRET() which restores the saved interpreter context.
 
 Both start with a hidden _fn_escape node so normal sequential flow
 jumps over the whole block (rebase_ptr + offset(3)).
@@ -25,10 +25,10 @@ import asyncio
 
 from amrita_sense import Node, WorkflowInterpreter
 from amrita_sense.instructions import (
+    CALL,
     FN,
+    INT,
     INTER_FN,
-    INTERRUPT_INTO,
-    PUSH_AND_GOTO,
 )
 
 
@@ -66,13 +66,13 @@ async def after_isr() -> None:
 async def main() -> None:
     print("=== FN / INTER_FN modern function-call demo ===\n")
 
-    # Pattern 1: FN + PUSH_AND_GOTO(None, entrypoint) — fn_block layout: [_fn_escape, NOP("fn_entry"), fn_body, RET_FAR]
+    # Pattern 1: FN + CALL(entrypoint) — fn_block layout: [_fn_escape, NOP("fn_entry"), fn_body, RET]
     fn_block = FN(
         "fn_entry",
         fn_body,
     )
 
-    # Pattern 2: INTER_FN + INTERRUPT_INTO(entrypoint, None) — isr_block layout: [_fn_escape, NOP("isr_entry"), isr_body, INTERRUPT_RET]
+    # Pattern 2: INTER_FN + INT(entrypoint) — isr_block layout: [_fn_escape, NOP("isr_entry"), isr_body, IRET]
     isr_block = INTER_FN(
         "isr_entry",
         isr_body,
@@ -80,14 +80,10 @@ async def main() -> None:
 
     comp = (
         main_start
-        >> PUSH_AND_GOTO(
-            None, "fn_entry"
-        )  # call fn_block; None = return after this node
+        >> CALL("fn_entry")  # call fn_block; return lands on the next node
         >> after_fn
         >> fn_block  # skipped by normal flow via _fn_escape
-        >> INTERRUPT_INTO(
-            "isr_entry", None
-        )  # dispatch interrupt; None = return after this node
+        >> INT("isr_entry")  # dispatch interrupt; return lands on the next node
         >> after_isr
         >> isr_block  # skipped by normal flow via _fn_escape
     )
