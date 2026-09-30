@@ -157,10 +157,31 @@ class DependsInjectFailed(Exception):
 
 - A `Depends` factory function raises an exception at runtime that is not in `_exc_ignored`.
 - When resolving multiple dependencies concurrently, all failures are collected into an `ExceptionGroup` and re-raised.
+- A generator dependency is resolved at a site where the scope it declares (or the default scope) is not active.
 
 **Critical behavior: `Depends` returning `None` terminates immediately**
 
 Unlike the event system's "return `None` to skip" behavior, in node execution, if a dependency factory declared via `Depends` returns `None`, the workflow **raises an exception and terminates immediately**. Nodes are atomic execution units, and dependency resolution failure means the node cannot run — this is not a "skip" scenario. Therefore, dependency factory functions designed for nodes should always return a valid value (or raise an explicit exception when unable to provide one, rather than returning `None`).
+
+A generator dependency that yields `None` counts as a failure under the same rule, but its teardown still runs.
+
+### DependsDeclarationError
+
+```python
+class DependsDeclarationError(Exception):
+    """Raised when a dependency declaration is contradictory.
+
+    Raised while the dependency graph is built (i.e. when a node or an
+    event handler is constructed), so a malformed declaration fails fast
+    instead of surfacing as a resolution failure at execution time.
+    """
+```
+
+**Trigger conditions**
+
+- `Depends` appears in both the annotation and the default value of the same parameter.
+- Several `Depends` markers appear in the same `Annotated` annotation.
+- A `scope` is declared for a provider that is not a generator.
 
 ## GraphBuildError
 
@@ -195,7 +216,8 @@ Exception
 ├── StreamStateError          # Stream operation in illegal state
 └── DependsException          # Dependency injection base class
     ├── DependsResolveFailed   # Dependencies cannot be resolved
-    └── DependsInjectFailed    # Exception during dependency injection
+    ├── DependsInjectFailed    # Exception during dependency injection
+    └── DependsDeclarationError # Contradictory dependency declaration
 ```
 
 **Design principles**:

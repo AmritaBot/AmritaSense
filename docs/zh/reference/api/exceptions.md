@@ -157,10 +157,31 @@ class DependsInjectFailed(Exception):
 
 - `Depends` 工厂函数在运行时抛出异常，且该异常不在 `_exc_ignored` 中
 - 并发解析多个依赖时，所有失败异常被收集进 `ExceptionGroup` 并重新抛出
+- 生成器依赖在其声明（或默认）的 scope 未激活的解析点被解析
 
 **关键行为：`Depends` 返回 `None` 直接终止**
 
 与事件系统的“返回 `None` 则跳过处理器”不同，在节点执行中，如果某个 `Depends` 声明的依赖工厂返回了 `None`，工作流会**直接抛出异常并终止**。节点是原子执行单元，依赖解析失败意味着节点无法运行——这不是可以“跳过”的场景。因此，为节点设计的依赖工厂函数应始终返回有效值（或在无法提供时抛出明确的异常，而非返回 `None`）。
+
+生成器依赖 `yield None` 同样按上述规则视为失败，但它的清理逻辑仍会执行。
+
+### DependsDeclarationError
+
+```python
+class DependsDeclarationError(Exception):
+    """Raised when a dependency declaration is contradictory.
+
+    Raised while the dependency graph is built (i.e. when a node or an
+    event handler is constructed), so a malformed declaration fails fast
+    instead of surfacing as a resolution failure at execution time.
+    """
+```
+
+**触发条件**
+
+- 同一个参数的注解与默认值中都写了 `Depends`
+- 同一个 `Annotated` 注解中出现多个 `Depends` 标记
+- 给不是生成器的提供者声明了 `scope`
 
 ## `search_exceptions()`
 
@@ -207,7 +228,8 @@ Exception
 ├── StreamStateError          # 流操作状态非法
 └── DependsException          # 依赖注入基类
     ├── DependsResolveFailed   # 依赖无法解析
-    └── DependsInjectFailed    # 依赖注入过程异常
+    ├── DependsInjectFailed    # 依赖注入过程异常
+    └── DependsDeclarationError # 依赖声明自相矛盾
 ```
 
 **设计原则**：
