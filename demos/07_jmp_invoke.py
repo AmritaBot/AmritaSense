@@ -1,7 +1,7 @@
-"""07_goto_call.py — JMP + INVOKE + ALIAS + ARCHIVED_NODES
+"""07_jmp_invoke.py — JMP + INVOKE + ALIAS + ARCHIVED_NODES
 
 Usage:
-    python demos/07_goto_call.py
+    python demos/07_jmp_invoke.py
 """
 
 import asyncio

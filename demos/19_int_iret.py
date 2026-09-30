@@ -1,7 +1,7 @@
-"""19_interrupt_into.py — INT / IRET interrupt-style jump
+"""19_int_iret.py — INT / IRET interrupt-style jump
 
 Usage:
-    python demos/19_interrupt_into.py
+    python demos/19_int_iret.py
 
 INT(jump_to, ret_to=None) snapshots the interpreter state and
 jumps to the handler:

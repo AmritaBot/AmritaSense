@@ -1,7 +1,7 @@
-"""13_ret_far.py — CALL + RET modern function-call pattern
+"""13_call_ret.py — CALL + RET modern function-call pattern
 
 Usage:
-    python demos/13_ret_far.py
+    python demos/13_call_ret.py
 
 CALL(to_adr) combines PUSH_RET + JMP:
   - from_adr=None in the main flow: the current pointer is pushed, so

@@ -1,7 +1,7 @@
-"""09_interrupt_notice.py — RESET, SUSPEND, and InterruptKeepContext
+"""09_reset_suspend.py — RESET, SUSPEND, and InterruptKeepContext
 
 Usage:
-    python demos/09_interrupt_notice.py
+    python demos/09_reset_suspend.py
 
 Demonstrates three termination / pause mechanisms:
   1. RESET            — emergency stop (state cleared, irrecoverable)
