@@ -71,6 +71,7 @@ def PUSH_RET(alias_or_idata: str | list[int]) -> NodeType[None]:
             addr = alias_or_idata
 
         call.__sdb_dis__ = f"PUSH {addr}"
+        call.__sdb_cmt__ = "push return address"
 
     call._post_compile = _post_compile
 
@@ -132,6 +133,7 @@ def CALL(
         call.__sdb_dis__ = (
             f"CALL {to_addr}, ret={frm_addr if frm_addr is not None else '?'}"
         )
+        call.__sdb_cmt__ = "push return address and jump"
 
     call._post_compile = _post_compile
 

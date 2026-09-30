@@ -203,6 +203,7 @@ def INT(
         call.__sdb_dis__ = (
             f"INT {jmp_addr}, ret={ret_addr if ret_addr is not None else '?'}"
         )
+        call.__sdb_cmt__ = "save context and jump"
 
     call._post_compile = _post_compile
 
