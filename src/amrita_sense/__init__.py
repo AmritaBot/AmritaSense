@@ -1,3 +1,6 @@
+#  pyright: reportDeprecated=false
+#  Re-exporting the deprecated instruction names below is the whole point of the
+#  shim layer; users importing them *do* get the warning.
 from . import _unsafe
 from .exceptions import (
     AliasNotFoundError,
@@ -22,7 +25,17 @@ from .instructions import (
     GOTO,
     IF,
     INTERRUPT,
+    INTERRUPT_INTO,
+    INTERRUPT_KEEP_CTX,
+    INTERRUPT_RET,
+    INVOKE,
+    JMP,
     NOP,
+    PUSH_AND_GOTO,
+    PUSH_STACK,
+    RESET,
+    RET_FAR,
+    SUSPEND,
     TRIGGER_EVENT,
     WHILE,
     Try,
@@ -40,8 +53,18 @@ __all__ = [
     "GOTO",
     "IF",
     "INTERRUPT",
+    "INTERRUPT_INTO",
+    "INTERRUPT_KEEP_CTX",
+    "INTERRUPT_RET",
+    "INVOKE",
+    "JMP",
     "NOP",
     "POINTER_DEPENDS",
+    "PUSH_AND_GOTO",
+    "PUSH_STACK",
+    "RESET",
+    "RET_FAR",
+    "SUSPEND",
     "TRIGGER_EVENT",
     "WHILE",
     "AliasNotFoundError",

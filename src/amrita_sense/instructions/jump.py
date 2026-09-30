@@ -44,7 +44,7 @@ class JumpNode(BaseNode):
     @property
     def __sdb_cmt__(self) -> str:
         """Comment showing the operand as it was written in the source."""
-        return f"GOTO {self._alias_or_idata!r}"
+        return f"JMP {self._alias_or_idata!r}"
 
     def _jump(self, pc: WorkflowInterpreter):
         return pc.jump_to(self._node_addr)
@@ -56,7 +56,7 @@ class JumpNode(BaseNode):
     def _post_compile(self, compose: NodeComposeRendered) -> None:
         if self._node_addr:
             raise RuntimeError(
-                "GOTO node has already been compiled; "
+                "JMP node has already been compiled; "
                 "a compose-bound node can only be compiled once"
             )
         if isinstance(self._alias_or_idata, str):
@@ -79,5 +79,9 @@ class JumpNode(BaseNode):
             self._node_addr = self._alias_or_idata
 
 
-def GOTO(aliasOrIdata: str | list[int]) -> JumpNode:
+def JMP(aliasOrIdata: str | list[int]) -> JumpNode:
     return JumpNode(aliasOrIdata)
+
+
+#  Deprecated name (renamed in 1.0.0); the static marker lives in `_deprecated`.
+GOTO = JMP

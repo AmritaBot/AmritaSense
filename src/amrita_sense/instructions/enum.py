@@ -100,8 +100,8 @@ AUTO_PREFIX: LiteralString = "NodeSuspend::"
 
 AUTO_TAGS: dict[LiteralString, str] = {
     "NOP": f"{AUTO_PREFIX}_no_operation",
-    "RESET": f"{AUTO_PREFIX}_interrput_operation",
-    "SUSPEND": f"{AUTO_PREFIX}_interrupt_keep_ctx",
+    "RESET": f"{AUTO_PREFIX}_reset_operation",
+    "SUSPEND": f"{AUTO_PREFIX}_suspend_operation",
     "JMP": f"{AUTO_PREFIX}_jump",
     "IF_CONDJUMP": f"{AUTO_PREFIX}_do",
     "ELSE_WORKER": f"{AUTO_PREFIX}_else_worker",
@@ -117,23 +117,23 @@ Auto-generated tags for built-in instructions whose nodes pass `tag=None`.
 These are produced by the `BaseNode._init` fallback and are shared
 across many node types — they are **not** unique identifiers.
 
-=============================== ============================================
-Tag                             Instruction(s)
-=============================== ============================================
-`NodeSuspend::_no_operation`  :data:`~amrita_sense.instructions.workfl_ctrl.NOP`
-`NodeSuspend::_interrput_operation` :data:`~amrita_sense.instructions.workfl_ctrl.RESET`
-`NodeSuspend::_interrupt_keep_ctx`  :data:`~amrita_sense.instructions.workfl_ctrl.SUSPEND`
-`NodeSuspend::_jump`          :func:`~amrita_sense.instructions.jump.JMP` (JumpNode)
-`NodeSuspend::__call__`       SubprogramJumpNode, InvokeNode, NativeIfJumpNode,
-                                NativeWhileNode, NativeDoWhileNode,
-                                NativeBubbleEnterNode, FuncBlock
-`NodeSuspend::_do`            ConditionJumpNode (IF chain)
-`NodeSuspend::_else_worker`   ELSE clause worker node
-`NodeSuspend::_do_worker`     DONode
-`NodeSuspend::_do_while_worker` DowhileNode
-`NodeSuspend::_while_worker`  WhileNode
-`NodeSuspend::_while_checkup` CheckUpNode
-=============================== ============================================
+================================== ============================================
+Tag                                Instruction(s)
+================================== ============================================
+`NodeSuspend::_no_operation`       :data:`~amrita_sense.instructions.workfl_ctrl.NOP`
+`NodeSuspend::_reset_operation`    :data:`~amrita_sense.instructions.workfl_ctrl.RESET`
+`NodeSuspend::_suspend_operation`  :data:`~amrita_sense.instructions.workfl_ctrl.SUSPEND`
+`NodeSuspend::_jump`               :func:`~amrita_sense.instructions.jump.JMP` (JumpNode)
+`NodeSuspend::__call__`            SubprogramJumpNode, InvokeNode, NativeIfJumpNode,
+                                     NativeWhileNode, NativeDoWhileNode,
+                                     NativeBubbleEnterNode, FuncBlock
+`NodeSuspend::_do`                 ConditionJumpNode (IF chain)
+`NodeSuspend::_else_worker`        ELSE clause worker node
+`NodeSuspend::_do_worker`          DONode
+`NodeSuspend::_do_while_worker`    DowhileNode
+`NodeSuspend::_while_worker`       WhileNode
+`NodeSuspend::_while_checkup`      CheckUpNode
+================================== ============================================
 """
 
 __all__ = [

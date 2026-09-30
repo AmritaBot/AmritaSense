@@ -74,7 +74,7 @@ class SubprogramStorage(SelfCompileInstruction):
         return NodeCompose(*node_compose)
 
 
-class CallNode(BaseNode):
+class InvokeNode(BaseNode):
     tag: str
     func: Callable[..., Any]
     wrap_to_async: bool
@@ -102,18 +102,18 @@ class CallNode(BaseNode):
 
     @property
     def __sdb_dis__(self) -> str:
-        """Mnemonic showing the resolved callee (``CALL sym -> [0]``)."""
-        return f"CALL {self._alias} -> {self._addr or '?'}"
+        """Mnemonic showing the resolved callee (``INVOKE sym -> [0]``)."""
+        return f"INVOKE {self._alias} -> {self._addr or '?'}"
 
     @property
     def __sdb_cmt__(self) -> str:
-        return "CallNode"
+        return "InvokeNode"
 
     @override
     def _post_compile(self, compose: NodeComposeRendered) -> None:
         if self._addr:
             raise RuntimeError(
-                "CALL node has already been compiled; "
+                "INVOKE node has already been compiled; "
                 "a compose-bound node can only be compiled once"
             )
         if (addr := compose.alias2vector_map.get(self._alias)) is None:
@@ -130,31 +130,35 @@ class CallNode(BaseNode):
         nd = compose.calc.find_addr(addr)
         if isinstance(nd, NodeComposeRendered):
             raise GraphBuildError(
-                "Cannot call a NodeComposeRendered directly! Please use PUSH_AND_GOTO with RET_FAR instead"
+                "Cannot invoke a NodeComposeRendered directly! Please use CALL with RET instead"
             )
         elif nd.address_able is False:
-            raise GraphBuildError("Cannot call a non-addressable node!")
+            raise GraphBuildError("Cannot invoke a non-addressable node!")
         self._addr = addr
 
     async def __call__(self, pc: WorkflowInterpreter) -> Any:
         return await pc.call_sub(self._addr)
 
 
-def CALL(alias: str) -> CallNode:
+#  Deprecated alias (renamed in 1.0.0); kept so existing import paths keep working.
+CallNode = InvokeNode
+
+
+def INVOKE(alias: str) -> InvokeNode:
     """Create a single-step subroutine call node.
 
     Performs a synchronous call to the subroutine at the given alias via
     :meth:`WorkflowInterpreter.call_sub`.  This is a **single-step** call —
     the interpreter enters the target and executes it inline before
-    returning, unlike :func:`~amrita_sense.instructions.ret2.PUSH_AND_GOTO` /
-    :func:`~amrita_sense.instructions.ret2.RET_FAR` which use the return-address
+    returning, unlike :func:`~amrita_sense.instructions.ret2.CALL` /
+    :func:`~amrita_sense.instructions.ret2.RET` which use the return-address
     stack for a far return.
 
     .. warning::
 
-       The target **must not** be :func:`~amrita_sense.instructions.interrupt.INTERRUPT_INTO`
-       or :func:`~amrita_sense.instructions.ret2.PUSH_AND_GOTO`.  Using those
-       as a `CALL` target will cause undefined behavior because they
+       The target **must not** be :func:`~amrita_sense.instructions.interrupt.INT`
+       or :func:`~amrita_sense.instructions.ret2.CALL`.  Using those
+       as a `INVOKE` target will cause undefined behavior because they
        manipulate the context stack and/or return-address stack in ways
        incompatible with single-step call semantics.
 
@@ -162,19 +166,19 @@ def CALL(alias: str) -> CallNode:
         alias: The alias of the subroutine to call.
 
     Returns:
-        A :class:`CallNode` that performs a single-step call to the target.
+        A :class:`InvokeNode` that performs a single-step call to the target.
     """
-    return CallNode(alias)
+    return InvokeNode(alias)
 
 
 def ARCHIVED_NODES(*nodes: BaseNode) -> SubprogramStorage:
-    """Archive nodes for single-step call via :func:`CALL`.
+    """Archive nodes for single-step call via :func:`INVOKE`.
 
     Wraps the given nodes into a :class:`SubprogramStorage` which, when
     extracted, produces a node compose that **jumps over** the archived nodes
     at runtime.  The archived nodes are preserved in the compose graph but
     never executed inline — they are reachable only via
-    :meth:`WorkflowInterpreter.call_sub` (i.e. :func:`CALL`).
+    :meth:`WorkflowInterpreter.call_sub` (i.e. :func:`INVOKE`).
 
     This is **not** meant for storing an entire program or function body.
     Typically you archive a **single node** (or a very short sequence) as a
@@ -199,7 +203,7 @@ def ARCHIVED_SEGMENT(
     so the interpreter skips over the entire segment during normal execution.
     The segment remains in the compose graph and is reachable only via
     explicit jumps — this is the standard way to define **Functions** (the
-    target of :func:`~amrita_sense.instructions.ret2.PUSH_AND_GOTO`) or
+    target of :func:`~amrita_sense.instructions.ret2.CALL`) or
     **interrupt service routines**.
 
     Args:

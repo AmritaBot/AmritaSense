@@ -18,31 +18,35 @@ def _no_operation() -> None:
 
 
 @_node_fun(wrap_to_async=False, address_able=False)
-def _interrput_operation() -> NoReturn:
-    """Interrupt workflow execution node.
+def _reset_operation() -> NoReturn:
+    """Reset workflow execution node.
 
     This node immediately terminates workflow execution by raising an
-    InterruptNotice exception. It is used to implement external interruption
-    mechanisms and cannot be referenced by address since it has address_able=False.
+    InterruptNotice exception.  The interpreter catches it and calls
+    `WorkflowInterpreter.reset()`, discarding the pointer, return-address stack,
+    context stack, if-flag and panic state.  It cannot be referenced by address
+    since it has address_able=False.
 
     Raises:
         InterruptNotice: Always raised to terminate workflow execution.
     """
-    raise InterruptNotice("Interrupt Node")
+    raise InterruptNotice("Reset Node")
 
 
 @_node_fun(wrap_to_async=False, address_able=True)
-def _interrupt_keep_ctx() -> NoReturn:
-    """Interrupt workflow execution node while keeping context.
+def _suspend_operation() -> NoReturn:
+    """Suspend workflow execution node while keeping context.
 
-    This node immediately terminates workflow execution by raising an
-    InterruptNotice exception, but it is designed to keep the state of the workflow.
-    It is used to implement external interruption mechanisms and cannot be referenced by address since it has address_able=False.
+    This node immediately terminates workflow execution by raising
+    InterruptKeepContext, a subclass of InterruptNotice that the interpreter
+    deliberately does **not** reset on — so the interpreter state survives and
+    the workflow can be resumed later.  Being address_able, it can also be
+    reached by a jump.
 
     Raises:
-        InterruptNotice: Always raised to terminate workflow execution.
+        InterruptKeepContext: Always raised to terminate workflow execution.
     """
-    raise InterruptKeepContext("Interrupt Node with context retention")
+    raise InterruptKeepContext("Suspend Node with context retention")
 
 
 NOP: _Node[None] = _no_operation
@@ -51,12 +55,16 @@ NOP: _Node[None] = _no_operation
 NOP.__sdb_dis__ = "NOP"
 NOP.__sdb_cmt__ = "no operation"
 
-INTERRUPT: _Node[NoReturn] = _interrput_operation
-"""Constant representing an interrupt node instance."""
-INTERRUPT.__sdb_dis__ = "INT"
-INTERRUPT.__sdb_cmt__ = "interrupt workflow"
+RESET: _Node[NoReturn] = _reset_operation
+"""Constant representing a node that terminates the workflow and discards interpreter state."""
+RESET.__sdb_dis__ = "RESET"
+RESET.__sdb_cmt__ = "reset interpreter state"
 
-INTERRUPT_KEEP_CTX: _Node[NoReturn] = _interrupt_keep_ctx
-"""Constant representing an interrupt node instance that retains context."""
-INTERRUPT_KEEP_CTX.__sdb_dis__ = "INT.KEEP"
-INTERRUPT_KEEP_CTX.__sdb_cmt__ = "interrupt, keep context"
+SUSPEND: _Node[NoReturn] = _suspend_operation
+"""Constant representing a node that terminates the workflow but keeps interpreter state, so it can be resumed."""
+SUSPEND.__sdb_dis__ = "SUSPEND"
+SUSPEND.__sdb_cmt__ = "suspend, keep context"
+
+#  Deprecated aliases (renamed in 1.0.0); silent, since PEP 702 has no marker for variables.
+INTERRUPT: _Node[NoReturn] = RESET
+INTERRUPT_KEEP_CTX: _Node[NoReturn] = SUSPEND
