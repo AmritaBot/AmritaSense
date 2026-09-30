@@ -26,7 +26,7 @@ This design lets the same call primitive serve both internal reuse and external 
 
 ### Jump mark priority
 
-After the subroutine completes, `call_sub` checks the `_jump_marked` flag. If the subroutine executed a jump operation such as `JMP`, that flag is set to `True`. In that case, the `finally` block **does not restore the original execution pointer** — the new jump target is preserved, and the interpreter continues from there. This ensures subroutine-internal jumps can correctly affect the main workflow control flow.
+After the subroutine completes, `call_sub` checks the `JMP` bit. If the subroutine executed a jump operation such as `JMP`, that bit is set. In that case, the `finally` block **does not restore the original execution pointer** — the new jump target is preserved, and the interpreter continues from there. This ensures subroutine-internal jumps can correctly affect the main workflow control flow.
 
 ## 4.3.2 Passing arguments to subroutines
 
@@ -91,7 +91,7 @@ Every `call_sub` pushes the current address, and every return pops the top addre
 
 ### Jump override and return suppression
 
-If the subroutine executes `JMP` or another jump operation, `_jump_marked` is set to `True`. In that case, `call_sub` skips restoring the saved pointer and does not pop the return address. This means the subroutine’s internal jump can “override” normal return behavior. Developers should understand that `JMP` inside a subroutine may prevent automatic return stack cleanup and may require explicit stack management.
+If the subroutine executes `JMP` or another jump operation, the `JMP` bit is set. In that case, `call_sub` skips restoring the saved pointer and does not pop the return address. This means the subroutine’s internal jump can “override” normal return behavior. Developers should understand that `JMP` inside a subroutine may prevent automatic return stack cleanup and may require explicit stack management.
 
 ### Summary
 

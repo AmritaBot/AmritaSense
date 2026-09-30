@@ -57,7 +57,7 @@ RESET: _Node[NoReturn] = _reset_operation
 2. **全局捕获**：解释器主循环在最外层专门捕获 `InterruptNotice`，一旦捕获，执行清理流程：
    - 清空 `_ret_addr_stack`（调用栈）
    - 重置 `_pointer`（指针向量）
-   - 重置 `_jump_marked` 标记
+   - 重置整个状态寄存器
 3. **干净退出**：工作流以可控、可预测的方式终止，不留残留状态
 
 ### 关键属性

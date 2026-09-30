@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 
 from amrita_sense.debugger import code_disp
 from amrita_sense.debugger.breakpoint import BreakpointHit, _get_state
+from amrita_sense.runtime.types import Flags
 from amrita_sense.runtime.workflow import PC_CHECKPOINT
 
 if TYPE_CHECKING:
@@ -60,6 +61,10 @@ async def _step_one(inter: WorkflowInterpreter[SuspendObjectStream]) -> None:
             return
         inter._pointer.append(0)
 
+    ### resume past a halted node ###
+    if inter.flags & Flags.HLT and not inter.resume_from_halt():
+        return
+
     ### execute ONE node with lock ###
     try:
         async with inter._interpret_lock:
@@ -69,8 +74,8 @@ async def _step_one(inter: WorkflowInterpreter[SuspendObjectStream]) -> None:
                 await inter._call(no_cache=True)
 
             # advance pointer (unless a jump was performed)
-            if inter._jump_marked:
-                inter._jump_marked = False
+            if inter.jump_marked:
+                inter.unmarkup()
             else:
                 inter.advance_pointer()
     except Exception as e:

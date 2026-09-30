@@ -149,7 +149,7 @@ class InterruptNotice(BaseException):
 
 **InterruptKeepContext**
 
-`InterruptKeepContext` 是 `InterruptNotice` 的子类，提供**保留上下文**的变体。解释器捕获后不调用 `reset()`，而是保留指针、调用栈和依赖注入参数。可在同一解释器上再次调用 `run()` 恢复执行。
+`InterruptKeepContext` 是 `InterruptNotice` 的子类，提供**保留上下文**的变体。解释器捕获后不调用 `reset()`，而是保留指针、调用栈、依赖注入参数与标志寄存器。可在同一解释器上再次调用 `run()` 恢复执行。
 
 | 异常                   | 捕获后                    | 可恢复     | 对应节点  |
 | ---------------------- | ------------------------- | ---------- | --------- |
@@ -161,17 +161,31 @@ class InterruptNotice(BaseException):
 1. 在工作流中插入 `SUSPEND` 节点（从 `amrita_sense.instructions.workfl_ctrl` 导入）
 2. 从节点代码中直接 `raise InterruptKeepContext()`
 
-**解释器主循环处理流程**：
+**恢复执行：`HLT` 标志**
+
+挂起被捕获时指针仍指向抛出它的那个节点，直接重跑主循环只会再次执行该节点并停在原地，永远无法前进。为此解释器在状态寄存器中置起 `HLT`：
 
 ```python
-except InterruptNotice as e:
-    logger.info(f"Interrupt notice at {self._pointer} :{e.message}")
-    self._ret_addr_stack.clear()   # 清空整个调用栈
-    self._pointer.clear()          # 重置指针向量
-    self._jump_marked = False      # 清除跳转标记
+if not isinstance(e, InterruptKeepContext):
+    self.reset()
+else:
+    self._flags |= Flags.HLT  # 指针仍指向挂起节点
 ```
 
-**这是终止，不是挂起**。调用栈和指针被完全清空，工作流退出，无法从中断点恢复。如需重新执行，必须重新渲染工作流并创建新的解释器实例。
+下一次运行会在执行任何节点之前消费该位，跳过这个节点而不是重跑它：
+
+```python
+if self._flags & Flags.HLT:
+    if not self.resume_from_halt():
+        break
+    continue
+```
+
+`resume_from_halt()` 是主循环与调试器 `step` 共用的唯一实现，因此「步过挂起点」与「运行过挂起点」行为完全一致。
+
+只要指针被显式移动，该位就会清除——任何 `@markup` 跳转方法、`rebase_ptr()`、`reset()` 都会清它。`dump_interpreter()` 也会剥掉它，因此上下文快照永远不携带挂起位，恢复快照也就无法让挂起复活。
+
+**这是终止，不是挂起**。对于普通的 `InterruptNotice`，调用栈和指针被完全清空，工作流退出，无法从中断点恢复。如需重新执行，必须重新渲染工作流并创建新的解释器实例。
 
 ### 内中断总结
 

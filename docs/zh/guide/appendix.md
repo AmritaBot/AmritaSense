@@ -49,7 +49,7 @@ AmritaSense 提供的协作式中断机制。工作流在指定标记点主动�
 ### 9.1.12 其他核心术语
 
 - **解释锁（Interpret Lock）**：`aiologic.Lock` 实例，保证每次只有一个节点在执行，是外部安全调用的互斥基础
-- **跳转标记（Jump Mark）**：`_jump_marked` 标志，为 `True` 时解释器跳过常规的指针推进步骤，下一轮从跳转目标开始
+- **跳转标记（Jump Mark）**：状态寄存器的 `JMP` 位，置起时解释器跳过常规的指针推进步骤，下一轮从跳转目标开始
 - **异常穿透（Exception Penetration）**：通过 `exception_ignored` 标记的异常不会被任何 `CATCH` 块捕获，直达顶层处理器
 - **Call Stack（调用栈）**：`Stack[PointerVector]`，管理子程序调用的返回地址
 - **DI Cache（DI 缓存）**：`DICache` — `WorkflowInterpreter` 内部基于 LRU 的缓存，存储已解析的依赖注入 kwargs。键为 `hash((id(node.func), args_hash))`，避免相同节点函数在相同参数类型下重复解析 DI。载体为最大 2048 条的 `LRUCache`。由 unsafe 标志 `WORKFLOW_DI_NO_CACHE`、`WORKFLOW_DI_PRELOAD_CACHE` 和 `WORKFLOW_DI_PRELOAD_BATCH` 控制。

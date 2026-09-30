@@ -139,7 +139,7 @@ Python's `except Exception` does not catch `BaseException` subclasses. Therefore
 
 **InterruptKeepContext**
 
-`InterruptKeepContext` is a subclass of `InterruptNotice` that provides a **context-preserving** variant. When the interpreter catches it, instead of calling `reset()`, the pointer, call stacks, and dependency injection parameters are left intact. Execution can be resumed by calling `run()` again on the same interpreter.
+`InterruptKeepContext` is a subclass of `InterruptNotice` that provides a **context-preserving** variant. When the interpreter catches it, instead of calling `reset()`, the pointer, call stacks, dependency injection parameters and status register are left intact. Execution can be resumed by calling `run()` again on the same interpreter.
 
 | Exception              | After catch                       | Recoverable | Node      |
 | ---------------------- | --------------------------------- | ----------- | --------- |
@@ -151,17 +151,31 @@ Python's `except Exception` does not catch `BaseException` subclasses. Therefore
 1. Insert `SUSPEND` node in the workflow (from `amrita_sense.instructions.workfl_ctrl`)
 2. Raise `InterruptKeepContext` directly from node code
 
-**Interpreter main loop handling**:
+**Resuming: the `HLT` flag**
+
+When a suspend is caught the pointer still addresses the node that raised it, so re-running the loop would simply execute that node again and halt in the same place forever. To prevent that, the interpreter sets `HLT` in its status register:
 
 ```python
-except InterruptNotice as e:
-    logger.info(f"Interrupt notice at {self._pointer} :{e.message}")
-    self._ret_addr_stack.clear()   # Clear entire call stack
-    self._pointer.clear()          # Reset pointer vector
-    self._jump_marked = False
+if not isinstance(e, InterruptKeepContext):
+    self.reset()
+else:
+    self._flags |= Flags.HLT  # pointer still addresses the halting node
 ```
 
-**This is termination, not suspension**. The call stack and pointer are fully cleared; the workflow exits and cannot be resumed from the interruption point. To re-execute, the workflow must be re-rendered and a new interpreter instance created.
+The next run consumes the bit before executing anything, stepping past the node instead of re-running it:
+
+```python
+if self._flags & Flags.HLT:
+    if not self.resume_from_halt():
+        break
+    continue
+```
+
+`resume_from_halt()` is the single implementation shared by the main loop and the debugger's `step`, so stepping past a suspend behaves exactly like running past it.
+
+The bit is cleared as soon as the pointer is moved deliberately — by any `@markup` jump method, by `rebase_ptr()`, or by `reset()`. `dump_interpreter()` also strips it, so a context snapshot never carries the halt and restoring one cannot resurrect it.
+
+**This is termination, not suspension**. For a plain `InterruptNotice`, the call stack and pointer are fully cleared; the workflow exits and cannot be resumed from the interruption point. To re-execute, the workflow must be re-rendered and a new interpreter instance created.
 
 ### Internal Interrupt Summary
 

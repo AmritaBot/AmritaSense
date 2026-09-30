@@ -45,7 +45,7 @@ from amrita_sense.node.abc_base import AbstractCompose
 from amrita_sense.node.addressing import AddressCalculator
 from amrita_sense.node.core import BaseNode
 from amrita_sense.node.self_compile import SelfCompileInstruction
-from amrita_sense.runtime.types import InterpreterContext
+from amrita_sense.runtime.types import Flags, InterpreterContext
 from amrita_sense.streaming import SuspendObjectStream
 from amrita_sense.types import DICache, PointerVector, Stack
 from amrita_sense.utils import TimeInsighter, _fingerprint_args, isabstractmethod
@@ -68,7 +68,7 @@ class WorkflowInterpreter(Generic[io_T]):
 
     _graph: AbstractCompose[AddressCalculator]
     _pointer: PointerVector
-    _jump_marked: bool
+    _flags: Flags
 
     __ava_args: tuple
     __ava_kwargs: dict[str, Any]
@@ -83,7 +83,6 @@ class WorkflowInterpreter(Generic[io_T]):
     __outer_interpreting: bool
     _panic_exc: Exception | None
 
-    _if_flag: bool  # Whether in the interrupt mode
     _context_stack: Stack[InterpreterContext]
 
     _parent_interpreter: WorkflowInterpreter | None
@@ -109,12 +108,11 @@ class WorkflowInterpreter(Generic[io_T]):
         "_dep_store",
         "_di_cache",
         "_exc_ignored",
+        "_flags",
         "_glob_top_mod_lock",
         "_graph",
-        "_if_flag",
         "_interpret_lock",
         "_interpreter_id",
-        "_jump_marked",
         "_lifecycles",
         "_middleware",
         "_panic_exc",
@@ -185,11 +183,10 @@ class WorkflowInterpreter(Generic[io_T]):
         object_io = object_io or SuspendObjectStream()
         self.object_io = cast(io_T, object_io)
         self._ret_addr_stack = addr_stack or Stack()
-        self._jump_marked = False
+        self._flags = Flags.NONE
         self._interpret_lock = aiologic.Lock()
         self._middleware = middleware
 
-        self._if_flag = False
         self._context_stack = context_stack or Stack()
         # Sub-Parent interpreter relationship management
         self._parent_interpreter = parent_interpreter
@@ -335,9 +332,8 @@ class WorkflowInterpreter(Generic[io_T]):
         self._pointer.clear()
         self._pending_stop = False
         self._ret_addr_stack.clear()
-        self._jump_marked = False
+        self._flags = Flags.NONE
         self._panic_exc = None
-        self._if_flag = False
         self._context_stack.clear()
 
     def fork_interpreter(
@@ -412,8 +408,10 @@ class WorkflowInterpreter(Generic[io_T]):
     def markup(fun: fun_T) -> fun_T:  # Used to mark a pointer action
         """Decorator for marking methods that perform jump operations.
 
-        This decorator automatically sets the _jump_marked flag when a jump method
-        is called, preventing the pointer from advancing normally after the jump.
+        This decorator automatically sets the `JMP` bit when a jump method is
+        called, preventing the pointer from advancing normally after the jump.
+        It also clears `HLT`, because an explicit jump supersedes the "the
+        pointer still addresses the node we halted on" condition.
 
         All decorated methods must be instance methods which return None.
 
@@ -427,8 +425,8 @@ class WorkflowInterpreter(Generic[io_T]):
         @wraps(fun)
         def wrapper(*args, **kwargs):
             self: WorkflowInterpreter = args[0]
-            if not self._jump_marked:
-                self._jump_marked = True
+            if not self.jump_marked:
+                self._flags = (self._flags | Flags.JMP) & ~Flags.HLT
                 fun(*args, **kwargs)
 
         if not TYPE_CHECKING:
@@ -436,21 +434,29 @@ class WorkflowInterpreter(Generic[io_T]):
         return fun
 
     def unmarkup(self) -> None:
-        self._jump_marked = False
+        """Clear the `JMP` bit, so the main loop advances the pointer again."""
+        self._flags &= ~Flags.JMP
+
+    @property
+    def flags(self) -> Flags:
+        """The interpreter's status register (see `amrita_sense.runtime.types.Flags`)."""
+        return self._flags
 
     @property
     def jump_marked(self) -> bool:
-        return self._jump_marked
+        """Whether a jump has already moved the pointer for this cycle."""
+        return bool(self._flags & Flags.JMP)
 
     @property
     def if_flag(self) -> bool:
-        return self._if_flag
+        """Whether the interpreter is currently inside an interrupt handler."""
+        return bool(self._flags & Flags.IF)
 
     @if_flag.setter
     def if_flag(self, value: bool) -> None:
         if not isinstance(value, bool):
             raise TypeError("if_flag must be a boolean value")
-        self._if_flag = value
+        self._flags = (self._flags | Flags.IF) if value else (self._flags & ~Flags.IF)
 
     @property
     def context_stack(self) -> Stack[InterpreterContext]:
@@ -472,10 +478,15 @@ class WorkflowInterpreter(Generic[io_T]):
             extra={},
             stack=None if exclude_stack else self._ret_addr_stack,
             exception=self._panic_exc,
+            # HLT is stripped here, not on restore: "the loop is parked on this node" is not part of the state to come back to.
+            flags=self._flags & ~Flags.HLT,
         )
 
     def rebase_context(self, ctx: InterpreterContext) -> None:
         """Rebase the interpreter context stack to the current pointer and state.
+
+        Restores the status register together with the pointer, so a context
+        snapshot round-trips every bit it captured.
 
         Args:
             ctx: The InterpreterContext object to rebase.
@@ -488,16 +499,31 @@ class WorkflowInterpreter(Generic[io_T]):
             self._di_cache.hash_trustable = False
         self._ret_addr_stack = ctx.stack or self._ret_addr_stack
         self._panic_exc = ctx.exception
+        self._flags = ctx.flags
 
     def rebase_ptr(self, ptr: list[int] | PointerVector) -> None:
         """Rebase the pointer to a new address.
 
+        Also clears `HLT`: moving the pointer explicitly means the interpreter
+        is no longer parked on the node it halted on.
+
         Args:
             ptr: The new base address vector for the pointer.
         """
+        self._flags &= ~Flags.HLT
         self._pointer.base_addr = (
             list(ptr) if isinstance(ptr, list) else ptr.base_addr.copy()
         )
+
+    def resume_from_halt(self) -> bool:
+        """Step past the node the interpreter halted on.
+
+        While `HLT` is set the pointer still addresses the node that raised
+        `InterruptKeepContext`, so resuming means skipping it.  Returns False
+        when nothing follows, in which case the run is over.
+        """
+        self._flags &= ~Flags.HLT
+        return self.advance_pointer()
 
     @markup
     def jump_to(self, addr: list[int]) -> None:
@@ -662,7 +688,7 @@ class WorkflowInterpreter(Generic[io_T]):
         finally:
             self.__outer_interpreting = False
             ptr = self._ret_addr_stack.pop()
-            if not self._jump_marked:
+            if not self.jump_marked:
                 self.rebase_ptr(ptr)
 
     @property
@@ -809,13 +835,18 @@ class WorkflowInterpreter(Generic[io_T]):
                         if not graph:
                             break
                         self._pointer.append(0)
+                    if self._flags & Flags.HLT:
+                        # Resuming: the pointer still addresses the node that halted, so step past it instead of running it again.
+                        if not self.resume_from_halt():
+                            break
+                        continue
                     yield (
                         await self._middleware(self)
                         if self._middleware
                         else await self._call()
                     )
-                    if self._jump_marked:
-                        self._jump_marked = False
+                    if self.jump_marked:
+                        self.unmarkup()
                         continue
 
                     if not self.advance_pointer():
@@ -827,6 +858,8 @@ class WorkflowInterpreter(Generic[io_T]):
                 self.reset()
             else:
                 resumable = True
+                # The pointer still addresses the halting node, so mark that a later run has to step past it (see the HLT branch above).
+                self._flags |= Flags.HLT
 
         except BaseException as e:
             if isinstance(e, Exception):

@@ -14,7 +14,7 @@ from amrita_sense.instructions.interrupt import (
     PUSH_CONTEXT,
 )
 from amrita_sense.node.core import NodeComposeRendered
-from amrita_sense.runtime.types import InterpreterContext
+from amrita_sense.runtime.types import Flags, InterpreterContext
 from amrita_sense.runtime.workflow import WorkflowInterpreter
 from amrita_sense.types import PointerVector, Stack
 
@@ -32,11 +32,29 @@ class _FakeInterpreter:
         self.context_stack = self._context_stack  # public alias for real API
         self._ret_addr_stack: Stack[PointerVector] = Stack()
         self._exc_ignored: tuple[type[BaseException], ...] = (InterruptNotice,)
-        self.if_flag: bool = False
-        self._jump_marked: bool = False
+        self._flags: Flags = Flags.NONE
         self._panic_exc: Exception | None = None
         self._ava_args: tuple = ()
         self._ava_kwargs: dict = {}
+
+    @property
+    def flags(self) -> Flags:
+        return self._flags
+
+    @property
+    def if_flag(self) -> bool:
+        return bool(self._flags & Flags.IF)
+
+    @if_flag.setter
+    def if_flag(self, value: bool) -> None:
+        self._flags = (self._flags | Flags.IF) if value else (self._flags & ~Flags.IF)
+
+    @property
+    def jump_marked(self) -> bool:
+        return bool(self._flags & Flags.JMP)
+
+    def unmarkup(self) -> None:
+        self._flags &= ~Flags.JMP
 
     def get_graph(self):
         return self._graph
@@ -46,7 +64,7 @@ class _FakeInterpreter:
 
     def jump_to(self, a):
         self._pointer.far_to(a)
-        self._jump_marked = True
+        self._flags |= Flags.JMP
 
     def dump_interpreter(self, exclude_deps=True, exclude_stack=True):
         return InterpreterContext(
@@ -57,6 +75,7 @@ class _FakeInterpreter:
             extra={},
             stack=None if exclude_stack else self._ret_addr_stack,
             exception=self._panic_exc,
+            flags=self._flags & ~Flags.HLT,
         )
 
     def rebase_context(self, c):
@@ -66,6 +85,7 @@ class _FakeInterpreter:
             self._ava_args, self._ava_kwargs = c.s_args, c.s_kwargs
         self._ret_addr_stack = c.stack or self._ret_addr_stack
         self._panic_exc = c.exception
+        self._flags = c.flags
 
 
 if not TYPE_CHECKING:
@@ -137,7 +157,7 @@ def test_push_context_jumps():
     assert pc.context_stack.stack[0].ptr.base_addr == [5, 0]
     # PUSH_CONTEXT does NOT jump — current pointer unchanged
     assert pc._pointer.base_addr == [2, 3]
-    assert not pc._jump_marked
+    assert not pc.jump_marked
 
 
 def test_push_context_list_target():
@@ -180,7 +200,7 @@ def test_push_context_multiple():
     n1._post_compile(_FakeRendered({"s1": [1]}))
     n1(pc)
     pc._pointer.far_to([1])
-    pc._jump_marked = False
+    pc.unmarkup()
     n2 = PUSH_CONTEXT("s2")
     n2._post_compile(_FakeRendered({"s2": [2]}))
     n2(pc)
@@ -213,7 +233,7 @@ def test_pop_context_lifo():
     n1._post_compile(_FakeRendered({"a": [10]}))
     n1(pc)
     pc._pointer.far_to([10])
-    pc._jump_marked = False
+    pc.unmarkup()
     n2 = PUSH_CONTEXT("b")
     n2._post_compile(_FakeRendered({"b": [20]}))
     n2(pc)

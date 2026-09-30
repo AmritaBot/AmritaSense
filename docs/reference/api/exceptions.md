@@ -31,7 +31,7 @@ When the interpreter main loop catches `InterruptNotice`:
 1. Logs the current pointer position and notification message
 2. Clears `_ret_addr_stack` (the call stack)
 3. Resets `_pointer` (the pointer vector)
-4. Resets the `_jump_marked` flag
+4. Resets the entire status register
 5. The workflow exits cleanly with no residual state
 
 ## InterruptKeepContext

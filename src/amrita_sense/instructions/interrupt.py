@@ -142,6 +142,10 @@ def INT(
     `True`, nested `INT` is forbidden (raises
     :class:`IllegalState`).
 
+    The context snapshot is taken **before** `if_flag` is written, so it
+    records the state to return to rather than the handler's own state;
+    :func:`IRET` therefore restores `if_flag` to its pre-interrupt value.
+
     Args:
         jump_to: Alias or absolute address to jump to **now** (the handler).
         ret_to: Alias or absolute address saved as the **return address** in
@@ -167,7 +171,6 @@ def INT(
         nonlocal jmp_addr, ret_addr
         if pc.if_flag:
             raise IllegalState("Interrupt into is not allowed in IF statement")
-        pc.if_flag = if_state
 
         # Resolve lazily, cache once
         assert jmp_addr is not None
@@ -178,9 +181,11 @@ def INT(
             else:
                 ret_addr = pc._pointer.base_addr.copy()
 
+        # Snapshot before writing `if_state`: the context is the state to return to, not the handler's own.
         ctx: InterpreterContext = pc.dump_interpreter()
         ctx.ptr = PointerVector(ret_addr)  # override: return here after IRET
         pc.context_stack.push(ctx)
+        pc.if_flag = if_state
         pc.jump_to(jmp_addr)
 
     def _post_compile(compose: AbstractCompose[AddressCalculator]):
@@ -210,24 +215,24 @@ def INT(
     return call
 
 
-def IRET(reset_mark: bool = True) -> NodeType[None]:
+def IRET() -> NodeType[None]:
     """Create a workflow node that returns from a previous interrupt-into jump.
 
     Pops the top interpreter context from the context stack (which was saved by
     :func:`INT` or :func:`PUSH_CONTEXT`) and **reapplies** it via
     :meth:`WorkflowInterpreter.rebase_context`.  This restores the pointer,
-    exception ignore list, dependency args, and return-address stack to their
-    pre-interrupt state.  The `if_flag` is also reset to `False`.
+    exception ignore list, dependency args, return-address stack and status
+    register to their pre-interrupt state.  `if_flag` therefore returns to the
+    value the snapshot was taken with — always `False` for :func:`INT`, which
+    refuses to run while already inside a handler.
 
     Returns:
-        A workflow node that restores the interpreter state and clears the `if_flag`.
+        A workflow node that restores the interpreter state from the context stack.
     """
 
     @Node(BuiltinTags.IRET, wrap_to_async=False)
     def call(pc: WorkflowInterpreter) -> None:
         pc.rebase_context(pc.context_stack.pop())
-        if reset_mark:
-            pc.if_flag = False
 
     call.__sdb_dis__ = "IRET"
     call.__sdb_cmt__ = "return from interrupt"

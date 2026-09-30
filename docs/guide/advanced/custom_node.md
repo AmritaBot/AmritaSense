@@ -132,7 +132,7 @@ By injecting `pc`, the node gains full access to the interpreter — reading the
 
 ### Power comes with responsibility
 
-With interpreter access, nodes can directly manipulate pointers and the call stack. This power comes with responsibility — internal jumps set `_jump_marked`, affecting interpreter behavior, and manual stack management can break call stack integrity.
+With interpreter access, nodes can directly manipulate pointers and the call stack. This power comes with responsibility — internal jumps set the `JMP` bit, affecting interpreter behavior, and manual stack management can break call stack integrity.
 
 Therefore, **inject `POINTER_DEPENDS` only when necessary**. Most nodes should use normal Python logic and composition-level instructions (`IF`, `WHILE`, `INVOKE`) to express control flow, and only directly access the interpreter when instructions cannot express the desired behavior.
 

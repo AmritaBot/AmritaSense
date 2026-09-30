@@ -22,9 +22,9 @@ That means:
 ### Execution flow
 
 1. **Address resolution** (`_post_compile`): resolve alias names through the alias table at compile time, or validate raw addresses.
-2. **Jump marker**: call `pc.jump_to(addr)`, which is guarded by `@markup` and sets `_jump_marked=True`.
+2. **Jump marker**: call `pc.jump_to(addr)`, which is guarded by `@markup` and sets the `JMP` bit.
 3. **Pointer replacement**: replace `_pointer` completely with the target address vector.
-4. **Interpreter response**: the main loop sees `_jump_marked` and skips normal `advance_pointer()`, continuing from the jump target.
+4. **Interpreter response**: the main loop sees the `JMP` bit and skips normal `advance_pointer()`, continuing from the jump target.
 
 ### Key characteristics
 
@@ -78,7 +78,7 @@ That means:
 - **JMP is not a substitute for loops**: `JMP` does not provide return semantics. Jumping out of a loop with `JMP` will not correctly manage the loop state. Use `BreakLoop` for loop exit and `INVOKE` for reusable subroutines.
 - **INVOKE targets must be addressable**: the target node or entry node must have `address_able=True`, which is required by `ALIAS`.
 - **JMP and INVOKE share alias space**: both look up aliases in `alias2vector_map`. Avoid alias name conflicts.
-- **INVOKE return depends on stack integrity**: a `JMP` inside a subroutine sets `_jump_marked`, which can cause `call_sub` to skip stack restoration. Understand that `JMP` inside a subroutine can override normal return behavior.
+- **INVOKE return depends on stack integrity**: a `JMP` inside a subroutine sets the `JMP` bit, which can cause `call_sub` to skip stack restoration. Understand that `JMP` inside a subroutine can override normal return behavior.
 
 ## Example
 

@@ -55,7 +55,7 @@ RESET: _Node[NoReturn] = _reset_operation
 
 1. **Raise `InterruptNotice`**: this exception is a subclass of `BaseException`, not a regular `Exception`.
 2. **Global catch**: the interpreter’s main loop catches `InterruptNotice` at the top level and enters cleanup.
-3. **Clean termination**: it calls `WorkflowInterpreter.reset()`, which clears `_pointer`, `_ret_addr_stack`, `_context_stack`, `_jump_marked`, `_if_flag` and the panic state, then exits.
+3. **Clean termination**: it calls `WorkflowInterpreter.reset()`, which clears `_pointer`, `_ret_addr_stack`, `_context_stack`, the entire status register and the panic state, then exits.
 
 ### Key attributes
 

@@ -70,9 +70,8 @@ def __init__(
 - `_graph: AbstractCompose[AddressCalculator]`：编译后的只读工作流图，解释器从中读取节点
 - `_pointer: PointerVector`：当前执行位置。解释器主循环始终以它指向的节点作为执行目标
 - `_ret_addr_stack: Stack[PointerVector]`：返回地址栈。`call_sub` 和 `INVOKE` 指令压入返回地址，执行完毕弹栈恢复
-- `_jump_marked: bool`：跳转标记。当 `True` 时，主循环跳过本次的 `advance_pointer()` 步进，下一轮直接从跳转目标继续
+- `_flags: Flags`：状态寄存器（`IntFlag`），集中保存 `IF`、`HLT`、`JMP` 三个离散控制流位
 - `_interpret_lock: aiologic.Lock`：解释锁。每次迭代获取一次，保证单个节点的执行原子性。同时也是外部安全调用的互斥锁
-- `_if_flag: bool`：标记解释器是否处于中断上下文的布尔标志
 - `_context_stack: Stack[InterpreterContext]`：`InterpreterContext` 快照的后进先出栈，用于 PUSH_CONTEXT/POP_CONTEXT 和 INT/IRET
 - `_ava_args / _ava_kwargs`：执行期可用参数池，供依赖注入系统从中匹配节点的参数签名
 - `_exc_ignored: tuple[type[BaseException], ...]`：运行时自动包含 `InterruptNotice` 和 `BreakLoop`。这些异常不会被任何 `CATCH` 块捕获，直接穿透到顶层。可通过 `__flags__.DISABLE_EXC_IGNORED = True` 禁用此自动加入行为
@@ -154,13 +153,39 @@ def __init__(
 
 `reset()`
 
-将解释器执行状态重置为初始值：清除指针、返回地址栈、跳转标记、pending stop 标志、waiter future 和 panic 异常。此方法**与恢复流程无关**——从 panic 恢复只需直接调用 `run()`，无需先 reset。
+将解释器执行状态重置为初始值：清除指针、返回地址栈、pending stop 标志、waiter future、panic 异常、上下文栈以及整个状态寄存器。此方法**与恢复流程无关**——从 panic 恢复只需直接调用 `run()`，无需先 reset。
 
 `reset()` 适用于在不创建新解释器的前提下、从同一工作流图重新开始执行的场景。
 
+**`flags` 属性**
+
+返回解释器的状态寄存器。
+
+**类型**：`Flags`——一个 `IntFlag`，含三个成员：
+
+| 位    | 含义                                       |
+| ----- | ------------------------------------------ |
+| `IF`  | 处于中断处理程序内部；置位时禁止嵌套 `INT` |
+| `HLT` | 停在某个节点上；下一次运行会先跳过它       |
+| `JMP` | 本轮已跳转；主循环不得再推进指针           |
+
+**`jump_marked` 属性**
+
+`JMP` 位是否置起。
+
+**类型**：`bool`
+
+**`unmarkup() -> None`**
+
+清除 `JMP` 位，使主循环重新推进指针。
+
+**`resume_from_halt() -> bool`**
+
+清除 `HLT` 并把指针推过解释器挂起所在的节点；后面没有节点时返回 `False`。主循环与调试器 `step` 共用这一份实现，因此「步过挂起点」与「运行过挂起点」行为一致。
+
 **`if_flag` 属性**
 
-获取或设置中断上下文标志。setter 校验值为 bool 类型。当为 `True` 时，`INT` 无法调用（抛出 `IllegalState`）。
+获取或设置 `IF` 位。setter 校验值为 bool 类型。当为 `True` 时，`INT` 无法调用（抛出 `IllegalState`）。
 
 **`context_stack` 属性**
 
@@ -168,18 +193,18 @@ def __init__(
 
 `dump_interpreter(exclude_deps=True, exclude_stack=True) -> InterpreterContext`
 
-导出当前解释器状态的完整快照。由 `PUSH_CONTEXT` 和 `INT` 使用。
+导出当前解释器状态的完整快照。由 `PUSH_CONTEXT` 和 `INT` 使用。导出的 `flags` 会剥掉 `HLT`：快照记录的是「要回到的状态」，而「主循环正停在这个节点上」不属于其中。
 
 参数：
 
 - `exclude_deps`：若为 `True`（默认），从快照中排除依赖注入参数。
 - `exclude_stack`：若为 `True`（默认），从快照中排除返回地址栈。
 
-返回：包含 `ptr`、`exception_ignored`、可选 `s_args`/`s_kwargs`、可选 `stack`、`extra` 和 `exception` 字段的 `InterpreterContext` 数据类。
+返回：包含 `ptr`、`exception_ignored`、可选 `s_args`/`s_kwargs`、可选 `stack`、`extra`、`exception` 和 `flags` 字段的 `InterpreterContext` 数据类。
 
 `rebase_context(ctx: InterpreterContext) -> None`
 
-从 `InterpreterContext` 快照恢复解释器状态。从上下文中设置指针、异常忽略列表、依赖注入参数、返回地址栈和 panic 异常。
+从 `InterpreterContext` 快照恢复解释器状态。从上下文中设置指针、异常忽略列表、依赖注入参数、返回地址栈、panic 异常和状态寄存器。快照携带的每一位都如实恢复；`HLT` 不会复活，因为 `dump_interpreter` 在拍摄快照时就已经把它剥掉了。
 
 参数：
 
@@ -193,7 +218,7 @@ def __init__(
 
 #### 跳转操作
 
-所有跳转方法均受 `@markup` 保护。`@markup` 确保一次调用只设置 `_jump_marked` 一次，且在 `_jump_marked` 已为 `True` 时不再执行。跳转后解释器主循环检测到标记，跳过常规指针推进，下一轮从跳转目标继续。
+所有跳转方法均受 `@markup` 保护。`@markup` 确保一次调用只设置 `JMP` 位一次，且在 `JMP` 已置起时不再执行；它同时会清除 `HLT`，因为显式跳转本身就推翻了「指针仍停在挂起节点上」这一条件。跳转后解释器主循环检测到该位，跳过常规指针推进，下一轮从跳转目标继续。
 
 `jump_to(addr: list[int])`
 
@@ -217,7 +242,7 @@ def __init__(
 
 `jump_far_ptr(offset: list[int])`
 
-多维绝对跳转。用 `far_to(offset)` 完整替换 `_pointer`。这是带 `@markup` 的跳转——会设置 `_jump_marked`，主循环随后不再步进。被 `CONTINUE` / `BREAK_LOOP` 用于跳回循环头或出口哨兵（`RET` 不使用它，而是用 `rebase_ptr`）。
+多维绝对跳转。用 `far_to(offset)` 完整替换 `_pointer`。这是带 `@markup` 的跳转——会置起 `JMP` 位，主循环随后不再步进。被 `CONTINUE` / `BREAK_LOOP` 用于跳回循环头或出口哨兵（`RET` 不使用它，而是用 `rebase_ptr`）。
 
 `jump_offset_far(offset: list[int])`
 
@@ -233,7 +258,7 @@ def __init__(
 2. 将 `_pointer` 替换为目标地址
 3. 若 `interrupt=True`，获取 `_interpret_lock`（用于外部安全调用）
 4. 调用 `_call` 执行子程序入口节点
-5. `finally` 块弹栈恢复 `_pointer`（除非 `_jump_marked` 为 `True`）
+5. `finally` 块弹栈恢复 `_pointer`（除非 `JMP` 位已置起）
 
 `interrupt=True` 用于外部系统在节点边界注入子程序。内部节点调用子程序时**必须**使用 `interrupt=False`，否则触发 `aiologic` 死锁检测。
 子程序执行期间 `outer_interpreting` 为 `True`——进入时无条件置位，返回时在 `finally` 块中清除。它让 `CALL` / `INT`（`from_adr` / `ret_to` 为 `None` 时）能从父级的栈条目解析默认返回地址。
@@ -251,7 +276,7 @@ def __init__(
 
 #### `@markup` 装饰器
 
-`markup` 是一个静态方法装饰器，用于将方法标记为**指针操作**（跳转及其他修改程序计数器的操作）。被装饰的方法在调用时自动设置 `_jump_marked = True`，阻止主执行循环在方法完成后推进指针。
+`markup` 是一个静态方法装饰器，用于将方法标记为**指针操作**（跳转及其他修改程序计数器的操作）。被装饰的方法在调用时自动置起 `JMP` 位并清除 `HLT`，阻止主执行循环在方法完成后推进指针。
 
 装饰器的类型注解使用 `fun_T` TypeVar 保留原始方法签名。在 `TYPE_CHECKING` 下，它会返回原始函数以避免混淆静态类型检查器。所有被装饰的方法必须是返回 `None` 的实例方法。
 
@@ -330,12 +355,13 @@ await pc.run()
 1. 获取 `_interpret_lock`
 2. 确保 `_pointer` 有效（空则从 `[0]` 开始，图形空则退出）
 3. 在 `PC_CHECKPOINT` 断点等待外部挂起
-4. 执行当前节点（`_call()`）
-5. 若 `_jump_marked`，重置标记并跳过指针推进
-6. 否则调用 `advance_pointer()` 推进指针
-7. 指针推进失败（到达末尾）则退出
+4. 若 `HLT` 置起，则 `resume_from_halt()` 跳过挂起节点并进入下一轮
+5. 执行当前节点（`_call()`）
+6. 若 `JMP` 置起，清除该位并跳过指针推进
+7. 否则调用 `advance_pointer()` 推进指针
+8. 指针推进失败（到达末尾）则退出
 
-外层 `try` 捕获 `InterruptNotice` 后清理调用栈和指针，干净退出。
+外层 `try` 捕获 `InterruptNotice` 后：普通中断清空调用栈和指针并干净退出；`InterruptKeepContext` 则保留全部状态并置起 `HLT`，供下次运行跳过挂起节点。
 
 此方法让外部系统可以在每次节点执行前后介入——配合挂起机制和 `interrupt=True` 的 `call_sub`，构成了完整的调试器基础。
 

@@ -31,7 +31,7 @@ Python 的 `except Exception` 不会捕获 `BaseException` 的子类。因此，
 1. 记录当前指针位置和通知消息
 2. 清空 `_ret_addr_stack`（调用栈）
 3. 重置 `_pointer`（指针向量）
-4. 重置 `_jump_marked` 标记
+4. 重置整个状态寄存器
 5. 工作流干净退出，不留下残留状态
 
 ## InterruptKeepContext

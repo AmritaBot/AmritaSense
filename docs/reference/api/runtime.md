@@ -61,9 +61,8 @@ To recover from a panic, simply call `run()` (or `run_step_by()`) again on the s
 - `_graph`: The compiled workflow graph being executed.
 - `_pointer`: Current `PointerVector` execution address.
 - `_ret_addr_stack`: Return address stack for subroutine calls.
-- `_jump_marked`: Flag indicating whether a jump operation occurred.
+- `_flags`: The status register — a `Flags` `IntFlag` holding the `IF`, `HLT` and `JMP` bits.
 - `_interpret_lock`: Async lock used to guarantee one-node-at-a-time execution.
-- `_if_flag`: Boolean flag indicating whether the interpreter is in an interrupt context.
 - `_context_stack`: LIFO stack of `InterpreterContext` snapshots used by PUSH_CONTEXT/POP_CONTEXT and INT/IRET.
 - `object_io`: External I/O stream used for suspend/resume and streaming output.
 
@@ -144,7 +143,7 @@ Apply a relative offset at the top level and reset nested dimensions.
 
 #### `jump_far_ptr(offset: list[int])`
 
-Perform a multi-dimensional absolute jump. Replaces the entire `_pointer` with the given address vector via `far_to()`. This is a `@markup`-decorated jump — it sets `_jump_marked` so the main loop does not advance afterwards. Used by `CONTINUE` / `BREAK_LOOP` to jump back to the loop head or sentinel (not by `RET`, which uses `rebase_ptr` instead).
+Perform a multi-dimensional absolute jump. Replaces the entire `_pointer` with the given address vector via `far_to()`. This is a `@markup`-decorated jump — it sets `JMP` so the main loop does not advance afterwards, and clears `HLT`. Used by `CONTINUE` / `BREAK_LOOP` to jump back to the loop head or sentinel (not by `RET`, which uses `rebase_ptr` instead).
 
 #### `jump_offset_far(offset: list[int])`
 
@@ -205,7 +204,7 @@ Return the last panic exception, or `None` if the interpreter finished normally 
 
 #### `reset()`
 
-Reset the interpreter's execution state to its initial values: clear the pointer, return address stack, jump marker, pending stop flag, waiter future, panic exception, context stack, and `if_flag`. This is **independent of the recovery flow** — to recover from a panic, simply call `run()` again without resetting.
+Reset the interpreter's execution state to its initial values: clear the pointer, return address stack, pending stop flag, waiter future, panic exception, context stack, and the entire status register. This is **independent of the recovery flow** — to recover from a panic, simply call `run()` again without resetting.
 
 `reset()` is intended for scenarios where you want to restart execution from scratch on the same workflow graph without creating a new interpreter.
 
@@ -213,9 +212,35 @@ Reset the interpreter's execution state to its initial values: clear the pointer
 
 Return the rendered workflow graph being executed by this interpreter. The graph's `calc` property provides the `AddressCalculator` with methods `resolve_alias()`, `find_addr()`, `find_addr_safe()`, and `advance()`.
 
+#### `flags` property
+
+Returns the interpreter's status register.
+
+**Type**: `Flags` — an `IntFlag` with three members:
+
+| Bit   | Meaning                                                                |
+| ----- | ---------------------------------------------------------------------- |
+| `IF`  | Inside an interrupt handler; `INT` is rejected while set               |
+| `HLT` | Halted on a node; the next run steps past it before executing anything |
+| `JMP` | A jump already moved the pointer; the main loop must not advance it    |
+
+#### `jump_marked` property
+
+Whether the `JMP` bit is set.
+
+**Type**: `bool`
+
+#### `unmarkup() -> None`
+
+Clear the `JMP` bit, so the main loop advances the pointer again.
+
+#### `resume_from_halt() -> bool`
+
+Clear `HLT` and advance the pointer past the node the interpreter halted on. Returns `False` when nothing follows. This is the single implementation shared by the main loop and the debugger's `step`, so stepping past a suspend behaves exactly like running past it.
+
 #### `if_flag` property
 
-Get or set the interrupt context flag. The setter validates that the value is a boolean. When `True`, `INT` cannot be called (raises `IllegalState`).
+Get or set the `IF` bit. The setter validates that the value is a boolean. When `True`, `INT` cannot be called (raises `IllegalState`).
 
 **Type**: `bool`
 
@@ -227,18 +252,18 @@ Returns the interpreter's context stack — a `Stack[InterpreterContext]` used f
 
 #### `dump_interpreter(exclude_deps=True, exclude_stack=True) -> InterpreterContext`
 
-Export a complete snapshot of the current interpreter state. Used by `PUSH_CONTEXT` and `INT`.
+Export a complete snapshot of the current interpreter state. Used by `PUSH_CONTEXT` and `INT`. `HLT` is stripped from the exported `flags`: a snapshot records the state to come back to, and "the loop is parked on this node" is not part of it.
 
 **Parameters**
 
 - `exclude_deps`: If `True` (default), dependency args/kwargs are excluded from the snapshot.
 - `exclude_stack`: If `True` (default), the return-address stack is excluded.
 
-**Returns**: An `InterpreterContext` dataclass with `ptr`, `exception_ignored`, optional `s_args`/`s_kwargs`, optional `stack`, `extra`, and `exception` fields.
+**Returns**: An `InterpreterContext` dataclass with `ptr`, `exception_ignored`, optional `s_args`/`s_kwargs`, optional `stack`, `extra`, `exception`, and `flags` fields.
 
 #### `rebase_context(ctx: InterpreterContext) -> None`
 
-Restore the interpreter state from an `InterpreterContext` snapshot. Sets the pointer, exception-ignore list, dependency args, return-address stack, and panic exception from the context.
+Restore the interpreter state from an `InterpreterContext` snapshot. Sets the pointer, exception-ignore list, dependency args, return-address stack, panic exception, and status register from the context. Every bit the snapshot carries is restored as-is; `HLT` cannot reappear because `dump_interpreter` strips it when the snapshot is taken.
 
 **Parameters**
 

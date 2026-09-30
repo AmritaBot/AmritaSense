@@ -45,6 +45,7 @@ class InterpreterContext:
     extra: dict[str, Any] = field(default_factory=dict)
     stack: Stack[PointerVector] | None = None
     exception: Exception | None = None
+    flags: Flags = Flags.NONE
 ```
 
 Fields:
@@ -55,6 +56,18 @@ Fields:
 - `extra`: Extension data dictionary for custom use.
 - `stack`: Snapshot of the return-address stack. `None` if excluded.
 - `exception`: Snapshot of the panic exception, or `None` if no panic occurred.
+- `flags`: Snapshot of the status register. `dump_interpreter()` strips `HLT` when it builds the snapshot, because a snapshot records the state to come back to and "the loop is parked on this node" is not part of it. Restoring therefore never resurrects a halt.
+
+## Flags
+
+`Flags` is an `IntFlag` holding the interpreter's discrete control-flow state. Keeping the bits in one register makes snapshotting, restoring and clearing them a single assignment.
+
+| Member | Meaning                                                                |
+| ------ | ---------------------------------------------------------------------- |
+| `NONE` | No bit set                                                             |
+| `IF`   | Inside an interrupt handler; `INT` is rejected while set               |
+| `HLT`  | Halted on a node; the next run steps past it before executing anything |
+| `JMP`  | A jump already moved the pointer; the main loop must not advance it    |
 
 ## DICache
 

@@ -111,7 +111,7 @@ class TestWorkflowInterpreter:
 
         assert not interpreter._pointer
         assert not interpreter._ret_addr_stack
-        assert not interpreter._jump_marked
+        assert not interpreter.jump_marked
 
     @pytest.mark.asyncio
     async def test_call_raises_depends_resolve_failed(self):

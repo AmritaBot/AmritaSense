@@ -139,7 +139,7 @@ retry = DO(fetch).WHILE(has_more)
 ```python
 while await pc.call_offset(self._condi_offset):
     await pc.call_offset(self._do_offset)
-    if pc._jump_marked:
+    if pc.jump_marked:
         break
 pc.jump_near(self._else_addr)
 ```

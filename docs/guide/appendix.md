@@ -49,7 +49,7 @@ A sequence of nodes defined by the `ARCHIVED_NODES` instruction, skipped by `Sub
 ### 9.1.12 Other Core Terminology
 
 - **Interpret Lock**: An `aiologic.Lock` instance that guarantees only one node is executing at a time, forming the mutual exclusion basis for safe external invocation.
-- **Jump Mark**: The `_jump_marked` flag. When `True`, the interpreter skips the regular pointer advancement step and the next cycle starts from the jump target.
+- **Jump Mark**: The `JMP` bit of the status register. When set, the interpreter skips the regular pointer advancement step and the next cycle starts from the jump target.
 - **Exception Penetration**: Exceptions marked via `exception_ignored` cannot be caught by any `CATCH` block and propagate directly to the top-level handler.
 - **Call Stack**: `Stack[PointerVector]`, managing return addresses for subroutine calls.
 - **DI Cache**: `DICache` — an LRU-based cache inside `WorkflowInterpreter` that stores resolved dependency injection kwargs. Keyed by `hash((id(node.func), args_hash))`, it avoids redundant DI resolution when the same node function is revisited with the same argument types. The payload is an `LRUCache` with max 2048 entries. Controlled via unsafe flags `WORKFLOW_DI_NO_CACHE`, `WORKFLOW_DI_PRELOAD_CACHE`, and `WORKFLOW_DI_PRELOAD_BATCH`.

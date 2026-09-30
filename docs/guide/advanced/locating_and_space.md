@@ -55,7 +55,7 @@ workflow = IF(some_condition, JMP("main_action")) >> labeled_action
 
 ### Jump marker mechanism
 
-All jump methods (`jump_to`, `jump_near`, `jump_offset`, etc.) use the `@markup` decorator. Its purpose is to set the `_jump_marked` flag after a jump occurs, which prevents the interpreter from performing the normal pointer advance immediately after the jump. This ensures that **jumping and stepping are mutually exclusive** — execution is either explicitly moved or automatically advanced, never both.
+All jump methods (`jump_to`, `jump_near`, `jump_offset`, etc.) use the `@markup` decorator. Its purpose is to set the `JMP` bit after a jump occurs, which prevents the interpreter from performing the normal pointer advance immediately after the jump. This ensures that **jumping and stepping are mutually exclusive** — execution is either explicitly moved or automatically advanced, never both.
 
 ### Best practices
 
