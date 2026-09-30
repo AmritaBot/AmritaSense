@@ -178,9 +178,7 @@ class WorkflowInterpreter(Generic[io_T]):
             args_hash=_fingerprint_args(self.__ava_args, self.__ava_kwargs),
             hash_trustable=True,
         )
-        # Dependency lifecycle: generator providers register their teardown on
-        # one of these scopes (see `amrita_sense.di`).  The workflow scope is
-        # long-lived and closed when the interpreter stops.
+        # Dependency lifecycle: generator providers register their teardown on one of these scopes (see `amrita_sense.di`).  The workflow scope is long-lived and closed when the interpreter stops.
         self._lifecycles = {Scope.WORKFLOW: LifecycleScope(Scope.WORKFLOW)}
         self._dep_store = DependencyStore()
         # Runtime attrs
@@ -686,8 +684,7 @@ class WorkflowInterpreter(Generic[io_T]):
             self._pending_stop = True
             if self._waiter_fut and not self._waiter_fut.done():
                 await self._waiter_fut
-        # Backstop for a run whose generator was abandoned before its `finally`
-        # could release workflow-scoped dependencies.  Idempotent.
+        # Backstop for a run whose generator was abandoned before its `finally` could release workflow-scoped dependencies.  Idempotent.
         await self._close_workflow_scope()
         if eol:
             if parent := self.parent:
@@ -760,9 +757,7 @@ class WorkflowInterpreter(Generic[io_T]):
             InterruptNotice: When an external interrupt is requested.
         """
         exc_val: BaseException | None = None
-        #  Set when the run stops in a way that allows resuming (a suspend
-        #  interrupt or a panic), in which case workflow-scoped dependencies
-        #  have to stay open across the gap.
+        # Set when the run stops in a way that allows resuming (a suspend interrupt or a panic), in which case workflow-scoped dependencies have to stay open across the gap.
         resumable = False
         if self._panic_exc is not None:
             logger.debug("Recovered from panic.")
@@ -844,8 +839,7 @@ class WorkflowInterpreter(Generic[io_T]):
                     )
                 )
             exc_val = e
-            # A panic may be recovered by running the interpreter again, so the
-            # workflow scope is left open.
+            # A panic may be recovered by running the interpreter again, so the workflow scope is left open.
             resumable = True
             raise
         finally:
@@ -1277,10 +1271,7 @@ class WorkflowInterpreter(Generic[io_T]):
 
         kw_rsved = static_kwargs.copy()
         if any(factory.is_lifecycle for factory in factories.values()):
-            #  A generator dependency is torn down as soon as this node call
-            #  returns, so the scope has to wrap the invocation itself.  The
-            #  default stays `WORKFLOW`: `CALL` is opt-in, and only an explicit
-            #  `scope="call"` declaration resolves against this fresh scope.
+            # A generator dependency is torn down as soon as this node call returns, so the scope has to wrap the invocation itself.  The default stays `WORKFLOW`: `CALL` is opt-in, and only an explicit `scope="call"` declaration resolves against this fresh scope.
             async with LifecycleScope(Scope.CALL) as call_scope:
                 await self._inject_factories(
                     factories,

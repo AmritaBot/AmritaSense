@@ -24,9 +24,7 @@ async def get_target() -> str:
     return "Annotated"
 
 
-#  Both spellings are equivalent: `Depends` in the default value, and
-#  `Depends` inside the annotation.  Only the type inside `Annotated` takes
-#  part in type-based matching; the extra metadata is ignored.
+# Both spellings are equivalent: `Depends` in the default value, and `Depends` inside the annotation.  Only the type inside `Annotated` takes part in type-based matching; the extra metadata is ignored.
 @Node()
 async def greet(
     by_annotation: Annotated[str, Depends(get_target)],

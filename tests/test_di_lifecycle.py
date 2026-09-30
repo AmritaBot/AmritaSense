@@ -330,8 +330,7 @@ class TestWorkflowScope:
         pc = WorkflowInterpreter(NodeCompose(node).render())
         with pytest.raises(DependsInjectFailed):
             await pc.run()
-        # A panic is recoverable by running again, so the workflow scope is
-        # deliberately left open.
+        # A panic is recoverable by running again, so the workflow scope is deliberately left open.
         assert log == ["open:r"]
         await pc.terminate()
         assert log == ["open:r", "close:r"]

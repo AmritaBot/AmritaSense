@@ -1,6 +1,10 @@
+"""Built-in instruction set.
+
+Re-exporting the deprecated instruction names below is the whole point of the
+shim layer; users importing them *do* get the `reportDeprecated` warning.
+"""
+
 #  pyright: reportDeprecated=false
-#  Re-exporting the deprecated instruction names below is the whole point of the
-#  shim layer; users importing them *do* get the warning.
 from ._deprecated import (
     GOTO,
     INTERRUPT,
@@ -27,8 +31,7 @@ from .trigger_event import TRIGGER_EVENT
 from .try_catch import Try
 from .workfl_ctrl import NOP, RESET, SUSPEND
 
-#  The first import block is the deprecated-name shim layer (see `_deprecated`):
-#  the names stay importable so existing code keeps working until 2.0.
+# The first import block is the deprecated-name shim layer (see `_deprecated`): the names stay importable so existing code keeps working until 2.0.
 
 __all__ = (
     "ALIAS",

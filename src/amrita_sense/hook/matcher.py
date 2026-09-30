@@ -450,8 +450,7 @@ class MatcherFactory:
             else:
                 return FailedEnum.MISSED_DEPENDENCY, {}, {}
 
-        # Every required parameter was filled by the loop above; this only
-        # guards against one being silently dropped.
+        # Every required parameter was filled by the loop above; this only guards against one being silently dropped.
         if not required_params.keys() <= f_kwargs.keys():
             return FailedEnum.RESOLVE_FAILED, {}, {}
 
@@ -495,9 +494,7 @@ class MatcherFactory:
             scope,
         )
         if scope is Scope.CALL:
-            #  A call scope owns a fresh value map for every call, so it *is*
-            #  the cache.  Routing it through the store would hand a later
-            #  call the previous call's resource.
+            # A call scope owns a fresh value map for every call, so it *is* the cache.  Routing it through the store would hand a later call the previous call's resource.
             return await lifecycle.acquire(
                 key, lambda: factory.make_context_manager(values)
             )
@@ -587,9 +584,7 @@ class MatcherFactory:
                     ):
                         raise result
                     if not isinstance(result, Exception):
-                        #  `ExceptionGroup` only accepts `Exception`s, and a
-                        #  bare `BaseException` such as cancellation must not
-                        #  be folded into a group anyway.
+                        # `ExceptionGroup` only accepts `Exception`s, and a bare `BaseException` such as cancellation must not be folded into a group anyway.
                         raise result
                     excs.append(result)
                 elif result is None:
@@ -811,11 +806,7 @@ class MatcherFactory:
             if priorities:
                 s_args = [event, *args]
                 session_kwargs: dict[str, Any] = kwargs.copy()
-                #  One dispatch scope covers every handler of this event, so a
-                #  generator dependency declared by two handlers is opened once
-                #  and torn down after the last of them returns.  This mirrors
-                #  NoneBot2's single per-event `AsyncExitStack`
-                #  (`nonebot/message.py`).
+                # One dispatch scope covers every handler of this event, so a generator dependency declared by two handlers is opened once and torn down after the last of them returns.  This mirrors NoneBot2's single per-event `AsyncExitStack` (`nonebot/message.py`).
                 async with LifecycleScope(Scope.DISPATCH) as dispatch_scope:
                     store = DependencyStore()
                     lifecycles: Mapping[Scope, LifecycleScope] = {

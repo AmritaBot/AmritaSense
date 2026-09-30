@@ -275,8 +275,7 @@ from amrita_sense.hook.matcher import Depends
 def my_node(
     by_default: ReturnType = Depends(provider),
     by_annotation: Annotated[ReturnType, Depends(provider)] = ...,
-):
-    ...
+): ...
 ```
 
 Only the type inside `Annotated` participates in type-based matching; any other metadata is ignored. When several `Depends` markers appear, the **last** one wins. This follows FastAPI's `analyze_param`.
@@ -310,8 +309,7 @@ async def get_session() -> AsyncIterator[Session]:
 
 
 @Node()
-async def handler(session: Session = Depends(get_session, scope="workflow")):
-    ...
+async def handler(session: Session = Depends(get_session, scope="workflow")): ...
 ```
 
 Both bare generator functions (`def ... yield`, `async def ... yield`) and providers already wrapped with `@contextmanager` / `@asynccontextmanager` are accepted.

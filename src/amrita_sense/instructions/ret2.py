@@ -140,8 +140,7 @@ def CALL(
     return call
 
 
-#  Deprecated names (renamed in 1.0.0): plain aliases so deep import paths keep
-#  working.  The static `@deprecated` markers live in `_deprecated`.
+# Deprecated names (renamed in 1.0.0): plain aliases so deep import paths keep working.  The static `@deprecated` markers live in `_deprecated`.
 RET_FAR = RET
 PUSH_STACK = PUSH_RET
 

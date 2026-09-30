@@ -275,8 +275,7 @@ from amrita_sense.hook.matcher import Depends
 def my_node(
     by_default: ReturnType = Depends(provider),
     by_annotation: Annotated[ReturnType, Depends(provider)] = ...,
-):
-    ...
+): ...
 ```
 
 参与类型匹配的只有 `Annotated` 里的那个类型，其余元数据一律忽略。若出现多个 `Depends` 标记，**最后一个**生效。该行为对齐 FastAPI 的 `analyze_param`。
@@ -310,8 +309,7 @@ async def get_session() -> AsyncIterator[Session]:
 
 
 @Node()
-async def handler(session: Session = Depends(get_session, scope="workflow")):
-    ...
+async def handler(session: Session = Depends(get_session, scope="workflow")): ...
 ```
 
 裸生成器函数（`def ... yield`、`async def ... yield`）与已经用 `@contextmanager` / `@asynccontextmanager` 装饰过的提供者都支持。

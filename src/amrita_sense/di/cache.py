@@ -131,8 +131,7 @@ class DependencyStore:
             cache.set_exception(exc)
             raise
         except BaseException as exc:
-            # Cancellation must not leave a parked waiter behind, so fail the
-            # entry as well as dropping it.
+            # Cancellation must not leave a parked waiter behind, so fail the entry as well as dropping it.
             cache.set_exception(exc)
             self._caches.pop(key, None)
             raise

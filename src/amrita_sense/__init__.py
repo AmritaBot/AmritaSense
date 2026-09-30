@@ -1,6 +1,10 @@
+"""AmritaSense — event stream and workflow engine.
+
+Re-exporting the deprecated instruction names below is the whole point of the
+shim layer; users importing them *do* get the `reportDeprecated` warning.
+"""
+
 #  pyright: reportDeprecated=false
-#  Re-exporting the deprecated instruction names below is the whole point of the
-#  shim layer; users importing them *do* get the warning.
 from . import _unsafe
 from .exceptions import (
     AliasNotFoundError,

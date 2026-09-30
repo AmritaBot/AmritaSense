@@ -138,8 +138,7 @@ class TestParameterisedGenericAnnotations:
     def test_subscripted_generic_annotation_reports_failure(self):
         def target(box: Box[int]) -> None: ...
 
-        # A `str` is not a `Box`, so this must be an ordinary resolution
-        # failure rather than a `TypeError`.
+        # A `str` is not a `Box`, so this must be an ordinary resolution failure rather than a `TypeError`.
         fail, _, _ = _resolve(target, ("nope",), {})
         assert fail is not None
 
@@ -225,9 +224,7 @@ class TestAnnotatedDeclarations:
     def test_depends_in_annotated_is_not_type_matched(self):
         def target(box: Box[int] = Depends(box_provider)) -> None: ...
 
-        # A factory parameter must never reach `isinstance`; this mirrors the
-        # `WorkflowInterpreter[SuspendObjectStream] = Depends(...)` shape used
-        # by downstream projects.
+        # A factory parameter must never reach `isinstance`; this mirrors the `WorkflowInterpreter[SuspendObjectStream] = Depends(...)` shape used by downstream projects.
         fail, _, dkw = _resolve(target, (), {})
         assert fail is None
         assert "box" in dkw
