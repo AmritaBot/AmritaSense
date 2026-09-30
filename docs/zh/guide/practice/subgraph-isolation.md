@@ -190,7 +190,7 @@ comp = main_start >> Try(FUN_BLOCK(sub_comp), CATCH=(ValueError, handle_value_er
 
 | 场景                           | 推荐方案                                  |
 | ------------------------------ | ----------------------------------------- |
-| 同状态下的简单子程序调用/返回  | `INVOKE` / `call_sub`                       |
+| 同状态下的简单子程序调用/返回  | `INVOKE` / `call_sub`                     |
 | 需要错误隔离的独立子工作流     | `FUN_BLOCK`                               |
 | 多个子工作流的并行执行         | `fork_interpreter()` + `asyncio.gather()` |
 | 需要自定义中间件的子工作流     | `FUN_BLOCK(middleware=...)`               |

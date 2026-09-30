@@ -127,12 +127,12 @@ flow would re-enter it after `after_return`.
 
 ## When to Use Manual Stack Management
 
-| Scenario                      | Use                                           |
-| ----------------------------- | --------------------------------------------- |
-| Simple subroutine call/return | `INVOKE` + natural `call_sub` return          |
-| Custom return destination     | `PUSH_RET` + `JMP` + `RET`                    |
-| Push-and-jump convenience     | `CALL` + `RET`                                |
-| Multi-level stack unwinding   | Push multiple addresses, `RET` once per level |
+| Scenario                      | Use                                            |
+| ----------------------------- | ---------------------------------------------- |
+| Simple subroutine call/return | `INVOKE` + natural `call_sub` return           |
+| Custom return destination     | `PUSH_RET` + `JMP` + `RET`                     |
+| Push-and-jump convenience     | `CALL` + `RET`                                 |
+| Multi-level stack unwinding   | Push multiple addresses, `RET` once per level  |
 | Non-linear control flow       | Combine with `JMP` for arbitrary jump patterns |
 
 ## Subroutine-like Pattern with FN

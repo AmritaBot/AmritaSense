@@ -165,24 +165,24 @@ The Amrita community follows the Contributor Covenant Code of Conduct:
 
 ## 9.5 Deprecated Instruction Names (1.0.0)
 
-A rendered workflow graph *is* an address-mapped instruction sequence, so the disassembler in `amrita_sense.debugger` has always printed CPU-style mnemonics. AmritaSense 1.0.0 renamed the public instructions so that the API and the disassembly finally speak the same language.
+A rendered workflow graph _is_ an address-mapped instruction sequence, so the disassembler in `amrita_sense.debugger` has always printed CPU-style mnemonics. AmritaSense 1.0.0 renamed the public instructions so that the API and the disassembly finally speak the same language.
 
 ### 9.5.1 Rename Table
 
-| Old (≤ 0.8)                     | New (1.0+)                                | Kind     | Old name still importable | Notes                                          |
-| ------------------------------- | ----------------------------------------- | -------- | ------------------------- | ---------------------------------------------- |
-| `GOTO`                          | `JMP`                                     | function | ✅                        | drop-in                                        |
-| `PUSH_STACK`                    | `PUSH_RET`                                | function | ✅                        | drop-in                                        |
-| `RET_FAR`                       | `RET`                                     | function | ✅                        | drop-in                                        |
-| `PUSH_AND_GOTO(from_adr, to_adr)` | `CALL(to_adr, *, from_adr=None)`        | function | ✅                        | **argument order changed**                     |
-| `CALL`                          | `INVOKE`                                  | function | ❌                        | **no alias — breaks silently, see below**      |
-| `INTERRUPT_INTO`                | `INT`                                     | function | ✅                        | drop-in                                        |
-| `INTERRUPT_RET`                 | `IRET`                                    | function | ✅                        | drop-in                                        |
-| `INTERRUPT`                     | `RESET`                                   | constant | ✅                        | drop-in, **no static warning**                 |
-| `INTERRUPT_KEEP_CTX`            | `SUSPEND`                                 | constant | ✅                        | drop-in, **no static warning**                 |
-| `CallNode`                      | `InvokeNode`                              | class    | ✅                        | drop-in                                        |
+| Old (≤ 0.8)                       | New (1.0+)                       | Kind     | Old name still importable | Notes                                     |
+| --------------------------------- | -------------------------------- | -------- | ------------------------- | ----------------------------------------- |
+| `GOTO`                            | `JMP`                            | function | ✅                        | drop-in                                   |
+| `PUSH_STACK`                      | `PUSH_RET`                       | function | ✅                        | drop-in                                   |
+| `RET_FAR`                         | `RET`                            | function | ✅                        | drop-in                                   |
+| `PUSH_AND_GOTO(from_adr, to_adr)` | `CALL(to_adr, *, from_adr=None)` | function | ✅                        | **argument order changed**                |
+| `CALL`                            | `INVOKE`                         | function | ❌                        | **no alias — breaks silently, see below** |
+| `INTERRUPT_INTO`                  | `INT`                            | function | ✅                        | drop-in                                   |
+| `INTERRUPT_RET`                   | `IRET`                           | function | ✅                        | drop-in                                   |
+| `INTERRUPT`                       | `RESET`                          | constant | ✅                        | drop-in, **no static warning**            |
+| `INTERRUPT_KEEP_CTX`              | `SUSPEND`                        | constant | ✅                        | drop-in, **no static warning**            |
+| `CallNode`                        | `InvokeNode`                     | class    | ✅                        | drop-in                                   |
 
-`ALIAS` deliberately keeps its name: the runtime vocabulary is alias-based throughout (`alias2vector_map`, `AddressCalculator.resolve_alias`, `AliasNotFoundError`), and an `AliasNode` is an *addressable node occupying a real slot* — calling it `LABEL` would be both inconsistent and inaccurate, since an assembly `LABEL` is zero-width.
+`ALIAS` deliberately keeps its name: the runtime vocabulary is alias-based throughout (`alias2vector_map`, `AddressCalculator.resolve_alias`, `AliasNotFoundError`), and an `AliasNode` is an _addressable node occupying a real slot_ — calling it `LABEL` would be both inconsistent and inaccurate, since an assembly `LABEL` is zero-width.
 
 ### 9.5.2 ⚠️ `CALL` Changes Meaning Silently
 
@@ -200,13 +200,13 @@ Then change every old `CALL(x)` to `INVOKE(x)`.
 
 ### 9.5.3 ⚠️ Constants Have No Static Deprecation Warning
 
-`INTERRUPT` and `INTERRUPT_KEEP_CTX` are module-level *constants*, not functions. PEP 702 (`@deprecated`) has no decorator form for variables, so the type checker cannot flag them: they are silent aliases. If you use them, grep manually:
+`INTERRUPT` and `INTERRUPT_KEEP_CTX` are module-level _constants_, not functions. PEP 702 (`@deprecated`) has no decorator form for variables, so the type checker cannot flag them: they are silent aliases. If you use them, grep manually:
 
 ```bash
 grep -rn '\bINTERRUPT\b' --include='*.py'
 ```
 
-The function renames in the table above *do* carry static markers, so a type checker reports them once `reportDeprecated` is enabled:
+The function renames in the table above _do_ carry static markers, so a type checker reports them once `reportDeprecated` is enabled:
 
 ```toml
 [tool.pyright]
@@ -217,33 +217,33 @@ reportDeprecated = "warning"   # off by default
 
 The `BuiltinTags` members mirroring the renamed instructions now carry new values, and the old member names are kept as same-value aliases (`BuiltinTags.RET_FAR is BuiltinTags.RET`). Aliases appear in `__members__` but not in `list(BuiltinTags)`.
 
-| Member (old)     | Member (new) | Value (old)            | Value (new)    |
-| ---------------- | ------------ | ---------------------- | -------------- |
-| `RET_FAR`        | `RET`        | `"__RET_FAR__"`        | `"__RET__"`    |
+| Member (old)     | Member (new) | Value (old)            | Value (new)      |
+| ---------------- | ------------ | ---------------------- | ---------------- |
+| `RET_FAR`        | `RET`        | `"__RET_FAR__"`        | `"__RET__"`      |
 | `PUSH_STACK`     | `PUSH_RET`   | `"__PUSH_STACK__"`     | `"__PUSH_RET__"` |
-| `PUSH_AND_GOTO`  | `CALL`       | `"__PUSH_AND_GOTO__"`  | `"__CALL__"`   |
-| `INTERRUPT_INTO` | `INT`        | `"__INTERRUPT_INTO__"` | `"__INT__"`    |
-| `INTERRUPT_RET`  | `IRET`       | `"__INTERRUPT_RET__"`  | `"__IRET__"`   |
+| `PUSH_AND_GOTO`  | `CALL`       | `"__PUSH_AND_GOTO__"`  | `"__CALL__"`     |
+| `INTERRUPT_INTO` | `INT`        | `"__INTERRUPT_INTO__"` | `"__INT__"`      |
+| `INTERRUPT_RET`  | `IRET`       | `"__INTERRUPT_RET__"`  | `"__IRET__"`     |
 
-Comparing against the enum members keeps working; hard-coding the old tag *strings* does not.
+Comparing against the enum members keeps working; hard-coding the old tag _strings_ does not.
 
 ### 9.5.5 Disassembly Mnemonics
 
 `dis()` output changed along with the names:
 
-| Instruction            | Old mnemonic             | New mnemonic                    |
-| ---------------------- | ------------------------ | ------------------------------- |
-| `JMP`                  | `JMP`                    | `JMP` (unchanged)               |
-| `PUSH_RET`             | `PUSH`                   | `PUSH` (unchanged)              |
-| `RET`                  | `RET_FAR`                | `RET`                           |
-| `CALL`                 | `CALL.FAR from -> to`    | `CALL to, ret=from`             |
-| `INVOKE`               | `CALL sym -> [0]`        | `INVOKE sym -> [0]`             |
-| `INT`                  | `INTINTO jmp -> ret`     | `INT jmp, ret=ret`              |
-| `IRET`                 | `INTERRUPT_RET`          | `IRET`                          |
-| `RESET`                | `INT`                    | `RESET`                         |
-| `SUSPEND`              | `INT.KEEP`               | `SUSPEND`                       |
-| `PUSH_CONTEXT`         | `PUSHCTX`                | `PUSHCTX` (unchanged)           |
-| `ALIAS`                | `ALIAS sym`              | `ALIAS sym` (unchanged)         |
+| Instruction    | Old mnemonic          | New mnemonic            |
+| -------------- | --------------------- | ----------------------- |
+| `JMP`          | `JMP`                 | `JMP` (unchanged)       |
+| `PUSH_RET`     | `PUSH`                | `PUSH` (unchanged)      |
+| `RET`          | `RET_FAR`             | `RET`                   |
+| `CALL`         | `CALL.FAR from -> to` | `CALL to, ret=from`     |
+| `INVOKE`       | `CALL sym -> [0]`     | `INVOKE sym -> [0]`     |
+| `INT`          | `INTINTO jmp -> ret`  | `INT jmp, ret=ret`      |
+| `IRET`         | `INTERRUPT_RET`       | `IRET`                  |
+| `RESET`        | `INT`                 | `RESET`                 |
+| `SUSPEND`      | `INT.KEEP`            | `SUSPEND`               |
+| `PUSH_CONTEXT` | `PUSHCTX`             | `PUSHCTX` (unchanged)   |
+| `ALIAS`        | `ALIAS sym`           | `ALIAS sym` (unchanged) |
 
 ### 9.5.6 Removal Schedule
 

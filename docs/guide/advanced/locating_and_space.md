@@ -69,7 +69,7 @@ In addition to `JMP`'s one-way jump, AmritaSense also provides the `INVOKE` inst
 
 ### Core differences
 
-| Feature                  | JMP                                | INVOKE                                     |
+| Feature                  | JMP                                 | INVOKE                                   |
 | ------------------------ | ----------------------------------- | ---------------------------------------- |
 | Saves return address?    | No                                  | Yes (pushes onto `_ret_addr_stack`)      |
 | After-execution behavior | Continues advancing from the target | Automatically pops the stack and returns |

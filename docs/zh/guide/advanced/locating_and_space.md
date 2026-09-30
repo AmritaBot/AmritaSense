@@ -69,7 +69,7 @@ workflow = IF(some_condition, JMP("main_action")) >> labeled_action
 
 ### 核心区别
 
-| 特性             | JMP                   | INVOKE                         |
+| 特性             | JMP                    | INVOKE                       |
 | ---------------- | ---------------------- | ---------------------------- |
 | 是否保存返回地址 | 否                     | 是（压入 `_ret_addr_stack`） |
 | 执行完毕后行为   | 继续从目标节点向后推进 | 自动弹栈，回到调用点继续     |

@@ -104,7 +104,7 @@ SUSPEND: _Node[NoReturn] = _suspend_operation
 
 ### Comparison with RESET
 
-| Aspect      | RESET                    | SUSPEND                      |
+| Aspect      | RESET                        | SUSPEND                                 |
 | ----------- | ---------------------------- | --------------------------------------- |
 | Exception   | `InterruptNotice`            | `InterruptKeepContext`                  |
 | After catch | `reset()` — clears all state | Skips `reset()` — state preserved       |
@@ -120,7 +120,7 @@ SUSPEND: _Node[NoReturn] = _suspend_operation
 
 ## Comparison summary
 
-|                  | NOP                                       | RESET                      | SUSPEND                |
+|                  | NOP                                       | RESET                          | SUSPEND                           |
 | ---------------- | ----------------------------------------- | ------------------------------ | --------------------------------- |
 | Responsibility   | placeholder, convergence, return point    | emergency termination          | pause with context preservation   |
 | Addressable      | yes                                       | no                             | yes                               |

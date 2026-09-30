@@ -140,15 +140,15 @@ The counterpart to `INT`. Pops the top `InterpreterContext` from the context sta
 
 ## Comparison: Three Save/Restore Mechanisms
 
-| Feature                | PUSH_RET + RET       | PUSH_CONTEXT + IRET       | INT + IRET     |
-| ---------------------- | -------------------------- | ---------------------------------- | ---------------------------------- |
-| **Saves**              | Return address only        | Full interpreter state             | Full interpreter state             |
-| **Jumps on save**      | No (separate JMP needed)  | No (separate JMP needed, v0.6.0+) | Yes (jump_to)                      |
-| **Return address**     | PUSH_RET target          | Resolved alias / ret-stack top     | `ret_to` param (or default)        |
-| **Dependency args**    | Not saved                  | Optional (exclude_deps=False)      | Always saved                       |
-| **if_flag management** | Not involved               | Not involved                       | Auto set on entry, cleared on exit |
-| **Use case**           | Custom call/return schemes | Context save + jump primitives     | Interrupt-style handler entry/exit |
-| **Complexity**         | Low                        | Low                                | Low                                |
+| Feature                | PUSH_RET + RET             | PUSH_CONTEXT + IRET               | INT + IRET                         |
+| ---------------------- | -------------------------- | --------------------------------- | ---------------------------------- |
+| **Saves**              | Return address only        | Full interpreter state            | Full interpreter state             |
+| **Jumps on save**      | No (separate JMP needed)   | No (separate JMP needed, v0.6.0+) | Yes (jump_to)                      |
+| **Return address**     | PUSH_RET target            | Resolved alias / ret-stack top    | `ret_to` param (or default)        |
+| **Dependency args**    | Not saved                  | Optional (exclude_deps=False)     | Always saved                       |
+| **if_flag management** | Not involved               | Not involved                      | Auto set on entry, cleared on exit |
+| **Use case**           | Custom call/return schemes | Context save + jump primitives    | Interrupt-style handler entry/exit |
+| **Complexity**         | Low                        | Low                               | Low                                |
 
 ---
 

@@ -141,9 +141,9 @@ Python's `except Exception` does not catch `BaseException` subclasses. Therefore
 
 `InterruptKeepContext` is a subclass of `InterruptNotice` that provides a **context-preserving** variant. When the interpreter catches it, instead of calling `reset()`, the pointer, call stacks, and dependency injection parameters are left intact. Execution can be resumed by calling `run()` again on the same interpreter.
 
-| Exception              | After catch                       | Recoverable | Node                 |
-| ---------------------- | --------------------------------- | ----------- | -------------------- |
-| `InterruptNotice`      | `reset()` — clears all state      | ❌          | `RESET`          |
+| Exception              | After catch                       | Recoverable | Node      |
+| ---------------------- | --------------------------------- | ----------- | --------- |
+| `InterruptNotice`      | `reset()` — clears all state      | ❌          | `RESET`   |
 | `InterruptKeepContext` | Skips `reset()` — state preserved | ✅ `run()`  | `SUSPEND` |
 
 **Trigger methods**:

@@ -163,10 +163,10 @@ Execution: main → outer handler → nested `INT` → inner handler → inner `
 
 ## Relationship with External Interrupts
 
-| Mechanism                          | Source       | How it works                                                     |
-| ---------------------------------- | ------------ | ---------------------------------------------------------------- |
-| `call_sub(interrupt=True)`         | **External** | Outside code injects a subroutine at node boundaries             |
-| `INT` / `IRET` | **Internal** | Instructions in the `>>` chain perform context save/jump/restore |
+| Mechanism                  | Source       | How it works                                                     |
+| -------------------------- | ------------ | ---------------------------------------------------------------- |
+| `call_sub(interrupt=True)` | **External** | Outside code injects a subroutine at node boundaries             |
+| `INT` / `IRET`             | **Internal** | Instructions in the `>>` chain perform context save/jump/restore |
 
 See [External Interrupt Calls](/guide/advanced/external_interrupt) for the external mechanism.
 

@@ -169,18 +169,18 @@ Amrita 社区遵循贡献者盟约行为准则：
 
 ### 9.5.1 新旧对照表
 
-| 旧名（≤ 0.8）                     | 新名（1.0+）                              | 类型     | 旧名仍可导入 | 说明                                        |
-| -------------------------------- | ----------------------------------------- | -------- | ------------ | ------------------------------------------- |
-| `GOTO`                           | `JMP`                                     | 函数     | ✅           | 直接替换                                    |
-| `PUSH_STACK`                     | `PUSH_RET`                                | 函数     | ✅           | 直接替换                                    |
-| `RET_FAR`                        | `RET`                                     | 函数     | ✅           | 直接替换                                    |
-| `PUSH_AND_GOTO(from_adr, to_adr)` | `CALL(to_adr, *, from_adr=None)`         | 函数     | ✅           | **参数顺序已变**                            |
-| `CALL`                           | `INVOKE`                                  | 函数     | ❌           | **无别名，会静默改变语义，见下**            |
-| `INTERRUPT_INTO`                 | `INT`                                     | 函数     | ✅           | 直接替换                                    |
-| `INTERRUPT_RET`                  | `IRET`                                    | 函数     | ✅           | 直接替换                                    |
-| `INTERRUPT`                      | `RESET`                                   | 常量     | ✅           | 直接替换，**无静态告警**                    |
-| `INTERRUPT_KEEP_CTX`             | `SUSPEND`                                 | 常量     | ✅           | 直接替换，**无静态告警**                    |
-| `CallNode`                       | `InvokeNode`                              | 类       | ✅           | 直接替换                                    |
+| 旧名（≤ 0.8）                     | 新名（1.0+）                     | 类型 | 旧名仍可导入 | 说明                             |
+| --------------------------------- | -------------------------------- | ---- | ------------ | -------------------------------- |
+| `GOTO`                            | `JMP`                            | 函数 | ✅           | 直接替换                         |
+| `PUSH_STACK`                      | `PUSH_RET`                       | 函数 | ✅           | 直接替换                         |
+| `RET_FAR`                         | `RET`                            | 函数 | ✅           | 直接替换                         |
+| `PUSH_AND_GOTO(from_adr, to_adr)` | `CALL(to_adr, *, from_adr=None)` | 函数 | ✅           | **参数顺序已变**                 |
+| `CALL`                            | `INVOKE`                         | 函数 | ❌           | **无别名，会静默改变语义，见下** |
+| `INTERRUPT_INTO`                  | `INT`                            | 函数 | ✅           | 直接替换                         |
+| `INTERRUPT_RET`                   | `IRET`                           | 函数 | ✅           | 直接替换                         |
+| `INTERRUPT`                       | `RESET`                          | 常量 | ✅           | 直接替换，**无静态告警**         |
+| `INTERRUPT_KEEP_CTX`              | `SUSPEND`                        | 常量 | ✅           | 直接替换，**无静态告警**         |
+| `CallNode`                        | `InvokeNode`                     | 类   | ✅           | 直接替换                         |
 
 `ALIAS` 有意保留原名：运行时的词汇体系全是 alias（`alias2vector_map`、`AddressCalculator.resolve_alias`、`AliasNotFoundError`），而 `AliasNode` 是**占据真实地址槽的可寻址节点**——叫 `LABEL` 既不一致也不准确，因为汇编里的 `LABEL` 是零宽的。
 
@@ -217,13 +217,13 @@ reportDeprecated = "warning"   # 默认为关闭
 
 与改名指令对应的 `BuiltinTags` 成员现在持有新值，旧成员名以**同值别名**保留（`BuiltinTags.RET_FAR is BuiltinTags.RET`）。别名会出现在 `__members__` 中，但不出现在 `list(BuiltinTags)` 里。
 
-| 成员（旧）       | 成员（新）   | 值（旧）               | 值（新）         |
-| ---------------- | ------------ | ---------------------- | ---------------- |
-| `RET_FAR`        | `RET`        | `"__RET_FAR__"`        | `"__RET__"`      |
-| `PUSH_STACK`     | `PUSH_RET`   | `"__PUSH_STACK__"`     | `"__PUSH_RET__"` |
-| `PUSH_AND_GOTO`  | `CALL`       | `"__PUSH_AND_GOTO__"`  | `"__CALL__"`     |
-| `INTERRUPT_INTO` | `INT`        | `"__INTERRUPT_INTO__"` | `"__INT__"`      |
-| `INTERRUPT_RET`  | `IRET`       | `"__INTERRUPT_RET__"`  | `"__IRET__"`     |
+| 成员（旧）       | 成员（新） | 值（旧）               | 值（新）         |
+| ---------------- | ---------- | ---------------------- | ---------------- |
+| `RET_FAR`        | `RET`      | `"__RET_FAR__"`        | `"__RET__"`      |
+| `PUSH_STACK`     | `PUSH_RET` | `"__PUSH_STACK__"`     | `"__PUSH_RET__"` |
+| `PUSH_AND_GOTO`  | `CALL`     | `"__PUSH_AND_GOTO__"`  | `"__CALL__"`     |
+| `INTERRUPT_INTO` | `INT`      | `"__INTERRUPT_INTO__"` | `"__INT__"`      |
+| `INTERRUPT_RET`  | `IRET`     | `"__INTERRUPT_RET__"`  | `"__IRET__"`     |
 
 用枚举成员做比较依然有效；硬编码旧的 tag **字符串**则不行。
 
@@ -231,19 +231,19 @@ reportDeprecated = "warning"   # 默认为关闭
 
 `dis()` 的输出随名字一同变化：
 
-| 指令           | 旧助记符              | 新助记符                    |
-| -------------- | --------------------- | --------------------------- |
-| `JMP`          | `JMP`                 | `JMP`（不变）               |
-| `PUSH_RET`     | `PUSH`                | `PUSH`（不变）              |
-| `RET`          | `RET_FAR`             | `RET`                       |
-| `CALL`         | `CALL.FAR from -> to` | `CALL to, ret=from`         |
-| `INVOKE`       | `CALL sym -> [0]`     | `INVOKE sym -> [0]`         |
-| `INT`          | `INTINTO jmp -> ret`  | `INT jmp, ret=ret`          |
-| `IRET`         | `INTERRUPT_RET`       | `IRET`                      |
-| `RESET`        | `INT`                 | `RESET`                     |
-| `SUSPEND`      | `INT.KEEP`            | `SUSPEND`                   |
-| `PUSH_CONTEXT` | `PUSHCTX`             | `PUSHCTX`（不变）           |
-| `ALIAS`        | `ALIAS sym`           | `ALIAS sym`（不变）         |
+| 指令           | 旧助记符              | 新助记符            |
+| -------------- | --------------------- | ------------------- |
+| `JMP`          | `JMP`                 | `JMP`（不变）       |
+| `PUSH_RET`     | `PUSH`                | `PUSH`（不变）      |
+| `RET`          | `RET_FAR`             | `RET`               |
+| `CALL`         | `CALL.FAR from -> to` | `CALL to, ret=from` |
+| `INVOKE`       | `CALL sym -> [0]`     | `INVOKE sym -> [0]` |
+| `INT`          | `INTINTO jmp -> ret`  | `INT jmp, ret=ret`  |
+| `IRET`         | `INTERRUPT_RET`       | `IRET`              |
+| `RESET`        | `INT`                 | `RESET`             |
+| `SUSPEND`      | `INT.KEEP`            | `SUSPEND`           |
+| `PUSH_CONTEXT` | `PUSHCTX`             | `PUSHCTX`（不变）   |
+| `ALIAS`        | `ALIAS sym`           | `ALIAS sym`（不变） |
 
 ### 9.5.6 移除计划
 

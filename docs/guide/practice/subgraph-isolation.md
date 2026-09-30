@@ -190,7 +190,7 @@ comp = main_start >> Try(FUN_BLOCK(sub_comp), CATCH=(ValueError, handle_value_er
 
 | Scenario                                            | Recommendation                            |
 | --------------------------------------------------- | ----------------------------------------- |
-| Simple subroutine call/return within same state     | `INVOKE` / `call_sub`                       |
+| Simple subroutine call/return within same state     | `INVOKE` / `call_sub`                     |
 | Independent sub-workflow with error isolation       | `FUN_BLOCK`                               |
 | Parallel execution of multiple sub-workflows        | `fork_interpreter()` + `asyncio.gather()` |
 | Sub-workflow with custom middleware                 | `FUN_BLOCK(middleware=...)`               |

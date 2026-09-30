@@ -172,7 +172,7 @@ except BreakLoop:
 | ----------------------------------------------------- | ---------------- |
 | Need precise external interruption within a loop step | **Normal**       |
 | Hot inner loops with many iterations                  | **Squashed**     |
-| Compatibility with `JMP` jumping outside the loop    | **Normal**       |
+| Compatibility with `JMP` jumping outside the loop     | **Normal**       |
 | Maximum throughput for tight loops                    | **Squashed**     |
 
 > **Note**: In squashed mode, `jump_marked` is checked after each body execution. This means jumps via `JMP` or `INVOKE` that set the jump marker are still respected — the loop will break and the jump target will execute next. However, `InterruptNotice` and external interruption via `object_io` can only be injected at `call_offset` boundaries, not between loop sub-steps.

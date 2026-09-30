@@ -107,7 +107,7 @@ SUSPEND: _Node[NoReturn] = _suspend_operation
 
 ### 与 RESET 的对比
 
-| 方面     | RESET                | SUSPEND        |
+| 方面     | RESET                    | SUSPEND                   |
 | -------- | ------------------------ | ------------------------- |
 | 异常类型 | `InterruptNotice`        | `InterruptKeepContext`    |
 | 捕获后   | `reset()` — 清空所有状态 | 跳过 `reset()` — 状态保留 |
@@ -123,7 +123,7 @@ SUSPEND: _Node[NoReturn] = _suspend_operation
 
 ## 对比总结
 
-|                | NOP                                | RESET                      | SUSPEND       |
+|                | NOP                                | RESET                          | SUSPEND                  |
 | -------------- | ---------------------------------- | ------------------------------ | ------------------------ |
 | 职责           | 占位、汇合、返回点                 | 紧急终止                       | 暂停并保留上下文         |
 | 可寻址         | 是                                 | 否                             | 是                       |

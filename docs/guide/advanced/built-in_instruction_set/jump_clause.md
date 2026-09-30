@@ -65,7 +65,7 @@ That means:
 
 ## JMP vs INVOKE: comparison
 
-| Feature           | JMP                                       | INVOKE                                       |
+| Feature           | JMP                                        | INVOKE                                     |
 | ----------------- | ------------------------------------------ | ------------------------------------------ |
 | Saves return addr | No                                         | Yes (`_ret_addr_stack`)                    |
 | After execution   | continues from target onward               | returns to caller afterward                |

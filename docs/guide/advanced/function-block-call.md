@@ -8,10 +8,10 @@ AmritaSense provides `FN` / `INTER_FN` — helpers that look like **function def
 
 | Aspect           | High-level language function               | AmritaSense `FN` / `INTER_FN`                                                     |
 | ---------------- | ------------------------------------------ | --------------------------------------------------------------------------------- |
-| Entry            | Caller evaluates arguments, pushes a frame | `CALL` / `INT` jump to an alias                               |
+| Entry            | Caller evaluates arguments, pushes a frame | `CALL` / `INT` jump to an alias                                                   |
 | Local variables  | Fresh frame with locals                    | ❌ none — the interpreter has a single shared state                               |
 | Arguments        | Passed by value/reference                  | ❌ none — data flows via **dependency injection** from the interpreter's arg pool |
-| Return value     | `return expr`                              | ❌ none — `RET` / `IRET` only restore the pointer/context            |
+| Return value     | `return expr`                              | ❌ none — `RET` / `IRET` only restore the pointer/context                         |
 | Stack            | Dedicated call stack per function          | Shared `_ret_addr_stack` (a single jump target)                                   |
 | Recursion        | Supported                                  | ❌ meaningless — there is no frame to re-enter                                    |
 | Closures / scope | Lexical scoping, captures                  | ❌ none — the whole workflow shares one pointer space                             |

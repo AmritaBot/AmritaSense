@@ -195,12 +195,12 @@ class ExecuteWhenElse(SelfCompileInstruction):
 
 A custom instruction expands into nodes the user never wrote, so a debugger listing shows framework internals by default. A node can describe its own line with two **soft-constraint magic attributes** read by the REPL debugger's disassembler:
 
-| Attribute     | Effect                                                                      |
-| ------------- | --------------------------------------------------------------------------- |
-| `__sdb_dis__` | The mnemonic shown in the instruction column.                                |
+| Attribute     | Effect                                                                         |
+| ------------- | ------------------------------------------------------------------------------ |
+| `__sdb_dis__` | The mnemonic shown in the instruction column.                                  |
 | `__sdb_cmt__` | When not `None`, overrides the comment after `;` (defaults to the node `tag`). |
 
-Both are read through a plain `getattr` at disassembly time — the input is an *already compiled* graph, so an operand such as a jump target is resolved by then. Prefer a `@property` when the value depends on compilation: it re-reads instance state on every listing, so nothing has to be re-assigned after a recompile.
+Both are read through a plain `getattr` at disassembly time — the input is an _already compiled_ graph, so an operand such as a jump target is resolved by then. Prefer a `@property` when the value depends on compilation: it re-reads instance state on every listing, so nothing has to be re-assigned after a recompile.
 
 ```python
 class RetryJump(BaseNode):
