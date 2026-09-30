@@ -129,12 +129,12 @@ Python's `except Exception` does not catch `BaseException` subclasses. Therefore
    raise InterruptNotice("Timeout: workflow exceeded time limit")
    ```
 
-2. **Insert `INTERRUPT` node in workflow**:
+2. **Insert `RESET` node in workflow**:
 
    ```python
-   from amrita_sense.instructions import INTERRUPT
+   from amrita_sense.instructions import RESET
 
-   workflow = Sequence(StepA(), Branch(If(condition=is_error, then=INTERRUPT), ...))
+   workflow = Sequence(StepA(), Branch(If(condition=is_error, then=RESET), ...))
    ```
 
 **InterruptKeepContext (v0.4.x+)**
@@ -143,12 +143,12 @@ Python's `except Exception` does not catch `BaseException` subclasses. Therefore
 
 | Exception              | After catch                       | Recoverable | Node                 |
 | ---------------------- | --------------------------------- | ----------- | -------------------- |
-| `InterruptNotice`      | `reset()` — clears all state      | ❌          | `INTERRUPT`          |
-| `InterruptKeepContext` | Skips `reset()` — state preserved | ✅ `run()`  | `INTERRUPT_KEEP_CTX` |
+| `InterruptNotice`      | `reset()` — clears all state      | ❌          | `RESET`          |
+| `InterruptKeepContext` | Skips `reset()` — state preserved | ✅ `run()`  | `SUSPEND` |
 
 **Trigger methods**:
 
-1. Insert `INTERRUPT_KEEP_CTX` node in the workflow (from `amrita_sense.instructions.workfl_ctrl`)
+1. Insert `SUSPEND` node in the workflow (from `amrita_sense.instructions.workfl_ctrl`)
 2. Raise `InterruptKeepContext` directly from node code
 
 **Interpreter main loop handling**:
@@ -233,7 +233,7 @@ Unlike `InterruptNotice` (which is still an exception thrown from within), `call
 
 ### `outer_interpreting` (v0.6.0+)
 
-During **any** `call_sub` execution (regardless of `interrupt`), the read-only property `outer_interpreting` is `True`; it is cleared when the call returns. `PUSH_AND_GOTO` / `INTERRUPT_INTO` consult it when `from_adr` / `ret_to` is `None`: inside a call they reuse the top of `_ret_addr_stack` (the parent's return address), otherwise they use the current pointer. This guarantees correct return semantics for sub-calls injected mid-cycle.
+During **any** `call_sub` execution (regardless of `interrupt`), the read-only property `outer_interpreting` is `True`; it is cleared when the call returns. `CALL` / `INT` consult it when `from_adr` / `ret_to` is `None`: inside a call they reuse the top of `_ret_addr_stack` (the parent's return address), otherwise they use the current pointer. This guarantees correct return semantics for sub-calls injected mid-cycle.
 
 ## 3.4.4 Interaction model for suspension (cooperative suspend points)
 

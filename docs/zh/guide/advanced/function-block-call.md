@@ -8,10 +8,10 @@ AmritaSense 提供了 `FN` / `INTER_FN` —— 看起来像高级语言**函数�
 
 | 方面          | 高级语言函数             | AmritaSense `FN` / `INTER_FN`                          |
 | ------------- | ------------------------ | ------------------------------------------------------ |
-| 入口          | 调用方求值参数、压入栈帧 | `PUSH_AND_GOTO` / `INTERRUPT_INTO` 跳转到别名          |
+| 入口          | 调用方求值参数、压入栈帧 | `CALL` / `INT` 跳转到别名          |
 | 局部变量      | 独立栈帧 + 局部变量      | ❌ 没有——解释器只有一份共享状态                        |
 | 参数          | 按值/按引用传递          | ❌ 没有——数据通过**依赖注入**从解释器参数池流入        |
-| 返回值        | `return expr`            | ❌ 没有——`RET_FAR` / `INTERRUPT_RET` 只恢复指针/上下文 |
+| 返回值        | `return expr`            | ❌ 没有——`RET` / `IRET` 只恢复指针/上下文 |
 | 栈            | 每个函数独立的调用栈     | 共享的 `_ret_addr_stack`（只记一个跳转目标）           |
 | 递归          | 支持                     | ❌ 无意义——没有可供重新进入的栈帧                      |
 | 闭包 / 作用域 | 词法作用域、捕获         | ❌ 没有——整个工作流共享同一个指针空间                  |
@@ -32,28 +32,28 @@ fn_block = FN(
 `FN` 在编译期展开为：
 
 ```text
-[_fn_escape, ALIAS(NOP, "fn_entry"), <block>, RET_FAR()]
+[_fn_escape, ALIAS(NOP, "fn_entry"), <block>, RET()]
 ```
 
-- `_fn_escape` —— 隐藏节点（`rebase_ptr(pointer.copy().offset(3))`）。正常顺序流到达函数块时，它把指针 rebase **越过**整个块（`offset(3)` 恰好落在末尾 `RET_FAR` 上），因此整个块被跳过。
+- `_fn_escape` —— 隐藏节点（`rebase_ptr(pointer.copy().offset(3))`）。正常顺序流到达函数块时，它把指针 rebase **越过**整个块（`offset(3)` 恰好落在末尾 `RET` 上），因此整个块被跳过。
 - `ALIAS(NOP, "fn_entry")` —— 命名入口。跳转以该别名为目标。
 - `<block>` —— 你的函数体（嵌套容器，经指针进入）。
-- `RET_FAR()` —— 自动追加。弹出 `_ret_addr_stack`，`rebase_ptr` 到调用方保存的地址，解释器随后推进到调用点之后的节点。
+- `RET()` —— 自动追加。弹出 `_ret_addr_stack`，`rebase_ptr` 到调用方保存的地址，解释器随后推进到调用点之后的节点。
 
 ### 调用 FN 函数块
 
 ```python
-from amrita_sense.instructions import PUSH_AND_GOTO
+from amrita_sense.instructions import CALL
 
 comp = (
     start
-    >> PUSH_AND_GOTO(None, "fn_entry")  # 调用：None = 返回调用点之后的节点
-    >> after_fn  # RET_FAR 之后在这里恢复执行
+    >> CALL("fn_entry")  # 调用：None = 返回调用点之后的节点
+    >> after_fn  # RET 之后在这里恢复执行
     >> fn_block  # 正常流经 _fn_escape 跳过
 )
 ```
 
-`PUSH_AND_GOTO(None, entrypoint)` 压入当前指针（主流程语义：不在 `call_sub` 内时 `None` 解析为当前指针）并跳到入口。`RET_FAR` 把指针恢复到那里，解释器推进到下一节点——即 `after_fn`。
+`CALL(entrypoint)` 压入当前指针（主流程语义：不在 `call_sub` 内时 `None` 解析为当前指针）并跳到入口。`RET` 把指针恢复到那里，解释器推进到下一节点——即 `after_fn`。
 
 ## `INTER_FN(entrypoint, block)` —— 中断服务例程
 
@@ -66,28 +66,28 @@ isr = INTER_FN(
 )
 ```
 
-结构相同，但末尾指令是 `INTERRUPT_RET()` 而非 `RET_FAR`：
+结构相同，但末尾指令是 `IRET()` 而非 `RET`：
 
 ```text
-[_fn_escape, ALIAS(NOP, "isr_entry"), <block>, INTERRUPT_RET()]
+[_fn_escape, ALIAS(NOP, "isr_entry"), <block>, IRET()]
 ```
 
-`INTERRUPT_RET` 弹出保存的 `InterpreterContext` 并**恢复整个解释器状态**（指针、异常忽略表、依赖参数、返回地址栈）——不只是指针。
+`IRET` 弹出保存的 `InterpreterContext` 并**恢复整个解释器状态**（指针、异常忽略表、依赖参数、返回地址栈）——不只是指针。
 
 ### 调用 INTER_FN 函数块
 
 ```python
-from amrita_sense.instructions import INTERRUPT_INTO
+from amrita_sense.instructions import INT
 
 comp = (
     main_start
-    >> INTERRUPT_INTO("isr_entry", None)  # 派发：None = 返回调用点之后的节点
-    >> after_isr  # INTERRUPT_RET 之后在这里恢复执行
+    >> INT("isr_entry")  # 派发：None = 返回调用点之后的节点
+    >> after_isr  # IRET 之后在这里恢复执行
     >> isr  # 正常流经 _fn_escape 跳过
 )
 ```
 
-`INTERRUPT_INTO(entrypoint, None)` 快照解释器上下文（以当前指针为返回地址）并跳到处理器。例程结束时 `INTERRUPT_RET` 恢复快照；恢复使用 `rebase_context`（不设跳转标记），执行推进到下一节点——即 `after_isr`。
+`INT(entrypoint)` 快照解释器上下文（以当前指针为返回地址）并跳到处理器。例程结束时 `IRET` 恢复快照；恢复使用 `rebase_context`（不设跳转标记），执行推进到下一节点——即 `after_isr`。
 
 ## 与 `ARCHIVED_SEGMENT` 的关系
 
@@ -96,13 +96,13 @@ comp = (
 ```python
 comp = (
     start
-    >> PUSH_AND_GOTO(None, "fn_entry")
+    >> CALL("fn_entry")
     >> after_fn
     >> FN("fn_entry", fn_body)  # 可以——不需要 ARCHIVED_SEGMENT
 )
 ```
 
-`ARCHIVED_SEGMENT` 是更底层的积木（`[JMP 2, Payload, NOP]`），用于归档任意编排而不带函数调用语义——例如一段只能通过 `GOTO` 进入、由自己手动返回（`RET_FAR` / `INTERRUPT_RET`）的普通区域。
+`ARCHIVED_SEGMENT` 是更底层的积木（`[JMP 2, Payload, NOP]`），用于归档任意编排而不带函数调用语义——例如一段只能通过 `JMP` 进入、由自己手动返回（`RET` / `IRET`）的普通区域。
 
 ## 没有函数上下文时的数据交换
 
@@ -119,5 +119,5 @@ async def fn_body(ctx: WorkflowContext) -> None: ...  # DI 从解释器参数池
 
 - `FN` / `INTER_FN` 是**命名且归档的跳转目标**，末尾自动追加返回指令。
 - 它们改变的是**控制流**，不是执行上下文。
-- 通过 `PUSH_AND_GOTO(None, entrypoint)` / `INTERRUPT_INTO(entrypoint, None)` 进入；通过自动追加的 `RET_FAR()` / `INTERRUPT_RET()` 退出。
+- 通过 `CALL(entrypoint)` / `INT(entrypoint)` 进入；通过自动追加的 `RET()` / `IRET()` 退出。
 - 没有局部变量、没有参数、没有返回值、没有递归——请据此设计（数据用依赖注入，"返回"用指针/上下文恢复）。

@@ -110,9 +110,9 @@ A rendered workflow graph *is* an address-mapped instruction sequence — `[1, 0
 ```
 segment [root]:
 =>[0] (top) ALIAS top; alias for Alpha
-  [1]       CALL top -> [0]; CallNode
+  [1]       INVOKE top -> [0]; InvokeNode
   [2]       *segment [2]
-  [3]       JMP [0]; GOTO 'top'
+  [3]       JMP [0]; JMP 'top'
   [4]       NOP; no operation
 
 segment [2]:
@@ -176,7 +176,7 @@ Both are read through a plain `getattr` at disassembly time — the input is an 
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | **class attribute**   | a fixed mnemonic shared by every instance.                                                                                   |
 | **`@property`**       | a value derived from instance state — it re-reads on every listing, so nothing has to be re-assigned after a recompile.      |
-| **instance attribute** | factory-created instructions whose operand only exists inside a closure (`PUSH_STACK`, `INTERRUPT_INTO`, …).                  |
+| **instance attribute** | factory-created instructions whose operand only exists inside a closure (`PUSH_RET`, `INT`, …).                  |
 
 Neither name is subject to name mangling (two trailing underscores), so `self.__sdb_dis__ = ...` inside a class body is safe. A property is a *data descriptor*, though, so a node that declares one intentionally rejects `self.__sdb_dis__ = ...` — that is what keeps the value single-sourced.
 
@@ -203,7 +203,7 @@ class MyJump(BaseNode):
         self._target = compose.calc.resolve_alias(self._alias)
 ```
 
-When a node declares nothing the view falls back to its `tag` — with a `__NAME__` decoration stripped, so `__RET_FAR__` shows as `RET_FAR` — or to the wrapped function name for auto-generated `NodeSuspend::…` tags.
+When a node declares nothing the view falls back to its `tag` — with a `__NAME__` decoration stripped, so `__RET__` shows as `RET` — or to the wrapped function name for auto-generated `NodeSuspend::…` tags.
 
 ### Operand notation
 
@@ -232,7 +232,11 @@ segment [4]:
   [4, 0] TRY catch=ValueError#2; finally=#3 escape=#4
 ```
 
-Other built-in mnemonics you will see: `JMP [0]` (`GOTO`), `CALL sym -> [0]` (`CALL`), `CALL.FAR from -> to` (`PUSH_AND_GOTO`), `PUSH [0]` (`PUSH_STACK`), `PUSHCTX` / `INTINTO` / `INT.KEEP` (interrupts), `DO loop=#3 break=#5`, `DO.CHECK back=#0 exit=#3`, and the native fast-path set `NJMPIF` / `NWHILE` / `NDO.CHECK` / `NENTER`.
+Other built-in mnemonics you will see: `JMP [0]` (`JMP`), `INVOKE sym -> [0]`
+(`INVOKE`), `CALL to, ret=from` (`CALL`), `PUSH [0]` (`PUSH_RET`), `RET` (`RET`),
+`PUSHCTX` / `INT` / `IRET` (context and interrupt stack), `RESET` / `SUSPEND`
+(termination), `DO loop=#3 break=#5`, `DO.CHECK back=#0 exit=#3`, and the native
+fast-path set `NJMPIF` / `NWHILE` / `NDO.CHECK` / `NENTER`.
 
 ### Addressing modes and contract safety
 
@@ -269,7 +273,7 @@ Every step also prints the [disassembly view](#disassembly-view) at the new prog
 
 ### `step_over(inter)` — Step Over
 
-Executes the node but **does not enter** subroutine calls (`call_sub` / `CALL`). Internally monitors `_ret_addr_stack` depth — as long as depth exceeds the starting value, execution continues until returning to the same stack frame.
+Executes the node but **does not enter** subroutine calls (`call_sub` / `INVOKE`). Internally monitors `_ret_addr_stack` depth — as long as depth exceeds the starting value, execution continues until returning to the same stack frame.
 
 ```python
 >>> step_over(inter)  # If current node calls call_sub,

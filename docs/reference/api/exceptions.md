@@ -8,7 +8,7 @@ AmritaSense defines a lean, purpose-specific exception hierarchy for handling va
 class InterruptNotice(BaseException):
     """Special exception for immediate workflow termination.
 
-    Raised by the INTERRUPT node or external systems. As a BaseException
+    Raised by the RESET node or external systems. As a BaseException
     subclass, it bypasses regular CATCH blocks and penetrates directly to
     the interpreter's top-level handler, ensuring clean and unconditional
     termination.
@@ -17,11 +17,11 @@ class InterruptNotice(BaseException):
 
 **Why inherit from `BaseException`**
 
-Python's `except Exception` does not catch `BaseException` subclasses. Therefore, no `TRY/CATCH` block in the workflow can intercept `InterruptNotice` by default. This is an intentional design choice — `INTERRUPT` must be an "uncatchable" emergency termination signal. The only exception is explicitly adding `InterruptNotice` to `exception_ignored`, at which point it becomes catchable as a regular exception.
+Python's `except Exception` does not catch `BaseException` subclasses. Therefore, no `TRY/CATCH` block in the workflow can intercept `InterruptNotice` by default. This is an intentional design choice — `RESET` must be an "uncatchable" emergency termination signal. The only exception is explicitly adding `InterruptNotice` to `exception_ignored`, at which point it becomes catchable as a regular exception.
 
 **Trigger methods**
 
-- **Composition level**: Automatically raised when execution reaches an `INTERRUPT` node.
+- **Composition level**: Automatically raised when execution reaches an `RESET` node.
 - **External injection**: External systems can directly `raise InterruptNotice()`; the interpreter catches and terminates at the next node boundary.
 
 **Interpreter response**
@@ -42,7 +42,7 @@ Use cases:
 
 - Pause-inspect-resume debugging
 - Checkpoint-restart workflows
-- Triggered by the `INTERRUPT_KEEP_CTX` instruction node
+- Triggered by the `SUSPEND` instruction node
 
 ## NullPointerException
 
@@ -57,13 +57,13 @@ class NullPointerException(Exception):
 
 **Trigger scenarios**
 
-- A GOTO, CALL, or other jump instruction's target address does not exist in the `NodeComposeRendered`.
-- An alias lookup fails in `alias2vector_map` (at which point `JumpNode` and `CallNode`'s `_post_compile` raises `AliasNotFoundError`).
+- A JMP, INVOKE, or other jump instruction's target address does not exist in the `NodeComposeRendered`.
+- An alias lookup fails in `alias2vector_map` (at which point `JumpNode` and `InvokeNode`'s `_post_compile` raises `AliasNotFoundError`).
 - An out-of-bounds index is accessed at runtime via `find_addr`.
 
 **Relationship with alias validation**
 
-`NullPointerException` is the fallback exception for runtime address failures. In practice, when using `ALIAS` + `GOTO`/`CALL` for normal addressing, typos are caught at compile time during `_post_compile` with correction suggestions. Only raw `list[int]` addresses that are invalid at runtime will raise this exception.
+`NullPointerException` is the fallback exception for runtime address failures. In practice, when using `ALIAS` + `JMP`/`INVOKE` for normal addressing, typos are caught at compile time during `_post_compile` with correction suggestions. Only raw `list[int]` addresses that are invalid at runtime will raise this exception.
 
 ## BreakLoop
 
@@ -124,7 +124,7 @@ class DependsException(Exception):
 
 ### AliasNotFoundError (v0.4.x+)
 
-Raised when a GOTO or CALL instruction references an alias that does not exist in the workflow graph's alias registry. Detected at compile time during `_post_compile`. Replaces the generic `RuntimeError` / `ValueError` previously used for alias resolution failures.
+Raised when a JMP or INVOKE instruction references an alias that does not exist in the workflow graph's alias registry. Detected at compile time during `_post_compile`. Replaces the generic `RuntimeError` / `ValueError` previously used for alias resolution failures.
 
 ### DependsResolveFailed
 

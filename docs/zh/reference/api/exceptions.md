@@ -8,7 +8,7 @@ AmritaSense 定义了一套精简且职责明确的异常体系，用于处理�
 class InterruptNotice(BaseException):
     """Special exception for immediate workflow termination.
 
-    Raised by the INTERRUPT node or external systems. As a BaseException
+    Raised by the RESET node or external systems. As a BaseException
     subclass, it bypasses regular CATCH blocks and penetrates directly to
     the interpreter's top-level handler, ensuring clean and unconditional
     termination.
@@ -17,11 +17,11 @@ class InterruptNotice(BaseException):
 
 **为什么继承 `BaseException`**
 
-Python 的 `except Exception` 不会捕获 `BaseException` 的子类。因此，工作流中的任何 `TRY/CATCH` 块默认无法拦截 `InterruptNotice`。这是设计上的刻意选择——`INTERRUPT` 必须是“不可捕获”的紧急终止信号。唯一的例外是显式将 `InterruptNotice` 加入 `exception_ignored`，此时它变为可被 CATCH 捕获的普通异常。
+Python 的 `except Exception` 不会捕获 `BaseException` 的子类。因此，工作流中的任何 `TRY/CATCH` 块默认无法拦截 `InterruptNotice`。这是设计上的刻意选择——`RESET` 必须是“不可捕获”的紧急终止信号。唯一的例外是显式将 `InterruptNotice` 加入 `exception_ignored`，此时它变为可被 CATCH 捕获的普通异常。
 
 **触发方式**
 
-- **编排层面**：工作流执行到 `INTERRUPT` 节点时自动抛出
+- **编排层面**：工作流执行到 `RESET` 节点时自动抛出
 - **外部注入**：外部系统直接 `raise InterruptNotice()`，解释器在下一次节点边界捕获并终止
 
 **解释器响应**
@@ -42,7 +42,7 @@ Python 的 `except Exception` 不会捕获 `BaseException` 的子类。因此，
 
 - 暂停-检查-恢复调试
 - 检查点-重启工作流
-- 由 `INTERRUPT_KEEP_CTX` 指令节点触发
+- 由 `SUSPEND` 指令节点触发
 
 ## NullPointerException
 
@@ -57,13 +57,13 @@ class NullPointerException(Exception):
 
 **触发场景**
 
-- `GOTO`、`CALL` 等跳转指令的目标地址在 `NodeComposeRendered` 中不存在
-- 别名解析时在 `alias2vector_map` 中找不到对应条目（此时 `JumpNode` 和 `CallNode` 的 `_post_compile` 会抛出 `AliasNotFoundError`）
+- `JMP`、`INVOKE` 等跳转指令的目标地址在 `NodeComposeRendered` 中不存在
+- 别名解析时在 `alias2vector_map` 中找不到对应条目（此时 `JumpNode` 和 `InvokeNode` 的 `_post_compile` 会抛出 `AliasNotFoundError`）
 - 运行时通过 `find_addr` 访问越界的索引
 
 **与别名校验的关系**
 
-`NullPointerException` 是运行时地址失效时的兜底异常。在实际使用中，如果通过 `ALIAS` + `GOTO`/`CALL` 正常寻址，拼写错误会在编译期的 `_post_compile` 阶段被拦截并提供纠错建议。裸地址 `list[int]` 直接使用时，若地址无效才会在运行时抛出此异常。
+`NullPointerException` 是运行时地址失效时的兜底异常。在实际使用中，如果通过 `ALIAS` + `JMP`/`INVOKE` 正常寻址，拼写错误会在编译期的 `_post_compile` 阶段被拦截并提供纠错建议。裸地址 `list[int]` 直接使用时，若地址无效才会在运行时抛出此异常。
 
 ## BreakLoop
 
@@ -124,7 +124,7 @@ class DependsException(Exception):
 
 ### AliasNotFoundError（v0.4.x+）
 
-GOTO 或 CALL 指令引用的别名在工作流图的别名注册表中不存在时抛出。在编译期的 `_post_compile` 阶段检测。替代了之前用于别名解析失败的通用 `RuntimeError` / `ValueError`。
+JMP 或 INVOKE 指令引用的别名在工作流图的别名注册表中不存在时抛出。在编译期的 `_post_compile` 阶段检测。替代了之前用于别名解析失败的通用 `RuntimeError` / `ValueError`。
 
 ### DependsResolveFailed
 

@@ -17,7 +17,7 @@ class WorkflowInterpreter(Generic[io_T]):
 
 **设计定位**
 
-`WorkflowInterpreter` 是 AmritaSense 的“CPU”。它从编译产物（默认实现为 `NodeComposeRendered`，契约见 [Compose 契约](/zh/guide/advanced/compose-contracts)）中读取节点，用 `PointerVector`（程序计数器）追踪当前位置，通过 `_ret_addr_stack`（调用栈）管理子程序返回。所有控制流指令——`IF`、`GOTO`、`CALL`、`TRY`——最终都通过解释器提供的跳转和调用方法实现。
+`WorkflowInterpreter` 是 AmritaSense 的“CPU”。它从编译产物（默认实现为 `NodeComposeRendered`，契约见 [Compose 契约](/zh/guide/advanced/compose-contracts)）中读取节点，用 `PointerVector`（程序计数器）追踪当前位置，通过 `_ret_addr_stack`（调用栈）管理子程序返回。所有控制流指令——`IF`、`JMP`、`INVOKE`、`TRY`——最终都通过解释器提供的跳转和调用方法实现。
 
 **泛型参数**
 
@@ -69,11 +69,11 @@ def __init__(
 
 - `_graph: AbstractCompose[AddressCalculator]`：编译后的只读工作流图，解释器从中读取节点
 - `_pointer: PointerVector`：当前执行位置。解释器主循环始终以它指向的节点作为执行目标
-- `_ret_addr_stack: Stack[PointerVector]`：返回地址栈。`call_sub` 和 `CALL` 指令压入返回地址，执行完毕弹栈恢复
+- `_ret_addr_stack: Stack[PointerVector]`：返回地址栈。`call_sub` 和 `INVOKE` 指令压入返回地址，执行完毕弹栈恢复
 - `_jump_marked: bool`：跳转标记。当 `True` 时，主循环跳过本次的 `advance_pointer()` 步进，下一轮直接从跳转目标继续
 - `_interpret_lock: aiologic.Lock`：解释锁。每次迭代获取一次，保证单个节点的执行原子性。同时也是外部安全调用的互斥锁
 - `_if_flag: bool`（v0.4.x+）：标记解释器是否处于中断上下文的布尔标志
-- `_context_stack: Stack[InterpreterContext]`（v0.4.x+）：`InterpreterContext` 快照的后进先出栈，用于 PUSH_CONTEXT/POP_CONTEXT 和 INTERRUPT_INTO/INTERRUPT_RET
+- `_context_stack: Stack[InterpreterContext]`（v0.4.x+）：`InterpreterContext` 快照的后进先出栈，用于 PUSH_CONTEXT/POP_CONTEXT 和 INT/IRET
 - `_ava_args / _ava_kwargs`：执行期可用参数池，供依赖注入系统从中匹配节点的参数签名
 - `_exc_ignored: tuple[type[BaseException], ...]`：运行时自动包含 `InterruptNotice` 和 `BreakLoop`。这些异常不会被任何 `CATCH` 块捕获，直接穿透到顶层。**v0.3.0+**：可通过 `__flags__.DISABLE_EXC_IGNORED = True` 禁用此自动加入行为
 - `object_io: io_T`：泛型的外部 I/O 接口。节点可通过 `pc.object_io` 进行流式产出、挂起控制
@@ -96,7 +96,7 @@ def __init__(
 
 `pending_stop: bool` — 是否已对该解释器调用 `terminate()`。
 
-`outer_interpreting: bool`（v0.6.0+，只读）— 子程序调用（`call_sub`）执行期间为 `True`。进入子程序时无条件置位，返回时在 `finally` 块中恢复为 `False`。`PUSH_AND_GOTO` / `INTERRUPT_INTO` 在 `from_adr` / `ret_to` 为 `None` 时据此选择默认返回地址：调用期间（标志为 `True`）复用 `_ret_addr_stack` 栈顶（父级压入的返回地址），否则使用当前指针。
+`outer_interpreting: bool`（v0.6.0+，只读）— 子程序调用（`call_sub`）执行期间为 `True`。进入子程序时无条件置位，返回时在 `finally` 块中恢复为 `False`。`CALL` / `INT` 在 `from_adr` / `ret_to` 为 `None` 时据此选择默认返回地址：调用期间（标志为 `True`）复用 `_ret_addr_stack` 栈顶（父级压入的返回地址），否则使用当前指针。
 
 `wait: asyncio.Future[None]` — 一个在解释器执行完成时 resolve 的 future。若解释器未运行则抛出 `IllegalState`。
 
@@ -160,7 +160,7 @@ def __init__(
 
 **`if_flag` 属性**（v0.4.x+）
 
-获取或设置中断上下文标志。setter 校验值为 bool 类型。当为 `True` 时，`INTERRUPT_INTO` 无法调用（抛出 `IllegalState`）。
+获取或设置中断上下文标志。setter 校验值为 bool 类型。当为 `True` 时，`INT` 无法调用（抛出 `IllegalState`）。
 
 **`context_stack` 属性**（v0.4.x+）
 
@@ -168,7 +168,7 @@ def __init__(
 
 `dump_interpreter(exclude_deps=True, exclude_stack=True) -> InterpreterContext`（v0.4.x+）
 
-导出当前解释器状态的完整快照。由 `PUSH_CONTEXT` 和 `INTERRUPT_INTO` 使用。
+导出当前解释器状态的完整快照。由 `PUSH_CONTEXT` 和 `INT` 使用。
 
 参数：
 
@@ -217,7 +217,7 @@ def __init__(
 
 `jump_far_ptr(offset: list[int])`
 
-多维绝对跳转。用 `far_to(offset)` 完整替换 `_pointer`。这是带 `@markup` 的跳转——会设置 `_jump_marked`，主循环随后不再步进。被 `CONTINUE` / `BREAK_LOOP` 用于跳回循环头或出口哨兵（`RET_FAR` 不使用它，而是用 `rebase_ptr`）。
+多维绝对跳转。用 `far_to(offset)` 完整替换 `_pointer`。这是带 `@markup` 的跳转——会设置 `_jump_marked`，主循环随后不再步进。被 `CONTINUE` / `BREAK_LOOP` 用于跳回循环头或出口哨兵（`RET` 不使用它，而是用 `rebase_ptr`）。
 
 `jump_offset_far(offset: list[int])`
 
@@ -236,7 +236,7 @@ def __init__(
 5. `finally` 块弹栈恢复 `_pointer`（除非 `_jump_marked` 为 `True`）
 
 `interrupt=True` 用于外部系统在节点边界注入子程序。内部节点调用子程序时**必须**使用 `interrupt=False`，否则触发 `aiologic` 死锁检测。
-子程序执行期间 `outer_interpreting` 为 `True`——进入时无条件置位，返回时在 `finally` 块中清除。它让 `PUSH_AND_GOTO` / `INTERRUPT_INTO`（`from_adr` / `ret_to` 为 `None` 时）能从父级的栈条目解析默认返回地址。
+子程序执行期间 `outer_interpreting` 为 `True`——进入时无条件置位，返回时在 `finally` 块中清除。它让 `CALL` / `INT`（`from_adr` / `ret_to` 为 `None` 时）能从父级的栈条目解析默认返回地址。
 **`call_near(addr: int, \*ag, interrupt=False, **kw) -> Any`\*\*
 
 在当前层级内以近距地址调用子程序。通过 `near_to(addr)` 计算目标地址。

@@ -1,44 +1,44 @@
 # Advanced Topic: Manual Stack Space Management
 
-The `CALL` instruction and `call_sub` method automatically manage the return address stack (`_ret_addr_stack`) for you: they push the current pointer before entering a subroutine, and the `finally` block pops it upon return. For most workflows, this is all you need.
+The `INVOKE` instruction and `call_sub` method automatically manage the return address stack (`_ret_addr_stack`) for you: they push the current pointer before entering a subroutine, and the `finally` block pops it upon return. For most workflows, this is all you need.
 
-However, AmritaSense also exposes the return address stack for **manual control** via `PUSH_STACK` and `RET_FAR`. The pattern is:
+However, AmritaSense also exposes the return address stack for **manual control** via `PUSH_RET` and `RET`. The pattern is:
 
-1. **PUSH_STACK** — Push an alias or address onto `_ret_addr_stack`
-2. **GOTO** — Jump somewhere else in the workflow
-3. **RET_FAR** — Pop the saved address and jump back
+1. **PUSH_RET** — Push an alias or address onto `_ret_addr_stack`
+2. **JMP** — Jump somewhere else in the workflow
+3. **RET** — Pop the saved address and jump back
 
-This lets you implement custom call/return schemes that don't follow the rigid `CALL`/`call_sub` discipline.
+This lets you implement custom call/return schemes that don't follow the rigid `INVOKE`/`call_sub` discipline.
 
 ## The Return Address Stack
 
-`_ret_addr_stack` is a `Stack[PointerVector]` on the `WorkflowInterpreter`. `CALL` pushes the current pointer onto it; the `finally` block of `call_sub` pops and restores it. With `PUSH_STACK`, you can push any alias target onto the stack directly from the composition chain without writing a custom node.
+`_ret_addr_stack` is a `Stack[PointerVector]` on the `WorkflowInterpreter`. `INVOKE` pushes the current pointer onto it; the `finally` block of `call_sub` pops and restores it. With `PUSH_RET`, you can push any alias target onto the stack directly from the composition chain without writing a custom node.
 
 ```mermaid
 sequenceDiagram
-    participant N as PUSH_STACK
+    participant N as PUSH_RET
     participant S as _ret_addr_stack
     participant W as Work Section
 
     N->>S: push(target_addr)
-    N->>W: GOTO("work")
+    N->>W: JMP("work")
     W-->>W: execute...
-    W->>S: RET_FAR pops
+    W->>S: RET pops
     W->>N: rebase_ptr(base_addr) → advance lands on target
 ```
 
-## PUSH_STACK and RET_FAR
+## PUSH_RET and RET
 
-- `PUSH_STACK(alias_or_idata)` — pushes the resolved address of a target alias (or a raw address list) onto `_ret_addr_stack`. The instruction returns a `NodeType[None]` (an inline `@Node`-decorated callable), placed directly in the `>>` chain.
-- `RET_FAR()` — pops the top entry from `_ret_addr_stack` and restores the pointer via `rebase_ptr`. Unlike `jump_to` / `jump_far_ptr`, `rebase_ptr` does **not** set the jump flag, so the interpreter naturally **advances to the next instruction** (`return-address + 1`) after the return. Callers should push `target - 1` so that the advance step lands exactly on the target node.
+- `PUSH_RET(alias_or_idata)` — pushes the resolved address of a target alias (or a raw address list) onto `_ret_addr_stack`. The instruction returns a `NodeType[None]` (an inline `@Node`-decorated callable), placed directly in the `>>` chain.
+- `RET()` — pops the top entry from `_ret_addr_stack` and restores the pointer via `rebase_ptr`. Unlike `jump_to` / `jump_far_ptr`, `rebase_ptr` does **not** set the jump flag, so the interpreter naturally **advances to the next instruction** (`return-address + 1`) after the return. Callers should push `target - 1` so that the advance step lands exactly on the target node.
 
 Neither instruction should be `return`-ed from inside a `@Node()` function — place them directly in the `>>` chain.
 
-## Example: PUSH_STACK + GOTO + RET_FAR
+## Example: PUSH_RET + JMP + RET
 
 ```python
 from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
-from amrita_sense.instructions import GOTO, PUSH_STACK, RET_FAR
+from amrita_sense.instructions import JMP, PUSH_RET, RET
 
 
 @Node()
@@ -48,93 +48,100 @@ async def start() -> None:
 
 @Node()
 async def doing_work() -> None:
-    """The section we GOTO into."""
+    """The section we JMP into."""
     print("  Doing work")
 
 
 @Node()
 async def after_return() -> None:
-    """RET_FAR pops _ret_addr_stack and resumes here."""
-    print("Back here (via RET_FAR)")
+    """RET pops _ret_addr_stack and resumes here."""
+    print("Back here (via RET)")
 
 
 comp = (
     start
-    >> PUSH_STACK("resume")  # push the return address (NOP right before after_return)
-    >> GOTO("work")  # jump into the work section
-    >> ALIAS(NOP, "resume")  # RET_FAR rebases here; advance lands on after_return
+    >> PUSH_RET("resume")  # push the return address (NOP right before after_return)
+    >> JMP("work")  # jump into the work section
+    >> ALIAS(NOP, "resume")  # RET rebases here; advance lands on after_return
     >> after_return
     >> ALIAS(doing_work, "work")
-    >> RET_FAR()
+    >> RET()
 )
 await WorkflowInterpreter(comp.render()).run()
 ```
 
-**Flow** (new `RET_FAR` semantics):
+**Flow** (new `RET` semantics):
 
-1. `PUSH_STACK("resume")` pushes the address of the `NOP` aliased `"resume"` — the node **before** `after_return`
-2. `GOTO("work")` jumps to the `doing_work` node
-3. After `doing_work`, `RET_FAR` pops the saved address, `rebase_ptr`s there, and the interpreter advances onto `after_return`
+1. `PUSH_RET("resume")` pushes the address of the `NOP` aliased `"resume"` — the node **before** `after_return`
+2. `JMP("work")` jumps to the `doing_work` node
+3. After `doing_work`, `RET` pops the saved address, `rebase_ptr`s there, and the interpreter advances onto `after_return`
 
-> Because `RET_FAR` does not set the jump flag, the saved address must be the **predecessor** of the real target (`target - 1`). The `"resume"` NOP plays that role here.
+> Because `RET` does not set the jump flag, the saved address must be the **predecessor** of the real target (`target - 1`). The `"resume"` NOP plays that role here.
 
-## PUSH_AND_GOTO (v0.3.0+)
+## CALL (v0.3.0+)
 
-`PUSH_AND_GOTO(from_adr, to_adr)` is a convenience instruction that combines `PUSH_STACK` + `GOTO` into a single node. Internally it:
+`CALL(to_adr, *, from_adr=None)` is a convenience instruction that combines
+`PUSH_RET` + `JMP` into a single node. Internally it:
 
-1. Pushes `from_adr` onto `_ret_addr_stack` (just like `PUSH_STACK`)
-2. Jumps to `to_adr` (just like `GOTO`)
+1. Pushes `from_adr` onto `_ret_addr_stack` (just like `PUSH_RET`)
+2. Jumps to `to_adr` (just like `JMP`)
 
-`from_adr` accepts an alias string, a raw address list, or `None`. When `None`:
+`from_adr` is keyword-only and defaults to `None`, which means "return to the
+current position". When it is `None`:
 
 - Inside a subroutine call (`pc.outer_interpreting` is `True` — i.e. execution was entered via `call_sub`), it reuses the top of `_ret_addr_stack` (the return address pushed by the parent).
-- Otherwise (main `run()` flow), it uses the current pointer — `RET_FAR` will then advance onto the node right after `PUSH_AND_GOTO`.
+- Otherwise (main `run()` flow), it uses the current pointer — `RET` will then advance onto the node right after `CALL`.
+
+Because `None` is the default, the common case is simply `CALL("target")`.
 
 ```python
-from amrita_sense.instructions import PUSH_AND_GOTO, RET_FAR
+from amrita_sense.instructions import CALL, RET
 from amrita_sense.instructions.subprogram import ARCHIVED_SEGMENT
 
-# Pattern A: explicit two-step (push predecessor + GOTO)
+# Pattern A: explicit two-step (push predecessor + JMP)
 comp_a = (
     start
-    >> PUSH_STACK("resume")
-    >> GOTO("work")
+    >> PUSH_RET("resume")
+    >> JMP("work")
     >> ALIAS(NOP, "resume")
     >> after_return
     >> ALIAS(doing_work, "work")
-    >> RET_FAR()
+    >> RET()
 )
 
-# Pattern B: PUSH_AND_GOTO convenience — None = current pointer
-# RET_FAR rebases to PUSH_AND_GOTO itself, then advance lands on after_return.
+# Pattern B: CALL convenience — from_adr defaults to None (the current pointer)
+# RET rebases to CALL itself, then advance lands on after_return.
 # The body is hidden in an ARCHIVED_SEGMENT so normal flow skips it.
 comp_b = (
     start
-    >> PUSH_AND_GOTO(None, "work")
+    >> CALL("work")
     >> after_return
-    >> ARCHIVED_SEGMENT(ALIAS(doing_work, "work") >> RET_FAR())
+    >> ARCHIVED_SEGMENT(ALIAS(doing_work, "work") >> RET())
 )
 ```
 
-`PUSH_AND_GOTO` is semantically equivalent to the two-step pattern (with the `None` default covering the common "return to the next node" case). Note that in Pattern B the body must be archived (`ARCHIVED_SEGMENT`) — otherwise the normal flow would re-enter it after `after_return`.
+`CALL` is semantically equivalent to the two-step pattern (with the `from_adr=None`
+default covering the common "return to the next node" case). Note that in
+Pattern B the body must be archived (`ARCHIVED_SEGMENT`) — otherwise the normal
+flow would re-enter it after `after_return`.
 
 ## When to Use Manual Stack Management
 
-| Scenario                      | Use                                               |
-| ----------------------------- | ------------------------------------------------- |
-| Simple subroutine call/return | `CALL` + natural `call_sub` return                |
-| Custom return destination     | `PUSH_STACK` + `GOTO` + `RET_FAR`                 |
-| Push-and-jump convenience     | `PUSH_AND_GOTO` + `RET_FAR`                       |
-| Multi-level stack unwinding   | Push multiple addresses, `RET_FAR` once per level |
-| Non-linear control flow       | Combine with `GOTO` for arbitrary jump patterns   |
+| Scenario                      | Use                                           |
+| ----------------------------- | --------------------------------------------- |
+| Simple subroutine call/return | `INVOKE` + natural `call_sub` return          |
+| Custom return destination     | `PUSH_RET` + `JMP` + `RET`                    |
+| Push-and-jump convenience     | `CALL` + `RET`                                |
+| Multi-level stack unwinding   | Push multiple addresses, `RET` once per level |
+| Non-linear control flow       | Combine with `JMP` for arbitrary jump patterns |
 
 ## Subroutine-like Pattern with FN
 
-Since v0.6.0, the modern way to write a self-contained "subroutine" is **`FN(entrypoint, block)`** — it embeds its own skip mechanism (`_fn_escape`) and auto-appends `RET_FAR()`. Call it with `PUSH_AND_GOTO(None, entrypoint)`; no manual `PUSH_STACK` / `GOTO` / `RET_FAR` plumbing is needed:
+Since v0.6.0, the modern way to write a self-contained "subroutine" is **`FN(entrypoint, block)`** — it embeds its own skip mechanism (`_fn_escape`) and auto-appends `RET()`. Call it with `CALL(entrypoint)`; no manual `PUSH_RET` / `JMP` / `RET` plumbing is needed:
 
 ```python
 from amrita_sense import Node, WorkflowInterpreter
-from amrita_sense.instructions import FN, PUSH_AND_GOTO
+from amrita_sense.instructions import FN, CALL
 
 
 @Node()
@@ -158,28 +165,28 @@ async def after_return() -> None:
 
 
 # Self-contained subroutine: normal flow skips it (via _fn_escape),
-# PUSH_AND_GOTO enters it; FN auto-appends RET_FAR() at the end.
+# CALL enters it; FN auto-appends RET() at the end.
 subroutine = FN("sub_entry", step1 >> step2)
 
 comp = (
     start
-    >> PUSH_AND_GOTO(None, "sub_entry")  # None = return after this node
-    >> after_return  # RET_FAR rebases to the call site -> advance lands here
+    >> CALL("sub_entry")  # from_adr=None -> return after this node
+    >> after_return  # RET rebases to the call site -> advance lands here
     >> subroutine
 )
 await WorkflowInterpreter(comp.render()).run()
 ```
 
-**Flow** (new `RET_FAR` semantics):
+**Flow** (new `RET` semantics):
 
-1. `PUSH_AND_GOTO(None, "sub_entry")` pushes the current pointer and jumps into the subroutine
+1. `CALL("sub_entry")` pushes the current pointer and jumps into the subroutine
 2. `step1 >> step2` execute sequentially
-3. The auto-appended `RET_FAR()` pops the saved address, `rebase_ptr`s to the call site, and the interpreter advances onto `after_return`
+3. The auto-appended `RET()` pops the saved address, `rebase_ptr`s to the call site, and the interpreter advances onto `after_return`
 
-> **FN vs manual stack ops**: `PUSH_STACK` / `GOTO` / `RET_FAR` remain available for fully manual stack control (non-linear flow, multi-level unwinding). For ordinary "call a routine and come back", `FN` + `PUSH_AND_GOTO` is the recommended, less error-prone form.
+> **FN vs manual stack ops**: `PUSH_RET` / `JMP` / `RET` remain available for fully manual stack control (non-linear flow, multi-level unwinding). For ordinary "call a routine and come back", `FN` + `CALL` is the recommended, less error-prone form.
 
 ## Caution
 
-- **Stack integrity**: `RET_FAR` pops from `_ret_addr_stack` unconditionally. If the stack is empty, this raises an `IndexError`. Always push a corresponding address (via `CALL` or `PUSH_STACK`) before reaching `RET_FAR`.
-- **Return-address + 1**: `RET_FAR` uses `rebase_ptr` (no jump flag), so execution resumes at the node **after** the saved address. Push `target - 1` (or rely on the `None` default of `PUSH_AND_GOTO`, which points at the instruction itself).
-- **Not a subprogram instruction**: `PUSH_STACK` and `RET_FAR` are standalone nodes in the composition chain. Do NOT call them from inside a `@Node()` function — place them directly in the `>>` chain.
+- **Stack integrity**: `RET` pops from `_ret_addr_stack` unconditionally. If the stack is empty, this raises an `IndexError`. Always push a corresponding address (via `INVOKE` or `PUSH_RET`) before reaching `RET`.
+- **Return-address + 1**: `RET` uses `rebase_ptr` (no jump flag), so execution resumes at the node **after** the saved address. Push `target - 1` (or rely on the `None` default of `CALL`, which points at the instruction itself).
+- **Not a subprogram instruction**: `PUSH_RET` and `RET` are standalone nodes in the composition chain. Do NOT call them from inside a `@Node()` function — place them directly in the `>>` chain.

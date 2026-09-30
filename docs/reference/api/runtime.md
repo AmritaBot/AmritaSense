@@ -64,7 +64,7 @@ To recover from a panic, simply call `run()` (or `run_step_by()`) again on the s
 - `_jump_marked`: Flag indicating whether a jump operation occurred.
 - `_interpret_lock`: Async lock used to guarantee one-node-at-a-time execution.
 - `_if_flag` (v0.4.x+): Boolean flag indicating whether the interpreter is in an interrupt context.
-- `_context_stack` (v0.4.x+): LIFO stack of `InterpreterContext` snapshots used by PUSH_CONTEXT/POP_CONTEXT and INTERRUPT_INTO/INTERRUPT_RET.
+- `_context_stack` (v0.4.x+): LIFO stack of `InterpreterContext` snapshots used by PUSH_CONTEXT/POP_CONTEXT and INT/IRET.
 - `object_io`: External I/O stream used for suspend/resume and streaming output.
 
 ### Interpreter Tree (v0.3.0+)
@@ -85,7 +85,7 @@ Interpreters form a tree: a top-level interpreter may have child interpreters cr
 
 `pending_stop: bool` — `True` if `terminate()` has been called on this interpreter.
 
-`outer_interpreting: bool` (v0.6.0+, read-only) — `True` while a subroutine call (`call_sub`) is executing. Set unconditionally at subroutine entry and restored to `False` in the `finally` block when the call returns. `PUSH_AND_GOTO` / `INTERRUPT_INTO` consult this flag to decide the default return address when their `from_adr` / `ret_to` argument is `None`: inside a call (flag `True`) they reuse the top of `_ret_addr_stack` (pushed by the parent), otherwise they use the current pointer.
+`outer_interpreting: bool` (v0.6.0+, read-only) — `True` while a subroutine call (`call_sub`) is executing. Set unconditionally at subroutine entry and restored to `False` in the `finally` block when the call returns. `CALL` / `INT` consult this flag to decide the default return address when their `from_adr` / `ret_to` argument is `None`: inside a call (flag `True`) they reuse the top of `_ret_addr_stack` (pushed by the parent), otherwise they use the current pointer.
 
 `wait: asyncio.Future[None]` — A future that resolves when the interpreter finishes execution. Raises `IllegalState` if the interpreter is not running.
 
@@ -144,7 +144,7 @@ Apply a relative offset at the top level and reset nested dimensions.
 
 #### `jump_far_ptr(offset: list[int])`
 
-Perform a multi-dimensional absolute jump. Replaces the entire `_pointer` with the given address vector via `far_to()`. This is a `@markup`-decorated jump — it sets `_jump_marked` so the main loop does not advance afterwards. Used by `CONTINUE` / `BREAK_LOOP` to jump back to the loop head or sentinel (not by `RET_FAR`, which uses `rebase_ptr` instead).
+Perform a multi-dimensional absolute jump. Replaces the entire `_pointer` with the given address vector via `far_to()`. This is a `@markup`-decorated jump — it sets `_jump_marked` so the main loop does not advance afterwards. Used by `CONTINUE` / `BREAK_LOOP` to jump back to the loop head or sentinel (not by `RET`, which uses `rebase_ptr` instead).
 
 #### `jump_offset_far(offset: list[int])`
 
@@ -157,7 +157,7 @@ Call a subroutine at the specified address. It pushes the current pointer onto t
 - `interrupt=True` acquires the interpreter lock during the call, making it safe for external injection.
 - `interrupt=False` is the normal internal call path.
 
-While the subroutine executes, `outer_interpreting` is `True` — the flag is set unconditionally on entry and cleared in the `finally` block. It lets `PUSH_AND_GOTO` / `INTERRUPT_INTO` (with `from_adr` / `ret_to = None`) resolve the default return address from the parent's stack entry.
+While the subroutine executes, `outer_interpreting` is `True` — the flag is set unconditionally on entry and cleared in the `finally` block. It lets `CALL` / `INT` (with `from_adr` / `ret_to = None`) resolve the default return address from the parent's stack entry.
 
 #### `async call_near(addr: int, *ag, interrupt: bool = False, **kw)`
 
@@ -215,7 +215,7 @@ Return the rendered workflow graph being executed by this interpreter. The graph
 
 #### `if_flag` property (v0.4.x+)
 
-Get or set the interrupt context flag. The setter validates that the value is a boolean. When `True`, `INTERRUPT_INTO` cannot be called (raises `IllegalState`).
+Get or set the interrupt context flag. The setter validates that the value is a boolean. When `True`, `INT` cannot be called (raises `IllegalState`).
 
 **Type**: `bool`
 
@@ -227,7 +227,7 @@ Returns the interpreter's context stack — a `Stack[InterpreterContext]` used f
 
 #### `dump_interpreter(exclude_deps=True, exclude_stack=True) -> InterpreterContext` (v0.4.x+)
 
-Export a complete snapshot of the current interpreter state. Used by `PUSH_CONTEXT` and `INTERRUPT_INTO`.
+Export a complete snapshot of the current interpreter state. Used by `PUSH_CONTEXT` and `INT`.
 
 **Parameters**
 

@@ -28,7 +28,7 @@ def my_function():
 - `fun_sign`：由 `inspect.signature` 提取的函数签名，依赖注入依赖它来匹配参数
 - `tag`：节点的唯一标识字符串
 - `wrap_to_async`：同步函数是否需要被 `asyncio.to_thread` 包裹
-- `address_able`：是否可被 `ALIAS` 引用——只有为 `True` 的节点才能成为 `GOTO` 或 `CALL` 的目标
+- `address_able`：是否可被 `ALIAS` 引用——只有为 `True` 的节点才能成为 `JMP` 或 `INVOKE` 的目标
 
 ### 节点创建过程
 
@@ -39,7 +39,7 @@ def my_function():
 3. 将原始函数、签名、参数打包为 `Node` 实例
 4. 返回 `Node` 对象
 
-**一切皆是节点**——这是 AmritaSense 的核心哲学。条件、循环体、异常处理器、GOTO 的目标——它们都是 `Node` 或 `BaseNode` 的实例。自定义节点也不例外。
+**一切皆是节点**——这是 AmritaSense 的核心哲学。条件、循环体、异常处理器、JMP 的目标——它们都是 `Node` 或 `BaseNode` 的实例。自定义节点也不例外。
 
 ## 4.6.2 同步与异步节点的处理
 
@@ -111,7 +111,7 @@ def quick_check():
 
 如果自定义节点类继承自 `BaseNode`，可以重写两个生命周期钩子：
 
-- `_post_compile(compose: NodeComposeRendered)` — 在工作流图完整编译后被调用。`CallNode` 和 `JumpNode` 借此在编译期完成别名到地址的解析，避免运行时开销。
+- `_post_compile(compose: NodeComposeRendered)` — 在工作流图完整编译后被调用。`InvokeNode` 和 `JumpNode` 借此在编译期完成别名到地址的解析，避免运行时开销。
 - `_pre_check(pointer: WorkflowInterpreter)` — 每次节点执行前被调用。用于依赖解释器状态的运行时检查（如 `BatchRun` 在此创建子解释器）。
 
 ## 4.6.4 POINTER_DEPENDS：获得对解释器的访问
@@ -143,7 +143,7 @@ def my_node(pc: WorkflowInterpreter = Depends(POINTER_DEPENDS)):
 
 获得解释器实例后，节点可以直接操作指针和调用栈。这种能力伴随着责任——节点内部的跳转会设置 `_jump_marked` 标志，影响解释器的后续行为；手动压栈而不弹栈会破坏调用栈的完整性。
 
-因此，**只在必要时注入 `POINTER_DEPENDS`**。大多数节点应优先通过节点内部的 Python 逻辑和编排层面的指令（IF、WHILE、CALL）来完成控制流，只在指令无法表达时才直接操作解释器。
+因此，**只在必要时注入 `POINTER_DEPENDS`**。大多数节点应优先通过节点内部的 Python 逻辑和编排层面的指令（IF、WHILE、INVOKE）来完成控制流，只在指令无法表达时才直接操作解释器。
 
 ## 4.6.5 安全的运行时集成
 

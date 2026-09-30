@@ -6,7 +6,7 @@ AmritaSense v0.3.0 引入了 `FUN_BLOCK` 指令和完整的**解释器树模型*
 
 子图隔离调用将一个已编译的 `NodeComposeRendered` 图放入一个**子 `WorkflowInterpreter`** 中执行。父解释器挂起等待子解释器完成。这类似于传统语言中的函数调用，但具有完全的运行时隔离——独立的执行上下文、独立的中间件、独立的挂起/恢复生命周期。
 
-与 `CALL`/`call_sub` 的关键区别在于：`FUN_BLOCK` 将子工作流作为树中的**独立解释器**启动，而非复用当前解释器的指针栈。
+与 `INVOKE`/`call_sub` 的关键区别在于：`FUN_BLOCK` 将子工作流作为树中的**独立解释器**启动，而非复用当前解释器的指针栈。
 
 ## 解释器树
 
@@ -190,7 +190,7 @@ comp = main_start >> Try(FUN_BLOCK(sub_comp), CATCH=(ValueError, handle_value_er
 
 | 场景                           | 推荐方案                                  |
 | ------------------------------ | ----------------------------------------- |
-| 同状态下的简单子程序调用/返回  | `CALL` / `call_sub`                       |
+| 同状态下的简单子程序调用/返回  | `INVOKE` / `call_sub`                       |
 | 需要错误隔离的独立子工作流     | `FUN_BLOCK`                               |
 | 多个子工作流的并行执行         | `fork_interpreter()` + `asyncio.gather()` |
 | 需要自定义中间件的子工作流     | `FUN_BLOCK(middleware=...)`               |

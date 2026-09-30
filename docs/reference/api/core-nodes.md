@@ -21,13 +21,13 @@ class BaseNode:
 - `func`: The underlying callable. This is what the interpreter ultimately calls when executing the node.
 - `tag`: The node's string identifier. Also serves as the breakpoint name for flow suspension -- external callers can suspend before this node executes via `wait_to_suspend(tag)`. Defaults to `NodeSuspend::{function_name}` if not specified at creation time.
 - `wrap_to_async`: If `True` and `func` is synchronous, the interpreter automatically uses `asyncio.to_thread` to execute it in a thread pool, preventing event-loop blockage.
-- `address_able`: If `True`, the node can be referenced by `ALIAS`. Only addressable nodes can become targets for jump instructions like `GOTO` and `CALL`.
+- `address_able`: If `True`, the node can be referenced by `ALIAS`. Only addressable nodes can become targets for jump instructions like `JMP` and `INVOKE`.
 - `fun_sign`: The function signature extracted by `inspect.signature(func)`, used by the dependency injection system for parameter resolution at runtime.
 - `fun_frame`: The stack frame object at node creation time, primarily used for debugging and log location.
 
 ### Methods
 
-- `_post_compile(compose: NodeComposeRendered) -> None`: Post-compilation hook, called after the workflow graph is fully compiled. Subclasses resolve aliases and validate addresses here (e.g., `JumpNode`, `CallNode`, `PUSH_CONTEXT`, `INTERRUPT_INTO`), moving runtime overhead to compile time.
+- `_post_compile(compose: NodeComposeRendered) -> None`: Post-compilation hook, called after the workflow graph is fully compiled. Subclasses resolve aliases and validate addresses here (e.g., `JumpNode`, `InvokeNode`, `PUSH_CONTEXT`, `INT`), moving runtime overhead to compile time.
 - `_pre_check(pointer: WorkflowInterpreter) -> None`: Pre-execution hook, called by the interpreter before each node execution. Used for runtime checks that depend on interpreter state (e.g., `BatchRun` forks child interpreters here).
 - `as_compose() -> NodeCompose`: Convenience method that wraps the node in a `NodeCompose`, enabling `node.as_compose().render()` as a one-liner.
 - `_init(func, tag, wrap_to_async, address_able, frame)`: Internal construction method that uniformly sets the node's metadata.
@@ -119,7 +119,7 @@ class NodeComposeRendered(AbstractCompose[AddressCalculator]):
 ### Key attributes
 
 - `_graph: list[BaseNode | NodeComposeRendered]`: The compiled node sequence. Elements may be concrete nodes or sub-containers.
-- `alias2vector_map: dict[str, list[int]]`: The alias-to-pointer-vector mapping table. Jump instructions like GOTO and CALL look up addresses from this table at compile time via `_post_compile`.
+- `alias2vector_map: dict[str, list[int]]`: The alias-to-pointer-vector mapping table. Jump instructions like JMP and INVOKE look up addresses from this table at compile time via `_post_compile`.
 - `calc: AddressCalculator`: The compiled graph's address calculator, providing `resolve_alias()`, `find_addr()`, `find_addr_safe()`, and `advance()` methods. Available only on the top-level `NodeComposeRendered`.
 - `__bool__()`: Checks whether `_graph` has been built, used to determine whether compilation has completed.
 

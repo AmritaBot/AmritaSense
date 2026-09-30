@@ -71,17 +71,17 @@ Within `action` or `do_node`, you can `raise BreakLoop` to implement `break` sem
 
 Returning early from `action` or `do_node` ends the current node execution. The interpreter then naturally advances to `CheckUpNode` (for `WHILE`) or `DowhileNode` (for `DO-WHILE`), starting the next iteration. This behavior is equivalent to `continue`.
 
-## `GOTO` restrictions inside loops
+## `JMP` restrictions inside loops
 
 The compile-time structure of `WHILE` and `DO-WHILE` is fixed. `WhileNode` and `DONode` rely on `call_offset` and `jump_near` relative offsets to perform condition checks and body execution.
 
-If a `GOTO` inside the loop body jumps outside the loop structure:
+If a `JMP` inside the loop body jumps outside the loop structure:
 
 - the call stack and return address may not be cleaned correctly
 - `WhileNode` or `DONode` cannot properly catch `BreakLoop`
 - the interpreter may enter unpredictable states
 
-Therefore, **do not use `GOTO` to jump out of a loop**. Use `BreakLoop` to exit the loop, and use `CALL` for reusable subroutine execution.
+Therefore, **do not use `JMP` to jump out of a loop**. Use `BreakLoop` to exit the loop, and use `INVOKE` for reusable subroutine execution.
 
 ## Usage example
 
@@ -172,10 +172,10 @@ except BreakLoop:
 | ----------------------------------------------------- | ---------------- |
 | Need precise external interruption within a loop step | **Normal**       |
 | Hot inner loops with many iterations                  | **Squashed**     |
-| Compatibility with `GOTO` jumping outside the loop    | **Normal**       |
+| Compatibility with `JMP` jumping outside the loop    | **Normal**       |
 | Maximum throughput for tight loops                    | **Squashed**     |
 
-> **Note**: In squashed mode, `jump_marked` is checked after each body execution. This means jumps via `GOTO` or `CALL` that set the jump marker are still respected — the loop will break and the jump target will execute next. However, `InterruptNotice` and external interruption via `object_io` can only be injected at `call_offset` boundaries, not between loop sub-steps.
+> **Note**: In squashed mode, `jump_marked` is checked after each body execution. This means jumps via `JMP` or `INVOKE` that set the jump marker are still respected — the loop will break and the jump target will execute next. However, `InterruptNotice` and external interruption via `object_io` can only be injected at `call_offset` boundaries, not between loop sub-steps.
 
 ## When to use WHILE vs DO-WHILE
 

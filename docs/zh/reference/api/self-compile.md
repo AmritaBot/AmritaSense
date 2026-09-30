@@ -46,12 +46,12 @@ AmritaSense 的内置指令集全部是 `SelfCompileInstruction` 的子类。以
 
 ### 子程序存储指令
 
-- `SubprogramStorage`（`ARCHIVED_NODES` 的底层实现）：展开为 `[SubprogramJumpNode, node_1, node_2, ..., NOP]`。接收任意 `BaseNode`（不限于 `ALIAS`），`SubprogramJumpNode` 在正常执行流中无条件跳过整个存储区。内部节点可通过 `CALL` 或 `GOTO` 寻址访问（若使用 `ALIAS` 标记）。
+- `SubprogramStorage`（`ARCHIVED_NODES` 的底层实现）：展开为 `[SubprogramJumpNode, node_1, node_2, ..., NOP]`。接收任意 `BaseNode`（不限于 `ALIAS`），`SubprogramJumpNode` 在正常执行流中无条件跳过整个存储区。内部节点可通过 `INVOKE` 或 `JMP` 寻址访问（若使用 `ALIAS` 标记）。
 - `ARCHIVED_SEGMENT`：归档完整节点组合的 `NodeCompose` 包装（`[JMP 2, Payload, NOP]`）。它是 `FN` / `INTER_FN` 函数块的构建基础——现代调用模式参见[函数块调用](../guide/advanced/function-block-call)。
 
-### 注意：CALL 不是自编译指令
+### 注意：INVOKE 不是自编译指令
 
-`CALL` 指令对应的 `CallNode` 直接继承自 `BaseNode`，是一个**普通节点**。它在编译期不展开，只是作为单个节点存在于工作流数组中，编译时通过 `_post_compile` 解析别名，执行时通过 `pc.call_sub` 完成调用。这与 `GOTO`（`JumpNode`）的设计一致——两者都是"原子"跳转节点，而非自编译结构。
+`INVOKE` 指令对应的 `InvokeNode` 直接继承自 `BaseNode`，是一个**普通节点**。它在编译期不展开，只是作为单个节点存在于工作流数组中，编译时通过 `_post_compile` 解析别名，执行时通过 `pc.call_sub` 完成调用。这与 `JMP`（`JumpNode`）的设计一致——两者都是"原子"跳转节点，而非自编译结构。
 
 ## 自定义自编译指令
 

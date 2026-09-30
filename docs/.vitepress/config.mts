@@ -171,11 +171,11 @@ export default withMermaid({
                     link: "/guide/advanced/built-in_instruction_set/while_clause",
                   },
                   {
-                    text: "Call & Transfer Instructions (GOTO/CALL)",
+                    text: "Call & Transfer Instructions (JMP/INVOKE)",
                     link: "/guide/advanced/built-in_instruction_set/jump_clause",
                   },
                   {
-                    text: "Sentinel Instructions (NOP/INTERRUPT)",
+                    text: "Sentinel Instructions (NOP/RESET/SUSPEND)",
                     link: "/guide/advanced/built-in_instruction_set/sentinel_clause",
                   },
                   {
@@ -183,7 +183,7 @@ export default withMermaid({
                     link: "/guide/advanced/built-in_instruction_set/try_clause",
                   },
                   {
-                    text: "Context Snapshot & Interrupt Transfer (PUSH_CONTEXT/INTERRUPT_INTO)",
+                    text: "Context Snapshot & Interrupt Transfer (PUSH_CONTEXT/INT/IRET)",
                     link: "/guide/advanced/built-in_instruction_set/context_clause",
                   },
                   {
@@ -368,11 +368,11 @@ export default withMermaid({
                     link: "/zh/guide/advanced/built-in_instruction_set/while_clause",
                   },
                   {
-                    text: "调用与转移指令 (GOTO/CALL)",
+                    text: "调用与转移指令 (JMP/INVOKE)",
                     link: "/zh/guide/advanced/built-in_instruction_set/jump_clause",
                   },
                   {
-                    text: "哨兵指令 (NOP/INTERRUPT)",
+                    text: "哨兵指令 (NOP/RESET/SUSPEND)",
                     link: "/zh/guide/advanced/built-in_instruction_set/sentinel_clause",
                   },
                   {
@@ -380,7 +380,7 @@ export default withMermaid({
                     link: "/zh/guide/advanced/built-in_instruction_set/try_clause",
                   },
                   {
-                    text: "上下文与中断转移 (PUSH_CONTEXT/INTERRUPT_INTO)",
+                    text: "上下文与中断转移 (PUSH_CONTEXT/INT/IRET)",
                     link: "/zh/guide/advanced/built-in_instruction_set/context_clause",
                   },
                   {

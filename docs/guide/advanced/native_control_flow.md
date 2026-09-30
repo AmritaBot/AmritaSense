@@ -2,7 +2,7 @@
 
 The **native control flow instruction set** introduced in AmritaSense v0.5.1 — `NATIVE_IF`, `NATIVE_WHILE`, `NATIVE_DO`, `BREAK_LOOP`, and `CONTINUE` — is an **orthogonal extension** to the traditional `IF`/`WHILE`/`DO` control flow primitives.
 
-Since v0.6.0, the loop mechanics were redesigned: loop bodies always end with the `CONTINUE()` instruction (factory), `BREAK_LOOP()` became a factory function, and `RET_FAR` is **no longer involved** in native loops.
+Since v0.6.0, the loop mechanics were redesigned: loop bodies always end with the `CONTINUE()` instruction (factory), `BREAK_LOOP()` became a factory function, and `RET` is **no longer involved** in native loops.
 
 ## Design Philosophy
 
@@ -58,7 +58,7 @@ graph LR
 
 ### Bubble Branch Body
 
-When `body` is a `NodeCompose`, the compiler wraps it as a **bubble** (a nested container). Since v0.6.0 the bubble has **no `RET_FAR`** — it flows back to the merge point naturally via `advance_pointer`, exactly like a Python `if`/`else` block (no early-return semantics):
+When `body` is a `NodeCompose`, the compiler wraps it as a **bubble** (a nested container). Since v0.6.0 the bubble has **no `RET`** — it flows back to the merge point naturally via `advance_pointer`, exactly like a Python `if`/`else` block (no early-return semantics):
 
 ```python
 NATIVE_IF(cond, step_a >> step_b).ELSE(fallback_a >> fallback_b)
@@ -137,7 +137,7 @@ NATIVE_WHILE(cond).ACTION(
 )
 ```
 
-`CONTINUE()` pops the stack and `jump_far_ptr`s to the loop head (`[0]` for `NATIVE_WHILE`, `[2]` for `NATIVE_DO`). Unlike `RET_FAR` — which uses `rebase_ptr` and relies on the natural `advance_pointer` step — `CONTINUE` is a direct jump that sets the jump flag, so the target executes immediately.
+`CONTINUE()` pops the stack and `jump_far_ptr`s to the loop head (`[0]` for `NATIVE_WHILE`, `[2]` for `NATIVE_DO`). Unlike `RET` — which uses `rebase_ptr` and relies on the natural `advance_pointer` step — `CONTINUE` is a direct jump that sets the jump flag, so the target executes immediately.
 
 ## NATIVE_DO
 

@@ -33,7 +33,7 @@ The stack is protected by a lock and raises `OverflowError` if capacity is excee
 
 ## InterpreterContext (v0.4.x+)
 
-`InterpreterContext` is a dataclass that stores a complete snapshot of the interpreter's execution state. It is used by `PUSH_CONTEXT`/`POP_CONTEXT` and `INTERRUPT_INTO`/`INTERRUPT_RET` for save/restore workflows.
+`InterpreterContext` is a dataclass that stores a complete snapshot of the interpreter's execution state. It is used by `PUSH_CONTEXT`/`POP_CONTEXT` and `INT`/`IRET` for save/restore workflows.
 
 ```python
 @dataclass

@@ -6,7 +6,7 @@ AmritaSense v0.3.0 introduces the `FUN_BLOCK` instruction and a full **interpret
 
 A subgraph isolation call takes a compiled `NodeComposeRendered` graph and executes it inside a **child `WorkflowInterpreter`**. The parent interpreter suspends waiting for the child to complete. This is analogous to calling a function in a traditional language, but with full runtime isolation — separate execution context, separate middleware, and a separate suspend/resume lifecycle.
 
-The key difference from `CALL`/`call_sub` is that `FUN_BLOCK` launches the sub-workflow as an **independent interpreter** in the tree, rather than reusing the current interpreter's pointer stack.
+The key difference from `INVOKE`/`call_sub` is that `FUN_BLOCK` launches the sub-workflow as an **independent interpreter** in the tree, rather than reusing the current interpreter's pointer stack.
 
 ## The Interpreter Tree
 
@@ -190,7 +190,7 @@ comp = main_start >> Try(FUN_BLOCK(sub_comp), CATCH=(ValueError, handle_value_er
 
 | Scenario                                            | Recommendation                            |
 | --------------------------------------------------- | ----------------------------------------- |
-| Simple subroutine call/return within same state     | `CALL` / `call_sub`                       |
+| Simple subroutine call/return within same state     | `INVOKE` / `call_sub`                       |
 | Independent sub-workflow with error isolation       | `FUN_BLOCK`                               |
 | Parallel execution of multiple sub-workflows        | `fork_interpreter()` + `asyncio.gather()` |
 | Sub-workflow with custom middleware                 | `FUN_BLOCK(middleware=...)`               |

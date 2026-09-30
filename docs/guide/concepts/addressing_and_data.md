@@ -45,14 +45,14 @@ ALIAS works similarly to a symbolic link in Linux, except it does not point to a
 With this syntax, you can realize precise jumps:
 
 ```python
-IF(condition, GOTO("tag")) >> node1 >> ALIAS(node2, "tag")
+IF(condition, JMP("tag")) >> node1 >> ALIAS(node2, "tag")
 ```
 
 In this example:
 
 - `"tag"` is the alias label, bound to the physical address of `node2` at compile time.
 - `ALIAS` is a dedicated tagging primitive used to attach a symbol alias to the target node.
-- `GOTO("tag")` performs a runtime alias lookup and jumps directly to the target address.
+- `JMP("tag")` performs a runtime alias lookup and jumps directly to the target address.
 - During preprocessing, the interpreter completes alias registration and address mapping.
 
 **The core advantage of this addressing system is that it completely separates “data layout” (structured node arrays) from “execution path” (pointer jumps).** The workflow is stored in memory as a linear sequence of nodes, but the interpreter can use symbol lookup and pointer rewriting to realize arbitrary nonlinear control flow within that linear space. This is a direct mapping of the von Neumann architecture’s core idea into a workflow engine.

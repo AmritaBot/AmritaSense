@@ -137,15 +137,15 @@ class InterruptNotice(BaseException):
 
    解释器在下一个节点边界捕获此异常。
 
-2. **工作流中插入 `INTERRUPT` 节点**：
+2. **工作流中插入 `RESET` 节点**：
 
    ```python
-   from amrita_sense.instructions import INTERRUPT
+   from amrita_sense.instructions import RESET
 
-   workflow = Sequence(StepA(), Branch(If(condition=is_error, then=INTERRUPT), Else(...)))
+   workflow = Sequence(StepA(), Branch(If(condition=is_error, then=RESET), Else(...)))
    ```
 
-   `INTERRUPT` 是一个 `address_able=False` 的特殊节点，执行时直接抛出 `InterruptNotice("Interrupt Node")`。
+   `RESET` 是一个 `address_able=False` 的特殊节点，执行时直接抛出 `InterruptNotice("Interrupt Node")`。
 
 **InterruptKeepContext（v0.4.x+）**
 
@@ -153,12 +153,12 @@ class InterruptNotice(BaseException):
 
 | 异常                   | 捕获后                    | 可恢复     | 对应节点             |
 | ---------------------- | ------------------------- | ---------- | -------------------- |
-| `InterruptNotice`      | `reset()` — 清空所有状态  | ❌         | `INTERRUPT`          |
-| `InterruptKeepContext` | 跳过 `reset()` — 状态保留 | ✅ `run()` | `INTERRUPT_KEEP_CTX` |
+| `InterruptNotice`      | `reset()` — 清空所有状态  | ❌         | `RESET`          |
+| `InterruptKeepContext` | 跳过 `reset()` — 状态保留 | ✅ `run()` | `SUSPEND` |
 
 **触发方式**：
 
-1. 在工作流中插入 `INTERRUPT_KEEP_CTX` 节点（从 `amrita_sense.instructions.workfl_ctrl` 导入）
+1. 在工作流中插入 `SUSPEND` 节点（从 `amrita_sense.instructions.workfl_ctrl` 导入）
 2. 从节点代码中直接 `raise InterruptKeepContext()`
 
 **解释器主循环处理流程**：
@@ -242,7 +242,7 @@ flowchart TB
 
 ### `outer_interpreting`（v0.6.0+）
 
-**任何** `call_sub` 执行期间（无论 `interrupt` 取值），只读属性 `outer_interpreting` 为 `True`；调用返回时清除。`PUSH_AND_GOTO` / `INTERRUPT_INTO` 在 `from_adr` / `ret_to` 为 `None` 时据此选择默认返回地址：调用期间复用 `_ret_addr_stack` 栈顶（父级的返回地址），否则使用当前指针。这保证了周期中途注入的子调用返回语义正确。
+**任何** `call_sub` 执行期间（无论 `interrupt` 取值），只读属性 `outer_interpreting` 为 `True`；调用返回时清除。`CALL` / `INT` 在 `from_adr` / `ret_to` 为 `None` 时据此选择默认返回地址：调用期间复用 `_ret_addr_stack` 栈顶（父级的返回地址），否则使用当前指针。这保证了周期中途注入的子调用返回语义正确。
 
 ## 3.4.4 挂起操作的交互模型（协作式挂起点）
 

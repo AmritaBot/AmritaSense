@@ -1,23 +1,23 @@
-# GOTO & CALL Jump Instructions
+# JMP & INVOKE Jump Instructions
 
-`GOTO` and `CALL` are two core control flow jump instructions in AmritaSense. They share the same alias-based addressing infrastructure, but serve very different scenarios: `GOTO` is an unconditional one-way jump, while `CALL` is a subroutine invocation with a return.
+`JMP` and `INVOKE` are two core control flow jump instructions in AmritaSense. They share the same alias-based addressing infrastructure, but serve very different scenarios: `JMP` is an unconditional one-way jump, while `INVOKE` is a subroutine invocation with a return.
 
 > **Common foundation**
 > Both rely on the same alias registry (`ALIAS`), perform address resolution during compile-time `_post_compile`, and use the `@markup` decorator to manage jump markers. Understanding these common mechanisms helps clarify the difference between them.
 
 ## Non-self-compiled direct nodes
 
-`GOTO` and `CALL` are **not** `SelfCompileInstruction`. They do not expand into `NodeCompose` at compile time; instead, they exist as single jump nodes in the workflow array.
+`JMP` and `INVOKE` are **not** `SelfCompileInstruction`. They do not expand into `NodeCompose` at compile time; instead, they exist as single jump nodes in the workflow array.
 
 That means:
 
-- they are compiled as a single `JumpNode` or `CallNode` element
+- they are compiled as a single `JumpNode` or `InvokeNode` element
 - runtime behavior is expressed entirely through address resolution and pointer rewriting
 - they do not create new Bubbles or nesting scopes
 
-## GOTO
+## JMP
 
-`GOTO` is a factory wrapper for `JumpNode`. At runtime, it calls the interpreter’s `jump_to` method and performs a **one-way, non-returning** pointer rewrite.
+`JMP` is a factory wrapper for `JumpNode`. At runtime, it calls the interpreter’s `jump_to` method and performs a **one-way, non-returning** pointer rewrite.
 
 ### Execution flow
 
@@ -28,9 +28,9 @@ That means:
 
 ### Key characteristics
 
-- **Does not manage the call stack**: `GOTO` does not push anything onto `_ret_addr_stack`. Once jumped, there is no return.
-- **Can jump across any nesting level**: because `far_to(addr)` replaces the entire pointer vector, `GOTO` can cross Bubble boundaries.
-- **Supports both alias and raw address**: `GOTO("target")` uses a symbol, while `GOTO([1, 2, 3])` uses an absolute address.
+- **Does not manage the call stack**: `JMP` does not push anything onto `_ret_addr_stack`. Once jumped, there is no return.
+- **Can jump across any nesting level**: because `far_to(addr)` replaces the entire pointer vector, `JMP` can cross Bubble boundaries.
+- **Supports both alias and raw address**: `JMP("target")` uses a symbol, while `JMP([1, 2, 3])` uses an absolute address.
 
 ### Typical use cases
 
@@ -38,9 +38,9 @@ That means:
 - **Branch merging**: multiple conditional branches converge on the same `NOP` point.
 - **State machine transitions**: jump to different next states based on runtime conditions.
 
-## CALL
+## INVOKE
 
-`CALL` is a factory wrapper for `CallNode`. At runtime, it calls the interpreter’s `call_sub` method and performs a **push -> jump -> execute -> pop** subroutine call.
+`INVOKE` is a factory wrapper for `InvokeNode`. At runtime, it calls the interpreter’s `call_sub` method and performs a **push -> jump -> execute -> pop** subroutine call.
 
 ### Execution flow
 
@@ -49,13 +49,13 @@ That means:
 3. **Pointer replacement**: set the execution pointer to the subroutine’s entry address.
 4. **Execute subroutine**: the interpreter advances through the subroutine nodes.
 5. **Pop return address**: when the subroutine completes, the `finally` block pops the saved pointer and restores it.
-6. **Continue execution**: the interpreter continues from the node after the `CALL` instruction.
+6. **Continue execution**: the interpreter continues from the node after the `INVOKE` instruction.
 
 ### Key characteristics
 
 - **Manages call stack**: pushes the return address and pops it later, supporting nested calls.
 - **Subroutine source**: the target can be any addressable node sequence, not necessarily stored in `ARCHIVED_NODES`.
-- **No direct parameter passing**: `CALL` itself does not pass arguments. If the subroutine needs parameters, use `Depends` inside the subroutine node or call `call_sub` directly within a node.
+- **No direct parameter passing**: `INVOKE` itself does not pass arguments. If the subroutine needs parameters, use `Depends` inside the subroutine node or call `call_sub` directly within a node.
 
 ### Typical use cases
 
@@ -63,9 +63,9 @@ That means:
 - **Modular decomposition**: split complex workflows into independent subprocedures and keep the main flow simple.
 - **Interrupt handling**: external systems can invoke predefined interrupt handlers via `call_sub(interrupt=True)`.
 
-## GOTO vs CALL: comparison
+## JMP vs INVOKE: comparison
 
-| Feature           | GOTO                                       | CALL                                       |
+| Feature           | JMP                                       | INVOKE                                       |
 | ----------------- | ------------------------------------------ | ------------------------------------------ |
 | Saves return addr | No                                         | Yes (`_ret_addr_stack`)                    |
 | After execution   | continues from target onward               | returns to caller afterward                |
@@ -75,15 +75,15 @@ That means:
 
 ## Usage notes
 
-- **GOTO is not a substitute for loops**: `GOTO` does not provide return semantics. Jumping out of a loop with `GOTO` will not correctly manage the loop state. Use `BreakLoop` for loop exit and `CALL` for reusable subroutines.
-- **CALL targets must be addressable**: the target node or entry node must have `address_able=True`, which is required by `ALIAS`.
-- **GOTO and CALL share alias space**: both look up aliases in `alias2vector_map`. Avoid alias name conflicts.
-- **CALL return depends on stack integrity**: a `GOTO` inside a subroutine sets `_jump_marked`, which can cause `call_sub` to skip stack restoration. Understand that `GOTO` inside a subroutine can override normal return behavior.
+- **JMP is not a substitute for loops**: `JMP` does not provide return semantics. Jumping out of a loop with `JMP` will not correctly manage the loop state. Use `BreakLoop` for loop exit and `INVOKE` for reusable subroutines.
+- **INVOKE targets must be addressable**: the target node or entry node must have `address_able=True`, which is required by `ALIAS`.
+- **JMP and INVOKE share alias space**: both look up aliases in `alias2vector_map`. Avoid alias name conflicts.
+- **INVOKE return depends on stack integrity**: a `JMP` inside a subroutine sets `_jump_marked`, which can cause `call_sub` to skip stack restoration. Understand that `JMP` inside a subroutine can override normal return behavior.
 
 ## Example
 
 ```python
-from amrita_sense.instructions import GOTO, CALL, ALIAS, ARCHIVED_NODES
+from amrita_sense.instructions import JMP, INVOKE, ALIAS, ARCHIVED_NODES
 from amrita_sense.node import Node
 
 
@@ -97,20 +97,20 @@ def reusable_step():
     print("Executing reusable logic")
 
 
-# GOTO: jump to error cleanup
+# JMP: jump to error cleanup
 workflow = (
     start
     >> do_something
-    >> GOTO("error_cleanup")
+    >> JMP("error_cleanup")
     >> ALIAS(error_handler, "error_cleanup")
 )
 
-# CALL: reuse a subroutine
+# INVOKE: reuse a subroutine
 subprogram = ARCHIVED_NODES(
     ALIAS(reusable_step, "reusable"),
 )
 
-main = init >> CALL("reusable") >> process >> CALL("reusable") >> end >> subprogram
+main = init >> INVOKE("reusable") >> process >> INVOKE("reusable") >> end >> subprogram
 ```
 
-> **Manual stack management**: `PUSH_STACK` + `GOTO` + `RET_FAR` give you explicit control over the return address stack, and can be combined with `ARCHIVED_NODES` for subroutine-like patterns. See [Advanced Topic: Manual Stack Space Management](/guide/practice/manual-stack-management) for full details.
+> **Manual stack management**: `PUSH_RET` + `JMP` + `RET` give you explicit control over the return address stack, and can be combined with `ARCHIVED_NODES` for subroutine-like patterns. See [Advanced Topic: Manual Stack Space Management](/guide/practice/manual-stack-management) for full details.

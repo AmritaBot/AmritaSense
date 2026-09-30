@@ -1,6 +1,6 @@
 # 原生特性指令 (NATIVE_IF / NATIVE_WHILE / NATIVE_DO / BREAK_LOOP / CONTINUE)
 
-AmritaSense v0.5.1 引入的原生控制流指令集，基于 `PUSH / JMP / CONTINUE / BREAK_LOOP` 指针操作模式，是对传统 `call_sub` 指令的**正交扩展**。v0.6.0 起循环体统一包装为 `NodeCompose(body, CONTINUE())`，`RET_FAR` **不再参与**原生循环。
+AmritaSense v0.5.1 引入的原生控制流指令集，基于 `PUSH / JMP / CONTINUE / BREAK_LOOP` 指针操作模式，是对传统 `call_sub` 指令的**正交扩展**。v0.6.0 起循环体统一包装为 `NodeCompose(body, CONTINUE())`，`RET` **不再参与**原生循环。
 
 ## 概述
 
@@ -24,7 +24,7 @@ call_sub 路径：     call_sub → 执行 → 自动返回
 
 关键区别：`CONTINUE()` 弹栈后跳回循环头（循环继续下一轮），而 `BREAK_LOOP()` 弹栈后直接跳到循环的出口哨兵 `NOP`，干净地结束整个循环。两者的目标位置都由外层循环的 `extract()` 在编译期通过 DFS 扫描器 `_configure_loop_control_nodes()` 配置——永远不需要手动指定。
 
-> **`RET_FAR` 已退出原生循环**（v0.6.0 起）。它使用 `rebase_ptr` + 自然 `advance_pointer`，服务于手动栈返回模式（`PUSH_AND_GOTO` / `PUSH_STACK`）。`CONTINUE()` / `BREAK_LOOP()` 是直接 `jump_far_ptr` 操作，会设置跳转标记。
+> **`RET` 已退出原生循环**（v0.6.0 起）。它使用 `rebase_ptr` + 自然 `advance_pointer`，服务于手动栈返回模式（`CALL` / `PUSH_RET`）。`CONTINUE()` / `BREAK_LOOP()` 是直接 `jump_far_ptr` 操作，会设置跳转标记。
 
 ### 编译期 body 分类
 
@@ -97,7 +97,7 @@ graph LR
 
 ### 底层节点
 
-- `NativeIfJumpNode`（`_core.py`）：IF/ELIF 的条件跳转节点。`_is_single` 标志决定单节点（`call_offset`）还是 Bubble（仅 `jump_far_ptr`——无 PUSH、无 RET_FAR）路径。
+- `NativeIfJumpNode`（`_core.py`）：IF/ELIF 的条件跳转节点。`_is_single` 标志决定单节点（`call_offset`）还是 Bubble（仅 `jump_far_ptr`——无 PUSH、无 RET）路径。
 
 ## NATIVE_WHILE
 
@@ -268,4 +268,4 @@ NATIVE_DO(
 1. **循环体总是以 CONTINUE() 结尾**：编译器自动在循环体末尾追加 `CONTINUE()`。如果你手动构造 `NodeCompose` 作为循环体，请把 `CONTINUE()` 放在末尾（或依赖自动包装）
 2. **BREAK_LOOP / CONTINUE 不是异常**：它们是同步指针操作指令，`wrap_to_async=False`，不会触发异常处理流程
 3. **原生指令可混用**：与 `>>`、`NodeCompose` 和传统指令完全互操作
-4. **分支自然回退**：v0.6.0 起，`NATIVE_IF` / `ELIF` / `ELSE` 的 Bubble 都不带返回指令——它们是普通嵌套容器，通过 `advance_pointer` 自然流回汇合点，与 Python 的 `if`/`elif`/`else` 块一致。分支体内**没有提前返回**机制（不能手动 `RET_FAR`）
+4. **分支自然回退**：v0.6.0 起，`NATIVE_IF` / `ELIF` / `ELSE` 的 Bubble 都不带返回指令——它们是普通嵌套容器，通过 `advance_pointer` 自然流回汇合点，与 Python 的 `if`/`elif`/`else` 块一致。分支体内**没有提前返回**机制（不能手动 `RET`）

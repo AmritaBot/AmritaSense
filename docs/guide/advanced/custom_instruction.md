@@ -43,7 +43,7 @@ Decompose the instruction’s semantics into a concrete node sequence. For examp
 
 ### Step 2: calculate jump addresses
 
-If the expanded structure contains jumps (`GOTO`, `ConditionJumpNode`, etc.), calculate offsets based on the node list length inside `extract()`. All addresses must be statically determinable integers.
+If the expanded structure contains jumps (`JMP`, `ConditionJumpNode`, etc.), calculate offsets based on the node list length inside `extract()`. All addresses must be statically determinable integers.
 
 ### Step 3: return `NodeCompose`
 
@@ -227,7 +227,7 @@ class RetryJump(BaseNode):
 
 Four details are worth remembering:
 
-- A `@property` is a data descriptor, so the node rejects `self.__sdb_dis__ = ...` — that is what keeps the value single-sourced. Use a class attribute for a fixed mnemonic, or an instance attribute when the operand only exists inside a closure (`PUSH_STACK`, `INTERRUPT_INTO`, …).
+- A `@property` is a data descriptor, so the node rejects `self.__sdb_dis__ = ...` — that is what keeps the value single-sourced. Use a class attribute for a fixed mnemonic, or an instance attribute when the operand only exists inside a closure (`PUSH_RET`, `INT`, …).
 - Neither name is subject to name mangling (two trailing underscores), so `self.__sdb_dis__ = ...` inside a class body is safe.
 - `_post_compile` runs again after every DLL `apply()` rebase, and a property picks up the new operand automatically — so a mnemonic that embeds an address stays correct when the slot is relinked.
 - A node never knows its own address, so an operand relative to its own segment must be written as `#N` (a `near_to` slot) or `+N` (an `offset` delta) instead of a full address.

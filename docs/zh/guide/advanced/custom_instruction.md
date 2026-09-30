@@ -43,7 +43,7 @@ class SelfCompileInstruction(ABC):
 
 ### 步骤二：计算跳转地址
 
-如果展开后的结构包含跳转（`GOTO`、`ConditionJumpNode` 等），需要在 `extract()` 内根据节点列表的长度计算偏移量。所有地址必须是静态确定的整数。
+如果展开后的结构包含跳转（`JMP`、`ConditionJumpNode` 等），需要在 `extract()` 内根据节点列表的长度计算偏移量。所有地址必须是静态确定的整数。
 
 ### 步骤三：返回 NodeCompose
 
@@ -224,7 +224,7 @@ class RetryJump(BaseNode):
 
 四个值得记住的细节：
 
-- `@property` 是**数据描述符**，因此该节点会拒绝 `self.__sdb_dis__ = ...`——这正是让取值保持单一来源的机制。固定助记符请用类属性；操作数只存在于闭包中时（`PUSH_STACK`、`INTERRUPT_INTO` 等）才用实例属性。
+- `@property` 是**数据描述符**，因此该节点会拒绝 `self.__sdb_dis__ = ...`——这正是让取值保持单一来源的机制。固定助记符请用类属性；操作数只存在于闭包中时（`PUSH_RET`、`INT` 等）才用实例属性。
 - 两个名字都有双尾下划线，不会触发名字改写，因此在类体内写 `self.__sdb_dis__ = ...` 是安全的。
 - 每次 DLL `apply()` 变基后 `_post_compile` 都会重新执行，而 property 会自动取到新操作数——因此助记符里嵌入的地址在槽位重链接后依然正确。
 - 节点永远不知道自己的地址，因此相对于所在段的操作数只能写成 `#N`（`near_to` 槽位）或 `+N`（`offset` 偏移），无法写成完整地址。

@@ -75,7 +75,7 @@ class PointerVector:
 
 ## InterpreterContext（v0.4.x+）
 
-`InterpreterContext` 是一个数据类，存储解释器执行状态的完整快照。由 `PUSH_CONTEXT`/`POP_CONTEXT` 和 `INTERRUPT_INTO`/`INTERRUPT_RET` 用于保存/恢复工作流。
+`InterpreterContext` 是一个数据类，存储解释器执行状态的完整快照。由 `PUSH_CONTEXT`/`POP_CONTEXT` 和 `INT`/`IRET` 用于保存/恢复工作流。
 
 ```python
 @dataclass

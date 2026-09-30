@@ -110,9 +110,9 @@ Current node: crash_here -> crash_node
 ```
 segment [root]:
 =>[0] (top) ALIAS top; alias for Alpha
-  [1]       CALL top -> [0]; CallNode
+  [1]       INVOKE top -> [0]; InvokeNode
   [2]       *segment [2]
-  [3]       JMP [0]; GOTO 'top'
+  [3]       JMP [0]; JMP 'top'
   [4]       NOP; no operation
 
 segment [2]:
@@ -176,7 +176,7 @@ segment [1]:
 | -------------- | ---------------------------------------------------------------------------- |
 | **类属性**     | 所有实例共用的固定助记符。                                                   |
 | **`@property`** | 由实例状态推导的值——每次列清单都重新读取，重编译后无需任何重新赋值。         |
-| **实例属性**   | 工厂创建的指令，其操作数只存在于闭包中（`PUSH_STACK`、`INTERRUPT_INTO` 等）。 |
+| **实例属性**   | 工厂创建的指令，其操作数只存在于闭包中（`PUSH_RET`、`INT` 等）。 |
 
 两个名字都有双尾下划线，不会触发名字改写，因此在类体内写 `self.__sdb_dis__ = ...` 是安全的。不过 property 是**数据描述符**，声明了 property 的节点会主动拒绝 `self.__sdb_dis__ = ...`——这正是让取值保持单一来源的机制。
 
@@ -203,7 +203,7 @@ class MyJump(BaseNode):
         self._target = compose.calc.resolve_alias(self._alias)
 ```
 
-节点什么都没声明时，视图回退到它的 `tag`（会剥掉 `__NAME__` 装饰，因此 `__RET_FAR__` 显示为 `RET_FAR`）；若 tag 是自动生成的 `NodeSuspend::…`，则回退到被包装的函数名。
+节点什么都没声明时，视图回退到它的 `tag`（会剥掉 `__NAME__` 装饰，因此 `__RET__` 显示为 `RET`）；若 tag 是自动生成的 `NodeSuspend::…`，则回退到被包装的函数名。
 
 ### 操作数记法
 
@@ -232,7 +232,11 @@ segment [4]:
   [4, 0] TRY catch=ValueError#2; finally=#3 escape=#4
 ```
 
-其它会看到的内置助记符：`JMP [0]`（`GOTO`）、`CALL sym -> [0]`（`CALL`）、`CALL.FAR from -> to`（`PUSH_AND_GOTO`）、`PUSH [0]`（`PUSH_STACK`）、`PUSHCTX` / `INTINTO` / `INT.KEEP`（中断类）、`DO loop=#3 break=#5`、`DO.CHECK back=#0 exit=#3`，以及 native 快速路径的 `NJMPIF` / `NWHILE` / `NDO.CHECK` / `NENTER`。
+其它会看到的内置助记符：`JMP [0]`（`JMP`）、`INVOKE sym -> [0]`（`INVOKE`）、
+`CALL to, ret=from`（`CALL`）、`PUSH [0]`（`PUSH_RET`）、`RET`（`RET`）、
+`PUSHCTX` / `INT` / `IRET`（上下文与中断栈）、`RESET` / `SUSPEND`（终止），
+以及 `DO loop=#3 break=#5`、`DO.CHECK back=#0 exit=#3` 和 native 快速路径的
+`NJMPIF` / `NWHILE` / `NDO.CHECK` / `NENTER`。
 
 ### 寻址模式与契约安全
 
@@ -269,7 +273,7 @@ segment [4]:
 
 ### `step_over(inter)` — 单步越过
 
-执行节点，但**不进入**子程序调用（`call_sub` / `CALL`）。内部监控 `_ret_addr_stack` 的深度——只要深度大于起始值就继续执行，直到回到同一栈帧。
+执行节点，但**不进入**子程序调用（`call_sub` / `INVOKE`）。内部监控 `_ret_addr_stack` 的深度——只要深度大于起始值就继续执行，直到回到同一栈帧。
 
 ```python
 >>> step_over(inter)  # 如果当前节点调用了 call_sub，

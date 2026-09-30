@@ -1,6 +1,6 @@
 # Native Instructions (NATIVE_IF / NATIVE_WHILE / NATIVE_DO / BREAK_LOOP / CONTINUE)
 
-The native control flow instruction set introduced in AmritaSense v0.5.1 is based on the `PUSH / JMP / CONTINUE / BREAK_LOOP` pointer operation pattern — an **orthogonal extension** to the traditional `call_sub` instructions. Since v0.6.0, loop bodies are always wrapped as `NodeCompose(body, CONTINUE())` and `RET_FAR` is no longer involved in native loops.
+The native control flow instruction set introduced in AmritaSense v0.5.1 is based on the `PUSH / JMP / CONTINUE / BREAK_LOOP` pointer operation pattern — an **orthogonal extension** to the traditional `call_sub` instructions. Since v0.6.0, loop bodies are always wrapped as `NodeCompose(body, CONTINUE())` and `RET` is no longer involved in native loops.
 
 ## Overview
 
@@ -24,7 +24,7 @@ Loop bodies always end with `CONTINUE()` (auto-appended by the compiler) which p
 
 The key difference: `CONTINUE()` pops the stack and jumps back to the loop head (the loop continues with the next iteration), while `BREAK_LOOP()` pops the stack and jumps directly to the loop's sentinel `NOP`, cleanly ending the loop. Both target positions are configured at compile time by the enclosing loop's `extract()` via the DFS scanner `_configure_loop_control_nodes()` — never by hand.
 
-> **`RET_FAR` is not part of native loops anymore** (since v0.6.0). It uses `rebase_ptr` + natural `advance_pointer` and is meant for manual stack-return patterns (`PUSH_AND_GOTO` / `PUSH_STACK`). `CONTINUE()` / `BREAK_LOOP()` are direct `jump_far_ptr` operations that set the jump flag.
+> **`RET` is not part of native loops anymore** (since v0.6.0). It uses `rebase_ptr` + natural `advance_pointer` and is meant for manual stack-return patterns (`CALL` / `PUSH_RET`). `CONTINUE()` / `BREAK_LOOP()` are direct `jump_far_ptr` operations that set the jump flag.
 
 ### Compile-Time Body Classification
 
@@ -97,7 +97,7 @@ Every branch (IF, ELIF, ELSE) is a plain nested container with **no return instr
 
 ### Underlying Nodes
 
-- `NativeIfJumpNode` (`_core.py`): Condition jump node for IF/ELIF. The `_is_single` flag determines the single-node (`call_offset`) vs bubble (`jump_far_ptr` only — no PUSH / no RET_FAR) path.
+- `NativeIfJumpNode` (`_core.py`): Condition jump node for IF/ELIF. The `_is_single` flag determines the single-node (`call_offset`) vs bubble (`jump_far_ptr` only — no PUSH / no RET) path.
 
 ## NATIVE_WHILE
 
@@ -268,4 +268,4 @@ NATIVE_DO(
 1. **Loop bodies always end with CONTINUE()**: the compiler auto-appends `CONTINUE()`. If you manually construct a `NodeCompose` as a loop body, place `CONTINUE()` at the end (or rely on auto-wrapping).
 2. **BREAK_LOOP / CONTINUE are not exceptions**: they are synchronous pointer operations (`wrap_to_async=False`) and do not trigger exception handling
 3. **Native instructions are composable**: fully interoperable with `>>`, `NodeCompose`, and traditional instructions
-4. **Branches flow back naturally**: since v0.6.0, `NATIVE_IF` / `ELIF` / `ELSE` bubbles carry no return instruction — they are plain nested containers that flow back to the merge point via `advance_pointer`, exactly like Python `if`/`elif`/`else` blocks. There is **no early-return** mechanism (no manual `RET_FAR` inside a branch body).
+4. **Branches flow back naturally**: since v0.6.0, `NATIVE_IF` / `ELIF` / `ELSE` bubbles carry no return instruction — they are plain nested containers that flow back to the merge point via `advance_pointer`, exactly like Python `if`/`elif`/`else` blocks. There is **no early-return** mechanism (no manual `RET` inside a branch body).

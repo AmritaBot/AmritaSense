@@ -21,13 +21,13 @@ class BaseNode:
 - `func`：底层可调用对象。执行节点时解释器最终调用的就是它
 - `tag`：节点的字符串标识。同时作为流程挂起的断点名称——外部可以通过 `wait_to_suspend(tag)` 在该节点执行前挂起。若创建时未指定，默认为 `NodeSuspend::{函数名}`
 - `wrap_to_async`：若为 `True` 且 `func` 是同步函数，解释器会自动使用 `asyncio.to_thread` 在线程池中执行，避免阻塞事件循环
-- `address_able`：若为 `True`，该节点可被 `ALIAS` 引用。只有可寻址的节点才能成为 `GOTO`、`CALL` 等跳转指令的目标
+- `address_able`：若为 `True`，该节点可被 `ALIAS` 引用。只有可寻址的节点才能成为 `JMP`、`INVOKE` 等跳转指令的目标
 - `fun_sign`：由 `inspect.signature(func)` 提取的函数签名，供依赖注入系统在运行时解析参数
 - `fun_frame`：节点创建时的栈帧对象，主要用于调试和日志定位
 
 ### 方法
 
-- `_post_compile(compose: NodeComposeRendered) -> None`：编译后钩子，在工作流图完整编译后被调用。子类在此完成别名解析和地址验证（如 `JumpNode`、`CallNode`、`PUSH_CONTEXT`、`INTERRUPT_INTO`），将运行时开销前移至编译期
+- `_post_compile(compose: NodeComposeRendered) -> None`：编译后钩子，在工作流图完整编译后被调用。子类在此完成别名解析和地址验证（如 `JumpNode`、`InvokeNode`、`PUSH_CONTEXT`、`INT`），将运行时开销前移至编译期
 - `_pre_check(pointer: WorkflowInterpreter) -> None`：执行前的钩子，每次节点执行前被解释器调用。用于依赖解释器状态的运行时检查（如 `BatchRun` 在此创建子解释器）
 - `as_compose() -> NodeCompose`：便捷方法，将节点包装为 `NodeCompose`，支持 `node.as_compose().render()` 一行完成编译
 - `_init(func, tag, wrap_to_async, address_able, frame)`：内部构造方法，统一设置节点的元数据
@@ -119,7 +119,7 @@ class NodeComposeRendered(AbstractCompose[AddressCalculator]):
 ### 主要属性
 
 - `_graph: list[BaseNode | NodeComposeRendered]`：编译后的节点序列。元素可能是具体节点或子容器
-- `alias2vector_map: dict[str, list[int]]`：别名到指针向量的映射表。GOTO、CALL 等跳转指令在编译期通过 `_post_compile` 从此表查地址
+- `alias2vector_map: dict[str, list[int]]`：别名到指针向量的映射表。JMP、INVOKE 等跳转指令在编译期通过 `_post_compile` 从此表查地址
 - `calc: AddressCalculator`：编译图的地址计算器，提供 `resolve_alias()`、`find_addr()`、`find_addr_safe()`、`advance()` 方法。仅在顶层 `NodeComposeRendered` 上可用
 - `__bool__()`：检查 `_graph` 是否已构建，用于判断编译是否完成
 
