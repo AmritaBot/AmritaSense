@@ -1,4 +1,4 @@
-"""Tests for interrupt.py — PUSH_CONTEXT, POP_CONTEXT, INTERRUPT_INTO, INTERRUPT_RET."""
+"""Tests for interrupt.py — PUSH_CONTEXT, POP_CONTEXT, INT, IRET."""
 
 from typing import TYPE_CHECKING
 
@@ -6,10 +6,10 @@ import pytest
 
 from amrita_sense import ALIAS, ARCHIVED_NODES, NOP, Node
 from amrita_sense.exceptions import IllegalState, InterruptNotice
-from amrita_sense.instructions import GOTO
+from amrita_sense.instructions import JMP
 from amrita_sense.instructions.interrupt import (
-    INTERRUPT_INTO,
-    INTERRUPT_RET,
+    INT,
+    IRET,
     POP_CONTEXT,
     PUSH_CONTEXT,
 )
@@ -109,17 +109,17 @@ def test_pop_context_returns_node():
     assert n.wrap_to_async is False
 
 
-def test_interrupt_into_returns_node():
-    assert INTERRUPT_INTO("t", "r").tag == "__INTERRUPT_INTO__"
+def test_int_returns_node():
+    assert INT("t", "r").tag == "__INT__"
 
 
-def test_interrupt_into_with_list():
-    assert INTERRUPT_INTO([1, 2], [3, 4], if_state=True).tag == "__INTERRUPT_INTO__"
+def test_int_with_list():
+    assert INT([1, 2], [3, 4], if_state=True).tag == "__INT__"
 
 
-def test_interrupt_ret_returns_node():
-    n = INTERRUPT_RET()
-    assert n.tag == "__INTERRUPT_RET__"
+def test_iret_returns_node():
+    n = IRET()
+    assert n.tag == "__IRET__"
     assert n.wrap_to_async is False
 
 
@@ -224,12 +224,12 @@ def test_pop_context_lifo():
     assert c1.ptr.base_addr == [10]
 
 
-# ---- INTERRUPT_INTO (jump_to + ret_to) ----
+# ---- INT (jump_to + ret_to) ----
 
 
-def test_interrupt_into_saves_and_jumps():
+def test_int_saves_and_jumps():
     pc = _FakeInterpreter({"h": [5, 0], "r": [99]}, [0, 0])
-    n = INTERRUPT_INTO("h", "r")
+    n = INT("h", "r")
     n._post_compile(_FakeRendered({"h": [5, 0], "r": [99]}))
     n(pc)
     assert len(pc.context_stack) == 1
@@ -237,61 +237,61 @@ def test_interrupt_into_saves_and_jumps():
     assert pc._pointer.base_addr == [5, 0]
 
 
-def test_interrupt_into_sets_if_flag():
+def test_int_sets_if_flag():
     pc = _FakeInterpreter({"h": [1], "r": [2]}, [0])
-    n = INTERRUPT_INTO("h", "r", if_state=True)
+    n = INT("h", "r", if_state=True)
     n._post_compile(_FakeRendered({"h": [1], "r": [2]}))
     n(pc)
     assert pc.if_flag is True
 
 
-def test_interrupt_into_default_if_flag():
+def test_int_default_if_flag():
     pc = _FakeInterpreter({"h": [1], "r": [2]}, [0])
-    n = INTERRUPT_INTO("h", "r")
+    n = INT("h", "r")
     n._post_compile(_FakeRendered({"h": [1], "r": [2]}))
     n(pc)
     assert pc.if_flag is False
 
 
-def test_interrupt_into_list_addrs():
+def test_int_list_addrs():
     pc = _FakeInterpreter(ptr=[0])
-    n = INTERRUPT_INTO([3, 7], [9, 2])
+    n = INT([3, 7], [9, 2])
     n._post_compile(_FakeRendered({}))
     n(pc)
     assert pc._pointer.base_addr == [3, 7]
     assert pc.context_stack.stack[0].ptr.base_addr == [9, 2]
 
 
-def test_interrupt_into_raises_when_if_flag_true():
+def test_int_raises_when_if_flag_true():
     pc = _FakeInterpreter({"h": [1], "r": [2]}, [0])
     pc.if_flag = True
     with pytest.raises(IllegalState, match="Interrupt into is not allowed"):
-        INTERRUPT_INTO("h", "r")(pc)
+        INT("h", "r")(pc)
     assert len(pc.context_stack) == 0
 
 
-# ---- INTERRUPT_RET ----
+# ---- IRET ----
 
 
-def test_interrupt_ret_restores():
+def test_iret_restores():
     pc = _FakeInterpreter({"h": [2, 0], "r": [99]}, [0, 0])
-    n = INTERRUPT_INTO("h", "r")
+    n = INT("h", "r")
     n._post_compile(_FakeRendered({"h": [2, 0], "r": [99]}))
     n(pc)
     pc._pointer.far_to([2, 0])
     pc.if_flag = True
-    INTERRUPT_RET()(pc)
+    IRET()(pc)
     assert pc._pointer.base_addr == [99]
     assert pc.if_flag is False
     assert len(pc.context_stack) == 0
 
 
-def test_interrupt_ret_clears_if_flag():
+def test_iret_clears_if_flag():
     pc = _FakeInterpreter({"h": [1], "r": [5]}, [0])
-    n = INTERRUPT_INTO("h", "r", if_state=True)
+    n = INT("h", "r", if_state=True)
     n._post_compile(_FakeRendered({"h": [1], "r": [5]}))
     n(pc)
-    INTERRUPT_RET()(pc)
+    IRET()(pc)
     assert pc.if_flag is False
 
 
@@ -318,20 +318,20 @@ async def test_push_context_e2e():
         main
         >> PUSH_CONTEXT("sub_entry")
         >> back
-        >> GOTO("done")
+        >> JMP("done")
         >> ALIAS(sub, "sub_entry")
-        >> INTERRUPT_RET()
+        >> IRET()
         >> ALIAS(NOP, "done")
     )
     await WorkflowInterpreter(c.render()).run()
-    # PUSH_CONTEXT pushes context but does NOT jump — execution continues linearly (main → back → GOTO done); sub_entry is only reached if an INTERRUPT_RET or explicit jump targets it.
+    # PUSH_CONTEXT pushes context but does NOT jump — execution continues linearly (main → back → JMP done); sub_entry is only reached if an IRET or explicit jump targets it.
     assert log == ["main", "back"]
 
 
 @pytest.mark.asyncio
-async def test_interrupt_into_e2e():
-    II = INTERRUPT_INTO
-    IR = INTERRUPT_RET
+async def test_int_e2e():
+    II = INT
+    IR = IRET
     log = []
 
     @Node()
@@ -350,9 +350,9 @@ async def test_interrupt_into_e2e():
     c = (
         m
         >> II("ih", "back")  # jump to ih, save ret_to="back"
-        >> ALIAS(NOP, "back")  # resumed here (NOP) after INTERRUPT_RET
+        >> ALIAS(NOP, "back")  # resumed here (NOP) after IRET
         >> b  # then b executes
-        >> GOTO("done")
+        >> JMP("done")
         >> blk
         >> ALIAS(NOP, "done")
     )

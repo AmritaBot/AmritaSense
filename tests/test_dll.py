@@ -5,7 +5,7 @@ import pytest
 
 from amrita_sense import Node, WorkflowInterpreter
 from amrita_sense.exceptions import GraphBuildError, NullPointerException
-from amrita_sense.instructions import CALL, GOTO, NOP
+from amrita_sense.instructions import INVOKE, JMP, NOP
 from amrita_sense.instructions.alias import ALIAS
 from amrita_sense.node import DLLCompose, NodeCompose
 from amrita_sense.node.core import BaseNode
@@ -245,7 +245,7 @@ def test_dll_slot_keeps_hooks_collected_before_it(log):
     """A node before the slot still gets its `_post_compile` run."""
     a, b = make_node("A", log), make_node("B", log)
     dll = DLLCompose(b.as_compose())
-    r_comp = (ALIAS(a, "top") >> GOTO("top") >> dll >> NOP).render()
+    r_comp = (ALIAS(a, "top") >> JMP("top") >> dll >> NOP).render()
     assert r_comp[1]._node_addr == [0]  # type: ignore[attr-defined]
 
 
@@ -253,7 +253,7 @@ def test_dll_slot_allows_hook_nodes_after_it(log):
     """A hook-bearing node after the slot must not break the build."""
     a, b = make_node("A", log), make_node("B", log)
     dll = DLLCompose(b.as_compose())
-    r_comp = (ALIAS(a, "top") >> dll >> GOTO("top")).render()
+    r_comp = (ALIAS(a, "top") >> dll >> JMP("top")).render()
     assert r_comp[2]._node_addr == [0]  # type: ignore[attr-defined]
 
 
@@ -306,28 +306,28 @@ def test_host_hook_collector_is_restored(log):
     assert r_comp._collected_hooks is not None
 
 
-def test_goto_across_a_dll_slot_skips_the_payload(log):
+def test_jmp_across_a_dll_slot_skips_the_payload(log):
     """Runtime: a jump resolved across a slot lands on the alias target."""
     a = make_node("A", log)
     payload = make_node("payload", log)
     target = make_node("target", log)
     dll = DLLCompose(payload.as_compose())
 
-    r_comp = (a >> GOTO("tgt") >> dll >> NOP >> ALIAS(target, "tgt")).render()
+    r_comp = (a >> JMP("tgt") >> dll >> NOP >> ALIAS(target, "tgt")).render()
     asyncio.run(WorkflowInterpreter(r_comp).run())
     assert log == ["A", "target"]
 
 
-def test_call_across_a_dll_slot_reaches_the_target(log):
+def test_invoke_across_a_dll_slot_reaches_the_target(log):
     """Runtime: a call resolved across a slot reaches the alias target."""
     a = make_node("A", log)
     payload = make_node("payload", log)
     target = make_node("target", log)
     dll = DLLCompose(payload.as_compose())
 
-    r_comp = (a >> CALL("tgt") >> dll >> NOP >> ALIAS(target, "tgt")).render()
+    r_comp = (a >> INVOKE("tgt") >> dll >> NOP >> ALIAS(target, "tgt")).render()
     asyncio.run(WorkflowInterpreter(r_comp).run())
-    #  CALL reaches the target, returns, then the walk reaches the DLL payload and finally the ALIAS node, which runs the aliased target once more.
+    #  INVOKE reaches the target, returns, then the walk reaches the DLL payload and finally the ALIAS node, which runs the aliased target once more.
     assert log == ["A", "target", "payload", "target"]
 
 

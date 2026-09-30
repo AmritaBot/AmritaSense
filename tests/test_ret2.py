@@ -1,10 +1,10 @@
-"""Tests for ret2.py — PUSH_STACK, RET_FAR, PUSH_AND_GOTO instructions."""
+"""Tests for ret2.py — PUSH_RET, RET, CALL instructions."""
 
 from typing import TYPE_CHECKING
 
 import pytest
 
-from amrita_sense.instructions.ret2 import PUSH_AND_GOTO, PUSH_STACK, RET_FAR
+from amrita_sense.instructions.ret2 import CALL, PUSH_RET, RET
 from amrita_sense.node.core import NodeComposeRendered
 from amrita_sense.node.wrapper import Node
 from amrita_sense.runtime.workflow import WorkflowInterpreter
@@ -63,51 +63,51 @@ class _FakeInterpreter:
 # Unit tests — return values and types
 
 
-def test_ret_far_returns_node():
-    node = RET_FAR()
-    assert node.tag == "__RET_FAR__"
+def test_ret_returns_node():
+    node = RET()
+    assert node.tag == "__RET__"
     assert node.wrap_to_async is False
 
 
-def test_push_stack_returns_node():
-    node = PUSH_STACK("foo")
-    assert node.tag == "__PUSH_STACK__"
+def test_push_ret_returns_node():
+    node = PUSH_RET("foo")
+    assert node.tag == "__PUSH_RET__"
     assert node.wrap_to_async is False
 
 
-def test_push_and_goto_returns_node():
-    node = PUSH_AND_GOTO("from", "to")
-    assert node.tag == "__PUSH_AND_GOTO__"
+def test_call_returns_node():
+    node = CALL("to", from_adr="from")
+    assert node.tag == "__CALL__"
     assert node.wrap_to_async is False
 
 
-# Unit tests — PUSH_STACK logic
+# Unit tests — PUSH_RET logic
 
 
-def test_push_stack_with_alias_pushes_resolved_address():
+def test_push_ret_with_alias_pushes_resolved_address():
     pc = _FakeInterpreter()
-    node = PUSH_STACK("after")
+    node = PUSH_RET("after")
     node._post_compile(_FakeRendered({"after": [3, 1]}))
     node(pc)  # type: ignore[arg-type]
     assert len(pc._ret_addr_stack) == 1
     assert pc._ret_addr_stack.stack[-1].base_addr == [3, 1]
 
 
-def test_push_stack_with_list_pushes_raw_address():
+def test_push_ret_with_list_pushes_raw_address():
     pc = _FakeInterpreter()
-    node = PUSH_STACK([7, 2])
+    node = PUSH_RET([7, 2])
     node._post_compile(_FakeRendered({}))
     node(pc)  # type: ignore[arg-type]
     assert len(pc._ret_addr_stack) == 1
     assert pc._ret_addr_stack.stack[-1].base_addr == [7, 2]
 
 
-def test_push_stack_multiple():
+def test_push_ret_multiple():
     pc = _FakeInterpreter()
-    n1 = PUSH_STACK("s1")
+    n1 = PUSH_RET("s1")
     n1._post_compile(_FakeRendered({"s1": [1]}))
     n1(pc)  # type: ignore[arg-type]
-    n2 = PUSH_STACK("s2")
+    n2 = PUSH_RET("s2")
     n2._post_compile(_FakeRendered({"s2": [2]}))
     n2(pc)  # type: ignore[arg-type]
     assert len(pc._ret_addr_stack) == 2
@@ -115,35 +115,35 @@ def test_push_stack_multiple():
     assert pc._ret_addr_stack.stack[1].base_addr == [2]
 
 
-# Unit tests — RET_FAR logic
+# Unit tests — RET logic
 
 
-def test_ret_far_pops_and_jumps():
+def test_ret_pops_and_jumps():
     pc = _FakeInterpreter()
     pc._ret_addr_stack.push(PointerVector([5, 0]))
-    node = RET_FAR()
+    node = RET()
     node(pc)  # type: ignore[arg-type]
     assert len(pc._ret_addr_stack) == 0
     assert pc._pointer.base_addr == [5, 0]
 
 
-def test_ret_far_lifo_order():
+def test_ret_lifo_order():
     pc = _FakeInterpreter()
     pc._ret_addr_stack.push(PointerVector([1]))
     pc._ret_addr_stack.push(PointerVector([2]))
-    RET_FAR()(pc)  # type: ignore[arg-type]
+    RET()(pc)  # type: ignore[arg-type]
     assert pc._pointer.base_addr == [2]
-    RET_FAR()(pc)  # type: ignore[arg-type]
+    RET()(pc)  # type: ignore[arg-type]
     assert pc._pointer.base_addr == [1]
     assert len(pc._ret_addr_stack) == 0
 
 
-# Unit tests — PUSH_AND_GOTO logic
+# Unit tests — CALL logic
 
 
-def test_push_and_goto_alias_alias():
+def test_call_alias_alias():
     pc = _FakeInterpreter()
-    node = PUSH_AND_GOTO("from_addr", "to_addr")
+    node = CALL("to_addr", from_adr="from_addr")
     node._post_compile(_FakeRendered({"from_addr": [1], "to_addr": [2]}))
     node(pc)  # type: ignore[arg-type]
     assert len(pc._ret_addr_stack) == 1
@@ -151,27 +151,27 @@ def test_push_and_goto_alias_alias():
     assert pc._pointer.base_addr == [2]
 
 
-def test_push_and_goto_list_alias():
+def test_call_list_alias():
     pc = _FakeInterpreter()
-    node = PUSH_AND_GOTO([1, 0], "to_addr")
+    node = CALL("to_addr", from_adr=[1, 0])
     node._post_compile(_FakeRendered({"to_addr": [2]}))
     node(pc)  # type: ignore[arg-type]
     assert pc._ret_addr_stack.stack[-1].base_addr == [1, 0]
     assert pc._pointer.base_addr == [2]
 
 
-def test_push_and_goto_alias_list():
+def test_call_alias_list():
     pc = _FakeInterpreter()
-    node = PUSH_AND_GOTO("from_addr", [2, 0])
+    node = CALL([2, 0], from_adr="from_addr")
     node._post_compile(_FakeRendered({"from_addr": [1]}))
     node(pc)  # type: ignore[arg-type]
     assert pc._ret_addr_stack.stack[-1].base_addr == [1]
     assert pc._pointer.base_addr == [2, 0]
 
 
-def test_push_and_goto_list_list():
+def test_call_list_list():
     pc = _FakeInterpreter()
-    node = PUSH_AND_GOTO([3], [4])
+    node = CALL([4], from_adr=[3])
     node._post_compile(_FakeRendered({}))
     node(pc)  # type: ignore[arg-type]
     assert pc._ret_addr_stack.stack[-1].base_addr == [3]
@@ -185,14 +185,14 @@ from amrita_sense import ALIAS, NOP  # noqa: E402
 
 
 @pytest.mark.asyncio
-async def test_push_stack_goto_ret_far_roundtrip():
-    """PUSH_STACK + GOTO + RET_FAR pattern with real interpreter.
+async def test_push_ret_jmp_ret_roundtrip():
+    """PUSH_RET + JMP + RET pattern with real interpreter.
 
-    Since v0.6.0, RET_FAR uses rebase_ptr (no jump flag) and the interpreter
+    Since v0.6.0, RET uses rebase_ptr (no jump flag) and the interpreter
     advances onto the node AFTER the saved address — so the caller must push
     the predecessor of the real resume point (the "resume" NOP).
     """
-    from amrita_sense.instructions.jump import GOTO
+    from amrita_sense.instructions.jump import JMP
 
     executed: list[str] = []
 
@@ -210,13 +210,13 @@ async def test_push_stack_goto_ret_far_roundtrip():
 
     comp = (
         start
-        >> PUSH_STACK("resume")  # push the NOP right before `returned`
-        >> GOTO("work")
-        >> ALIAS(NOP, "resume")  # RET_FAR rebases here -> advance lands on returned
+        >> PUSH_RET("resume")  # push the NOP right before `returned`
+        >> JMP("work")
+        >> ALIAS(NOP, "resume")  # RET rebases here -> advance lands on returned
         >> ALIAS(returned, "after")
-        >> GOTO("end")
+        >> JMP("end")
         >> ALIAS(work, "work")
-        >> RET_FAR()
+        >> RET()
         >> ALIAS(NOP, "end")
     )
     interpreter = WorkflowInterpreter(comp.render())
@@ -225,9 +225,9 @@ async def test_push_stack_goto_ret_far_roundtrip():
 
 
 @pytest.mark.asyncio
-async def test_push_and_goto_equivalent_to_push_stack_plus_goto():
-    """PUSH_AND_GOTO(None, ...) should behave identically to PUSH_STACK + GOTO."""
-    from amrita_sense.instructions.jump import GOTO
+async def test_call_equivalent_to_push_ret_plus_jmp():
+    """CALL(target) should behave identically to PUSH_RET + JMP."""
+    from amrita_sense.instructions.jump import JMP
 
     executed: list[str] = []
 
@@ -245,13 +245,11 @@ async def test_push_and_goto_equivalent_to_push_stack_plus_goto():
 
     comp = (
         start
-        >> PUSH_AND_GOTO(None, "work")  # None in main flow = current pointer
-        >> ALIAS(
-            returned, "after"
-        )  # RET_FAR rebases to PUSH_AND_GOTO -> advance lands here
-        >> GOTO("end")
+        >> CALL("work")  # from_adr=None in main flow = current pointer
+        >> ALIAS(returned, "after")  # RET rebases to CALL -> advance lands here
+        >> JMP("end")
         >> ALIAS(work, "work")
-        >> RET_FAR()
+        >> RET()
         >> ALIAS(NOP, "end")
     )
     interpreter = WorkflowInterpreter(comp.render())
