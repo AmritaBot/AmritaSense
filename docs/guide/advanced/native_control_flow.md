@@ -1,8 +1,8 @@
 # Native Control Flow
 
-The **native control flow instruction set** introduced in AmritaSense v0.5.1 — `NATIVE_IF`, `NATIVE_WHILE`, `NATIVE_DO`, `BREAK_LOOP`, and `CONTINUE` — is an **orthogonal extension** to the traditional `IF`/`WHILE`/`DO` control flow primitives.
+The **native control flow instruction set** — `NATIVE_IF`, `NATIVE_WHILE`, `NATIVE_DO`, `BREAK_LOOP`, and `CONTINUE` — is an **orthogonal extension** to the traditional `IF`/`WHILE`/`DO` control flow primitives.
 
-Since v0.6.0, the loop mechanics were redesigned: loop bodies always end with the `CONTINUE()` instruction (factory), `BREAK_LOOP()` became a factory function, and `RET` is **no longer involved** in native loops.
+Loop bodies always end with the `CONTINUE()` instruction (a factory), `BREAK_LOOP()` is a factory function, and `RET` is **not involved** in native loops.
 
 ## Design Philosophy
 
@@ -58,7 +58,7 @@ graph LR
 
 ### Bubble Branch Body
 
-When `body` is a `NodeCompose`, the compiler wraps it as a **bubble** (a nested container). Since v0.6.0 the bubble has **no `RET`** — it flows back to the merge point naturally via `advance_pointer`, exactly like a Python `if`/`else` block (no early-return semantics):
+When `body` is a `NodeCompose`, the compiler wraps it as a **bubble** (a nested container). The bubble has **no `RET`** — it flows back to the merge point naturally via `advance_pointer`, exactly like a Python `if`/`else` block (no early-return semantics):
 
 ```python
 NATIVE_IF(cond, step_a >> step_b).ELSE(fallback_a >> fallback_b)
@@ -96,7 +96,7 @@ NATIVE_WHILE(check_alive).ACTION(heartbeat)  # single node
 NATIVE_WHILE(cond).ACTION(step_a >> step_b)  # bubble
 ```
 
-Since v0.6.0, single-node and bubble bodies take the **same code path**: the body is always wrapped as `NodeCompose(body, CONTINUE())`, and the loop iterates via the trailing `CONTINUE()`.
+Single-node and bubble bodies take the **same code path**: the body is always wrapped as `NodeCompose(body, CONTINUE())`, and the loop iterates via the trailing `CONTINUE()`.
 
 Compiled layout:
 
@@ -172,7 +172,7 @@ First entry: `NativeBubbleEnterNode` PUSHes `[0]` (its own address), JMP into bo
 Loop re-entry: the body's trailing `CONTINUE()` pops the stack and `jump_far_ptr`s to `[2]` (the do-while node); condition true → `NativeDoWhileNode` `jump_near(0)`, triggering `NativeBubbleEnterNode` again to PUSH + JMP into the body.
 Loop exit: condition false → `jump_near(4)` to NOP exit. Or `BREAK_LOOP()` for active break.
 
-> **Semantic alignment**: As of v0.6.0, DO and WHILE loop bodies behave identically — both always end with `CONTINUE()`, and `BREAK_LOOP()` / `CONTINUE()` handle both uniformly.
+> **Semantic alignment**: DO and WHILE loop bodies behave identically — both always end with `CONTINUE()`, and `BREAK_LOOP()` / `CONTINUE()` handle both uniformly.
 
 ## Selection Guide
 

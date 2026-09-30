@@ -108,7 +108,7 @@ sequenceDiagram
 - This means `wait_to_suspend()` can be called **before** or **after** the interpreter starts — as long as the signal is set on SoS, the interpreter will hit it on the next clock cycle.
 - The interpreter's suspension occurs in the **gaps between nodes**, not during node execution. It is therefore "cooperative" — a node must fully execute to its boundary before the interpreter can respond to a suspend.
 
-### Concurrency Safety (v0.3.2+)
+### Concurrency Safety
 
 `SuspendObjectStream` is fully concurrency-safe. Multiple coroutines and threads can safely share a single instance — concurrent `wait_to_suspend()`, `resume()`, `yield_response()`, and `push_object()` calls are protected by the **CLCA (Cross Loop Callback-Allocate) signal design pattern**. See [CLCA Design Pattern](/guide/practice/clca-design-pattern) for details.
 

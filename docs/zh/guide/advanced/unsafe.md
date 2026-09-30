@@ -80,7 +80,7 @@ NO_SHARED_MIDDLEWARE: bool = False
 
 **适用场景**：希望父子解释器之间严格隔离中间件，倾向于显式按需开启的模式。
 
-### `SQUASHED_LOOP`（v0.4.3+）
+### `SQUASHED_LOOP`
 
 ```python
 SQUASHED_LOOP: bool = False
@@ -90,7 +90,7 @@ SQUASHED_LOOP: bool = False
 
 **适用场景**：热循环场景（具有大量迭代的紧内层循环），迭代间开销可测量且不需要在外层中断单个循环子步骤。注意在压扁模式下，`BreakLoop` 和 `jump_marked` 仍然被正确处理——不支持跳转到循环结构之外的地址。
 
-### `WORKFLOW_DI_NO_CACHE`（v0.4.2+）
+### `WORKFLOW_DI_NO_CACHE`
 
 ```python
 WORKFLOW_DI_NO_CACHE: bool = False
@@ -102,7 +102,7 @@ WORKFLOW_DI_NO_CACHE: bool = False
 
 **适用场景**：依赖提供者有副作用、每次调用都必须执行；或参数频繁变化、缓存命中率预期很低。注意此标志在 `_writeables` 中，可在运行时切换。
 
-### `WORKFLOW_DI_PRELOAD_CACHE`（v0.4.2+）
+### `WORKFLOW_DI_PRELOAD_CACHE`
 
 ```python
 WORKFLOW_DI_PRELOAD_CACHE: bool = False
@@ -114,7 +114,7 @@ WORKFLOW_DI_PRELOAD_CACHE: bool = False
 
 > **⚠️ 冲突**：此标志与 `NO_DEPENDENCY_META_CACHE` 冲突，同时设置会抛出 `RuntimeError`。
 
-### `WORKFLOW_DI_PRELOAD_BATCH`（v0.4.2+）
+### `WORKFLOW_DI_PRELOAD_BATCH`
 
 ```python
 WORKFLOW_DI_PRELOAD_BATCH: int = 10
@@ -124,7 +124,7 @@ WORKFLOW_DI_PRELOAD_BATCH: int = 10
 
 **适用场景**：需要平衡预加载速度与事件循环响应性时调整此值。此标志在 `_writeables` 中，可在调用 `run()` 之前随时调整。
 
-### 标志冲突检测（v0.4.2+）
+### 标志冲突检测
 
 某些标志组合互斥。引擎在赋值时强制检测——设置会产生冲突的标志将抛出 `RuntimeError`，消息列出冲突标志。
 

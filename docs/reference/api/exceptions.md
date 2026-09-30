@@ -34,7 +34,7 @@ When the interpreter main loop catches `InterruptNotice`:
 4. Resets the `_jump_marked` flag
 5. The workflow exits cleanly with no residual state
 
-## InterruptKeepContext (v0.4.x+)
+## InterruptKeepContext
 
 `InterruptKeepContext` is a subclass of `InterruptNotice` that terminates workflow execution while **preserving interpreter state**. Unlike `InterruptNotice`, which triggers a full `reset()`, this exception leaves the pointer, call stack, and dependency injection parameters intact.
 
@@ -84,7 +84,7 @@ class BreakLoop(Exception):
 - It penetrates all intermediate exception handling layers and reaches the innermost `WhileNode` or `DONode`.
 - The loop node catches `BreakLoop` and executes `jump_near(NOP)`, exiting cleanly.
 
-> **v0.3.0+**: This auto-inclusion can be disabled via `__flags__.DISABLE_EXC_IGNORED = True` from `amrita_sense._unsafe`. See [Unsafe Features](../../guide/advanced/unsafe.md) for details.
+> This auto-inclusion can be disabled via `__flags__.DISABLE_EXC_IGNORED = True` from `amrita_sense._unsafe`. See [Unsafe Features](../../guide/advanced/unsafe.md) for details.
 
 **Usage**
 
@@ -102,7 +102,7 @@ def process_item():
 
 **Note**: Developers should **not** manually add `BreakLoop` to `exception_ignored` — it is already added automatically during interpreter initialization. Adding it again has no additional effect; attempting to remove it would cause `CATCH` blocks inside loops to accidentally capture `BreakLoop`, breaking loop semantics.
 
-## IllegalState (v0.3.0+)
+## IllegalState
 
 Raised when an operation is attempted in an invalid state. Common triggers:
 
@@ -122,7 +122,7 @@ class DependsException(Exception):
     """Base class for all dependency injection related exceptions."""
 ```
 
-### AliasNotFoundError (v0.4.x+)
+### AliasNotFoundError
 
 Raised when a JMP or INVOKE instruction references an alias that does not exist in the workflow graph's alias registry. Detected at compile time during `_post_compile`. Replaces the generic `RuntimeError` / `ValueError` previously used for alias resolution failures.
 
@@ -162,7 +162,7 @@ class DependsInjectFailed(Exception):
 
 Unlike the event system's "return `None` to skip" behavior, in node execution, if a dependency factory declared via `Depends` returns `None`, the workflow **raises an exception and terminates immediately**. Nodes are atomic execution units, and dependency resolution failure means the node cannot run — this is not a "skip" scenario. Therefore, dependency factory functions designed for nodes should always return a valid value (or raise an explicit exception when unable to provide one, rather than returning `None`).
 
-## GraphBuildError (v0.4.x+)
+## GraphBuildError
 
 Raised when workflow graph building or rendering fails. Common triggers:
 
@@ -170,7 +170,7 @@ Raised when workflow graph building or rendering fails. Common triggers:
 - Attempting to build an already-built `NodeComposeRendered`
 - Missing original graph during rendering
 
-## StreamStateError (v0.4.x+)
+## StreamStateError
 
 Raised when a `SuspendObjectStream` operation is attempted in an invalid state. Common triggers:
 
@@ -203,11 +203,11 @@ Exception
 - `InterruptNotice` inherits from `BaseException`, achieving natural uncatchability.
 - `InterruptKeepContext` inherits from `InterruptNotice`, preserving context for later recovery.
 - `BreakLoop` inherits from `Exception`, but gains equivalent penetration capability through automatic inclusion in `_exc_ignored`.
-- `IllegalState` was added in v0.3.0 to protect interpreter tree API call validity and instruction syntax constraints.
-- `AliasNotFoundError` / `GraphBuildError` / `StreamStateError` are fine-grained exception types added in v0.4.x+.
+- `IllegalState` protects interpreter tree API call validity and instruction syntax constraints.
+- `AliasNotFoundError` / `GraphBuildError` / `StreamStateError` are fine-grained exception types.
 - All dependency-related exceptions inherit from `DependsException`, allowing users to catch the entire dependency error category as needed.
 
-## `search_exceptions()` (v0.3.0+)
+## `search_exceptions()`
 
 ```python
 from amrita_sense.utils import search_exceptions

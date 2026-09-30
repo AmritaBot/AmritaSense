@@ -74,7 +74,7 @@ The only exception is when `InterruptNotice` is explicitly included in the `exce
 - **Emergency safety stop**: insert `RESET` in the workflow when an unrecoverable error or dangerous condition occurs.
 - **Timeout handling**: a node can check timeout conditions before execution and raise `RESET` to force termination.
 
-## SUSPEND context-preserving termination (v0.4.x+)
+## SUSPEND context-preserving termination
 
 `SUSPEND` is a variant termination node that raises `InterruptKeepContext` instead of `InterruptNotice`. Unlike `RESET`, the interpreter does **not** call `reset()` after catching this exception — the pointer, call stack, dependency injection parameters, and all execution state are **preserved** for later recovery.
 

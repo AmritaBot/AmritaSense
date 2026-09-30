@@ -78,7 +78,7 @@ await WorkflowInterpreter(comp.render()).run()
 
 > Because `RET` does not set the jump flag, the saved address must be the **predecessor** of the real target (`target - 1`). The `"resume"` NOP plays that role here.
 
-## CALL (v0.3.0+)
+## CALL
 
 `CALL(to_adr, *, from_adr=None)` is a convenience instruction that combines
 `PUSH_RET` + `JMP` into a single node. Internally it:
@@ -137,7 +137,7 @@ flow would re-enter it after `after_return`.
 
 ## Subroutine-like Pattern with FN
 
-Since v0.6.0, the modern way to write a self-contained "subroutine" is **`FN(entrypoint, block)`** — it embeds its own skip mechanism (`_fn_escape`) and auto-appends `RET()`. Call it with `CALL(entrypoint)`; no manual `PUSH_RET` / `JMP` / `RET` plumbing is needed:
+The modern way to write a self-contained "subroutine" is **`FN(entrypoint, block)`** — it embeds its own skip mechanism (`_fn_escape`) and auto-appends `RET()`. Call it with `CALL(entrypoint)`; no manual `PUSH_RET` / `JMP` / `RET` plumbing is needed:
 
 ```python
 from amrita_sense import Node, WorkflowInterpreter

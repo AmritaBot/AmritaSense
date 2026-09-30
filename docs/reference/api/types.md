@@ -31,7 +31,7 @@ Key operations:
 
 The stack is protected by a lock and raises `OverflowError` if capacity is exceeded.
 
-## InterpreterContext (v0.4.x+)
+## InterpreterContext
 
 `InterpreterContext` is a dataclass that stores a complete snapshot of the interpreter's execution state. It is used by `PUSH_CONTEXT`/`POP_CONTEXT` and `INT`/`IRET` for save/restore workflows.
 
@@ -56,7 +56,7 @@ Fields:
 - `stack`: Snapshot of the return-address stack. `None` if excluded.
 - `exception`: Snapshot of the panic exception, or `None` if no panic occurred.
 
-## DICache (v0.4.2+)
+## DICache
 
 `DICache` is a dataclass that manages the dependency injection result cache within the `WorkflowInterpreter`. It combines args fingerprinting with an LRU cache to avoid redundant DI resolution.
 

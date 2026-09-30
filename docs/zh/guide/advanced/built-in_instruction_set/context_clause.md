@@ -1,6 +1,6 @@
 # 上下文快照与中断转移指令 (PUSH_CONTEXT/POP_CONTEXT/INT/IRET)
 
-`PUSH_CONTEXT`、`POP_CONTEXT`、`INT` 和 `IRET` 是 v0.4.x+ 引入的四条指令，它们协同工作以提供**完整的解释器状态保存/恢复**——类似于 CPU 的上下文切换机制。
+`PUSH_CONTEXT`、`POP_CONTEXT`、`INT` 和 `IRET` 是四条指令，它们协同工作以提供**完整的解释器状态保存/恢复**——类似于 CPU 的上下文切换机制。
 
 > **核心区分**
 > `PUSH_RET` / `RET` 仅保存和恢复**返回地址**（`_ret_addr_stack`）。`PUSH_CONTEXT` / `POP_CONTEXT` 保存和恢复**整个解释器状态**：指针、异常忽略列表、依赖注入参数、返回地址栈和 panic 异常。`INT` / `IRET` 将前者封装为便捷的"中断 ➔ 处理 ➔ 返回"模式。
@@ -31,7 +31,7 @@ def PUSH_CONTEXT(
 ) -> NodeType[None]
 ```
 
-将当前解释器状态的完整快照保存到**上下文栈**（`pc.context_stack`）上。v0.6.0 起它**不再跳转**——快照的指针被设置为解析后的 `alias_or_idata` 地址，恢复时执行从那里继续（它充当**返回地址**，而非跳转目标）。如果需要进入子流程，请随后显式使用 `JMP` / `INT`。
+将当前解释器状态的完整快照保存到**上下文栈**（`pc.context_stack`）上。它**不再跳转**——快照的指针被设置为解析后的 `alias_or_idata` 地址，恢复时执行从那里继续（它充当**返回地址**，而非跳转目标）。如果需要进入子流程，请随后显式使用 `JMP` / `INT`。
 
 这是底层原语——与 `INT` 不同，它**不**设置 `if_flag`，也**不**守卫 IF 分支内调用。配合 `IRET` 恢复；也可手动弹出并调用 `pc.rebase_context()`。
 
@@ -59,7 +59,7 @@ def PUSH_CONTEXT(
 1. 将 `alias_or_idata`（为 `None` 时取 `_ret_addr_stack` 栈顶）解析为绝对地址。
 2. 调用 `pc.dump_interpreter(exclude_deps, exclude_stack)` 构建 `InterpreterContext`。
 3. 用解析后的返回地址覆盖 `ctx.ptr`。
-4. 将上下文压入 `pc.context_stack`——**不执行任何跳转**（v0.6.0+）。
+4. 将上下文压入 `pc.context_stack`——**不执行任何跳转**。
 
 > 由于 `IRET` 通过 `rebase_context` 恢复（不设跳转标记），执行在保存地址的**下一个节点**继续。请保存真正恢复点的前驱（例如它前面的 `NOP`），或依赖 `INT(..., ret_to=None)` 自动处理。
 
@@ -143,7 +143,7 @@ def IRET() -> NodeType[None]
 | 特性             | PUSH_RET + RET      | PUSH_CONTEXT + IRET        | INT + IRET                 |
 | ---------------- | ------------------- | -------------------------- | -------------------------- |
 | **保存内容**     | 仅返回地址          | 完整解释器状态             | 完整解释器状态             |
-| **保存时跳转**   | 否（需单独 JMP）    | 否（需单独 JMP，v0.6.0+）  | 是（jump_to）              |
+| **保存时跳转**   | 否（需单独 JMP）    | 否（需单独 JMP）           | 是（jump_to）              |
 | **返回地址**     | PUSH_RET 目标       | 解析的别名 / ret 栈顶      | `ret_to` 参数（或默认值）  |
 | **依赖注入参数** | 不保存              | 可选（exclude_deps=False） | 始终保存                   |
 | **if_flag 管理** | 不涉及              | 不涉及                     | 入口自动设置，出口自动清除 |
@@ -179,7 +179,7 @@ async def after_restore() -> None:
 comp = (
     start
     >> PUSH_CONTEXT("resume")  # 快照；返回地址 = resume NOP
-    >> JMP("sub_entry")  # 显式跳入子流程（v0.6.0+）
+    >> JMP("sub_entry")  # 显式跳入子流程
     >> ALIAS(NOP, "resume")  # IRET rebase 到这里 -> advance 落到 after_restore
     >> after_restore
     >> ALIAS(sub_work, "sub_entry")

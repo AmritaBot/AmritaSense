@@ -1,6 +1,6 @@
 # REPL 调试
 
-AmritaSense v0.5.0 引入了一个专用的调试器模块 `amrita_sense.debugger`，提供纯函数式的 REPL 优先调试工具包。它利用解释器内置的 Panic/Recover 机制、中间件注入和步进执行，让你在 Python REPL 中像调试本地程序一样调试工作流——无需额外工具、无需 IDE 插件。
+AmritaSense 提供了一个专用的调试器模块 `amrita_sense.debugger`——纯函数式的 REPL 优先调试工具包。它利用解释器内置的 Panic/Recover 机制、中间件注入和步进执行，让你在 Python REPL 中像调试本地程序一样调试工作流——无需额外工具、无需 IDE 插件。
 
 > **前置阅读**
 > 建议先了解 [执行与中断](/zh/guide/concepts/exec_and_interrupt) 中的步进执行和挂起机制，以及 [外部中断调用](/zh/guide/advanced/external_interrupt) 中的 `call_sub(interrupt=True)` 原理。本文依赖这些基础设施构建完整的调试体验。

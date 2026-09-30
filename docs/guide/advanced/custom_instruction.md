@@ -176,7 +176,7 @@ class ExecuteWhen(SelfCompileInstruction):
 ExecuteWhen(has_data, process_data)
 ```
 
-This is equivalent to `IF(has_data, process_data)` — when the condition is false the workflow just skips the action (no `ELSE(NOP)` needed since v0.6.0).
+This is equivalent to `IF(has_data, process_data)` — when the condition is false the workflow just skips the action (no `ELSE(NOP)` needed).
 
 ### Extended version with else branch
 

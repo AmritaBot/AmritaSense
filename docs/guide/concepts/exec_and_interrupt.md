@@ -137,7 +137,7 @@ Python's `except Exception` does not catch `BaseException` subclasses. Therefore
    workflow = Sequence(StepA(), Branch(If(condition=is_error, then=RESET), ...))
    ```
 
-**InterruptKeepContext (v0.4.x+)**
+**InterruptKeepContext**
 
 `InterruptKeepContext` is a subclass of `InterruptNotice` that provides a **context-preserving** variant. When the interpreter catches it, instead of calling `reset()`, the pointer, call stacks, and dependency injection parameters are left intact. Execution can be resumed by calling `run()` again on the same interpreter.
 
@@ -231,7 +231,7 @@ Unlike `InterruptNotice` (which is still an exception thrown from within), `call
 - **Node execution is inside the lock**: Guarantees state consistency during execution
 - **External interrupt is mutually exclusive with the main loop**: Only one runs inside the lock at a time
 
-### `outer_interpreting` (v0.6.0+)
+### `outer_interpreting`
 
 During **any** `call_sub` execution (regardless of `interrupt`), the read-only property `outer_interpreting` is `True`; it is cleared when the call returns. `CALL` / `INT` consult it when `from_adr` / `ret_to` is `None`: inside a call they reuse the top of `_ret_addr_stack` (the parent's return address), otherwise they use the current pointer. This guarantees correct return semantics for sub-calls injected mid-cycle.
 
@@ -362,5 +362,5 @@ The core value of this system is:
 In the advanced chapters, we will explore how to combine this interruption mechanism with interpreter locks and external calls to build a full debugger or external monitoring system.
 
 ::: tip REPL Debugger
-Building on this interrupt infrastructure, v0.5.0 provides a dedicated `amrita_sense.debugger` module with breakpoints, stepping, and state inspection — a complete REPL debugging experience. Import everything with `from amrita_sense.debugger import *`; all functions are callable synchronously. See [REPL Debugging](/guide/practice/repl-debugging) for details.
+Building on this interrupt infrastructure, the `amrita_sense.debugger` module adds breakpoints, stepping, and state inspection — a complete REPL debugging experience. Import everything with `from amrita_sense.debugger import *`; all functions are callable synchronously. See [REPL Debugging](/guide/practice/repl-debugging) for details.
 :::

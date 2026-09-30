@@ -67,7 +67,7 @@ AmritaSense 提供了两种标准循环范式：`WHILE`（先判断后执行）�
 - 它会直接穿透到最外层的 `WhileNode` 或 `DONode`
 - `WhileNode` 和 `DONode` 内部用 `try-except BreakLoop` 捕获该信号，然后执行 `jump_near(NOP)` 干净退出
 
-> **v0.3.0+**：此自动加入行为可通过 `amrita_sense._unsafe` 中的 `__flags__.DISABLE_EXC_IGNORED = True` 禁用。详见 [Unsafe 特性](../unsafe.md)。
+> 此自动加入行为可通过 `amrita_sense._unsafe` 中的 `__flags__.DISABLE_EXC_IGNORED = True` 禁用。详见 [Unsafe 特性](../unsafe.md)。
 
 ### continue 的等效实现
 
@@ -124,7 +124,7 @@ def fetch():
 retry = DO(fetch).WHILE(has_more)
 ```
 
-## Squashed Loop 模式（v0.4.3+）
+## Squashed Loop 模式
 
 默认情况下，`WHILE` 和 `DO-WHILE` 循环使用**步进式**执行模型：解释器逐节点推进 `WhileNode`/`DONode` → condition → action → `CheckUpNode`/`DowhileNode`，每一步都经过完整的 `run_step_by()` 循环（指针推进、锁获取/释放、跳转操作）。
 

@@ -1,6 +1,6 @@
 # Interrupt Routine &amp; Return
 
-AmritaSense v0.4.x+ introduces a new capability for **interrupt-style control transfer within a workflow**: save the full interpreter state, jump to a handler routine, then restore and return. This is analogous to how a CPU saves context before vectoring to an interrupt service routine (ISR) and restores it on return.
+AmritaSense supports **interrupt-style control transfer within a workflow**: save the full interpreter state, jump to a handler routine, then restore and return. This is analogous to how a CPU saves context before vectoring to an interrupt service routine (ISR) and restores it on return.
 
 > **Comparison with PUSH_RET / RET**
 > `PUSH_RET` / `RET` manage only the **return address stack** — like a CPU saving just the program counter. `PUSH_CONTEXT` / `POP_CONTEXT` save the **complete interpreter state** — like a full CPU context switch including all registers. See [Manual Stack Management](/guide/practice/manual-stack-management) for the return-address-only approach.
@@ -29,7 +29,7 @@ Each `WorkflowInterpreter` now maintains a **context stack** (`pc.context_stack`
 
 ## Pattern 1: PUSH_CONTEXT + IRET (Simplest Context Save)
 
-The simplest pattern — save full state, jump to a sub-routine, restore and return. Since v0.6.0, `PUSH_CONTEXT` no longer jumps, so the jump into the sub-routine must be explicit (`JMP`). No trailing `JMP("done")` / `ALIAS(NOP, "done")` is needed — the archived block skips itself and the interpreter finishes at the end of the workflow.
+The simplest pattern — save full state, jump to a sub-routine, restore and return. `PUSH_CONTEXT` does not jump, so the jump into the sub-routine must be explicit (`JMP`). No trailing `JMP("done")` / `ALIAS(NOP, "done")` is needed — the archived block skips itself and the interpreter finishes at the end of the workflow.
 
 ```python
 from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
@@ -47,7 +47,7 @@ async def after_restore() -> None: ...
 comp = (
     start
     >> PUSH_CONTEXT("resume")  # save state; return address = resume NOP
-    >> JMP("sub_entry")  # explicit jump to sub (v0.6.0+)
+    >> JMP("sub_entry")  # explicit jump to sub
     >> ALIAS(NOP, "resume")  # IRET rebases here -> advance onto after_restore
     >> after_restore  # resumed here after IRET
     >> ALIAS(sub_routine, "sub_entry")
@@ -175,7 +175,7 @@ See [External Interrupt Calls](/guide/advanced/external_interrupt) for the exter
 ## Caveats
 
 1. **INT with `if_state=True` inside IF branches**: `pc.if_flag == True` raises `IllegalState`. With the default `if_state=False`, nesting is allowed (Pattern 4).
-2. **ret_to is optional (v0.6.0+)**: `INT(jump_to)` works without `ret_to` — `None` resolves to the top of `_ret_addr_stack` inside a `call_sub`, otherwise to the current pointer (advancing onto the next node after restore). Prefer `None` over a manual `restore_here` NOP.
+2. **ret_to is optional**: `INT(jump_to)` works without `ret_to` — `None` resolves to the top of `_ret_addr_stack` inside a `call_sub`, otherwise to the current pointer (advancing onto the next node after restore). Prefer `None` over a manual `restore_here` NOP.
 3. **if_flag cleared on return**: After `IRET`, `pc.if_flag` is always reset to `False`.
 4. **IRET does not set the jump flag**: it restores via `rebase_context` (i.e. `rebase_ptr`) — execution resumes at the node **after** the saved address. Save the predecessor of your real resume point when using `PUSH_CONTEXT` / explicit `ret_to`.
 5. **Dependency injection preserved**: `INT` always includes `s_args` and `s_kwargs`.

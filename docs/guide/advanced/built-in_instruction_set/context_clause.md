@@ -1,6 +1,6 @@
 # Context Snapshot &amp; Interrupt Transfer Instructions (PUSH_CONTEXT/POP_CONTEXT/INT/IRET)
 
-`PUSH_CONTEXT`, `POP_CONTEXT`, `INT` and `IRET` are four instructions introduced in v0.4.x+ that work together to provide **full interpreter state save/restore** — analogous to a CPU's context-switch mechanism.
+`PUSH_CONTEXT`, `POP_CONTEXT`, `INT` and `IRET` are four instructions that work together to provide **full interpreter state save/restore** — analogous to a CPU's context-switch mechanism.
 
 > **Key distinction**
 > `PUSH_RET` / `RET` save and restore **only the return address** (`_ret_addr_stack`). `PUSH_CONTEXT` / `POP_CONTEXT` save and restore the **entire interpreter state**: pointer, exception-ignore list, dependency injection parameters, return-address stack, and panic exception. `INT` / `IRET` wrap the former pair into a convenient "interrupt ➔ handler ➔ return" pattern.
@@ -31,7 +31,7 @@ def PUSH_CONTEXT(
 ) -> NodeType[None]
 ```
 
-Saves a complete snapshot of the current interpreter state onto the **context stack** (`pc.context_stack`). Since v0.6.0 it does **not** jump — the snapshot's pointer is set to the resolved `alias_or_idata` address so that when the context is later restored, execution resumes there (it serves as the **return address**, not a jump target). If you need to move to the sub-flow, follow it with an explicit `JMP` / `INT`.
+Saves a complete snapshot of the current interpreter state onto the **context stack** (`pc.context_stack`). It does **not** jump — the snapshot's pointer is set to the resolved `alias_or_idata` address so that when the context is later restored, execution resumes there (it serves as the **return address**, not a jump target). If you need to move to the sub-flow, follow it with an explicit `JMP` / `INT`.
 
 This is the low-level primitive — unlike `INT`, it does **not** set `if_flag` and does **not** guard against being called inside an IF branch. Pair with `IRET` to restore; or pop manually and call `pc.rebase_context()`.
 
@@ -59,7 +59,7 @@ This is the low-level primitive — unlike `INT`, it does **not** set `if_flag` 
 1. Resolves `alias_or_idata` (or the top of `_ret_addr_stack` when `None`) to an absolute address.
 2. Calls `pc.dump_interpreter(exclude_deps, exclude_stack)` to build an `InterpreterContext`.
 3. Overwrites `ctx.ptr` with the resolved return address.
-4. Pushes the context onto `pc.context_stack` — **no jump is performed** (v0.6.0+).
+4. Pushes the context onto `pc.context_stack` — **no jump is performed**.
 
 > Since `IRET` restores via `rebase_context` (no jump flag), execution resumes at the node **after** the saved address. Save the predecessor of your real resume point (e.g. a `NOP` before it), or rely on `INT(..., ret_to=None)` which handles this automatically.
 
@@ -140,15 +140,15 @@ The counterpart to `INT`. Pops the top `InterpreterContext` from the context sta
 
 ## Comparison: Three Save/Restore Mechanisms
 
-| Feature                | PUSH_RET + RET             | PUSH_CONTEXT + IRET               | INT + IRET                         |
-| ---------------------- | -------------------------- | --------------------------------- | ---------------------------------- |
-| **Saves**              | Return address only        | Full interpreter state            | Full interpreter state             |
-| **Jumps on save**      | No (separate JMP needed)   | No (separate JMP needed, v0.6.0+) | Yes (jump_to)                      |
-| **Return address**     | PUSH_RET target            | Resolved alias / ret-stack top    | `ret_to` param (or default)        |
-| **Dependency args**    | Not saved                  | Optional (exclude_deps=False)     | Always saved                       |
-| **if_flag management** | Not involved               | Not involved                      | Auto set on entry, cleared on exit |
-| **Use case**           | Custom call/return schemes | Context save + jump primitives    | Interrupt-style handler entry/exit |
-| **Complexity**         | Low                        | Low                               | Low                                |
+| Feature                | PUSH_RET + RET             | PUSH_CONTEXT + IRET            | INT + IRET                         |
+| ---------------------- | -------------------------- | ------------------------------ | ---------------------------------- |
+| **Saves**              | Return address only        | Full interpreter state         | Full interpreter state             |
+| **Jumps on save**      | No (separate JMP needed)   | No (separate JMP needed)       | Yes (jump_to)                      |
+| **Return address**     | PUSH_RET target            | Resolved alias / ret-stack top | `ret_to` param (or default)        |
+| **Dependency args**    | Not saved                  | Optional (exclude_deps=False)  | Always saved                       |
+| **if_flag management** | Not involved               | Not involved                   | Auto set on entry, cleared on exit |
+| **Use case**           | Custom call/return schemes | Context save + jump primitives | Interrupt-style handler entry/exit |
+| **Complexity**         | Low                        | Low                            | Low                                |
 
 ---
 
@@ -179,7 +179,7 @@ async def after_restore() -> None:
 comp = (
     start
     >> PUSH_CONTEXT("resume")  # snapshot; return address = the resume NOP
-    >> JMP("sub_entry")  # explicit jump into the sub-flow (v0.6.0+)
+    >> JMP("sub_entry")  # explicit jump into the sub-flow
     >> ALIAS(NOP, "resume")  # IRET rebases here -> advance onto after_restore
     >> after_restore
     >> ALIAS(sub_work, "sub_entry")

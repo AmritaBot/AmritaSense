@@ -138,9 +138,9 @@ Or, while the workflow is running, call `call_sub(interrupt=True)` from another 
 
 Through this mechanism, AmritaSense transforms external intervention from "disruptive interrupts" into "safe function calls," providing a solid foundation for building full-featured debuggers, monitoring systems, and dynamic flow control.
 
-## 4.4.5 Interrupt Routines & Context Snapshots (v0.4.x+)
+## 4.4.5 Interrupt Routines & Context Snapshots
 
-AmritaSense v0.4.x+ provides built-in instructions for interrupt-style control transfer **within** a workflow: `INT` / `IRET`. Unlike `call_sub(interrupt=True)` which injects code from **outside** the interpreter, these instructions are placed directly in the `>>` chain and perform:
+AmritaSense provides built-in instructions for interrupt-style control transfer **within** a workflow: `INT` / `IRET`. Unlike `call_sub(interrupt=True)` which injects code from **outside** the interpreter, these instructions are placed directly in the `>>` chain and perform:
 
 1. Save complete interpreter state → `InterpreterContext`
 2. Jump to a handler routine (e.g., stored in `ARCHIVED_NODES`)
@@ -157,5 +157,5 @@ This is useful for:
 For complete examples and patterns, see [Interrupt Routine & Return](/guide/practice/interrupt-routine).
 
 ::: tip REPL Debugger
-Building on the external invocation mechanism and interrupt infrastructure, AmritaSense v0.5.0 provides a complete REPL debugger module `amrita_sense.debugger`, wrapping step execution, breakpoint management, and state inspection into synchronous functions — no manual `run_step_by()` loops required. See [REPL Debugging](/guide/practice/repl-debugging) for details.
+Building on the external invocation mechanism and interrupt infrastructure, AmritaSense provides a complete REPL debugger module `amrita_sense.debugger`, wrapping step execution, breakpoint management, and state inspection into synchronous functions — no manual `run_step_by()` loops required. See [REPL Debugging](/guide/practice/repl-debugging) for details.
 :::

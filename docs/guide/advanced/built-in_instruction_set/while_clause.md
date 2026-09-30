@@ -122,7 +122,7 @@ def fetch():
 retry = DO(fetch).WHILE(has_more)
 ```
 
-## Squashed Loop Mode (v0.4.3+)
+## Squashed Loop Mode
 
 By default, `WHILE` and `DO-WHILE` loops use a **stepping** execution model: the interpreter advances through `WhileNode`/`DONode` → condition → action → `CheckUpNode`/`DowhileNode` one node at a time, with each step going through the full `run_step_by()` cycle (pointer advance, lock acquire/release, jump operations).
 

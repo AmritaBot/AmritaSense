@@ -156,13 +156,13 @@ TRY(NodeType(lambda: print("This won't execute"))).CATCH(
 
 这种设计确保了依赖注入系统的健壮性和可预测性，同时为开发者提供了清晰的错误处理机制。
 
-## 4.1.7 DI 结果缓存（v0.4.2+）
+## 4.1.7 DI 结果缓存
 
-从 v0.4.2 起，`WorkflowInterpreter` 维护一个内部 DI 结果缓存（`_di_cache`），避免在相同参数类型下重复执行同一节点的依赖解析。
+`WorkflowInterpreter` 维护一个内部 DI 结果缓存（`_di_cache`），避免在相同参数类型下重复执行同一节点的依赖解析。
 
 ### 工作原理
 
-v0.6.0 起，缓存键由**节点函数标识** + 参数指纹组成（指针位置**不再**参与——同一节点函数在不同调用点共享缓存条目）：
+缓存键由**节点函数标识** + 参数指纹组成（指针位置不参与——同一节点函数在不同调用点共享缓存条目）：
 
 - **函数标识**：`id(node.func)` —— 节点底层的函数对象
 - **参数指纹**：基于 `_ava_args` 和 `_ava_kwargs` 的类型指纹
@@ -181,7 +181,7 @@ cache_key = hash((id(node.func), code))
 
 缓存载体是 `cachetools` 的 `LRUCache`，最大容量 2048 条。缓存满时按最近最少使用策略淘汰。每个条目存储 `(static_kwargs, non_cacheable_factories)`——见下方 `cacheable`。
 
-### `cacheable` 工厂（v0.6.0+）
+### `cacheable` 工厂
 
 `DependsFactory(cacheable=True)` 的提供者在**写入缓存时解析一次**，结果存入缓存。`cacheable=False`（默认）的提供者按原样存储，**每次调用**重新解析——适用于有副作用或取值随时间变化的提供者。该区分与缓存有效性（`hash_trustable`）正交。
 
@@ -209,7 +209,7 @@ pc2 = WorkflowInterpreter(rendered)
 await pc2.run()  # 每个节点从头重新解析依赖
 ```
 
-## 4.1.8 DI 预加载缓存（v0.4.2+）
+## 4.1.8 DI 预加载缓存
 
 启用 `__flags__.WORKFLOW_DI_PRELOAD_CACHE` 后，解释器在 `run()` 初始化阶段为**每个节点**预解析依赖注入——在第一个节点执行之前完成。
 

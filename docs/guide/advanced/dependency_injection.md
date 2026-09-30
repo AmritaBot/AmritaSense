@@ -153,13 +153,13 @@ TRY(NodeType(lambda: print("This won't execute"))).CATCH(
 
 This design ensures that dependency injection remains robust and predictable while giving developers a clear error handling mechanism.
 
-## 4.1.7 DI Result Cache (v0.4.2+)
+## 4.1.7 DI Result Cache
 
-Starting from v0.4.2, the `WorkflowInterpreter` maintains an internal DI result cache (`_di_cache`) to avoid redundant dependency resolution when the same node is executed multiple times with the same argument types.
+The `WorkflowInterpreter` maintains an internal DI result cache (`_di_cache`) to avoid redundant dependency resolution when the same node is executed multiple times with the same argument types.
 
 ### How it works
 
-Since v0.6.0, the cache key is built from the **node function identity** plus the argument fingerprint (the pointer position is **no longer** part of the key — the same node function shares cache entries across call sites):
+The cache key is built from the **node function identity** plus the argument fingerprint (the pointer position is not part of the key — the same node function shares cache entries across call sites):
 
 - **Function identity**: `id(node.func)` — the node's underlying function object
 - **Args fingerprint**: computed from the types of `_ava_args` and `_ava_kwargs`
@@ -180,7 +180,7 @@ cache_key = hash((id(node.func), code))
 
 The cache payload is an `LRUCache` (from `cachetools`) with a maximum of 2048 entries. When the cache is full, the least recently used entry is evicted. Each entry stores `(static_kwargs, non_cacheable_factories)` — see `cacheable` below.
 
-### `cacheable` factories (v0.6.0+)
+### `cacheable` factories
 
 `DependsFactory(cacheable=True)` providers are resolved **once, at cache-write time**, and their results are stored in the cache. `cacheable=False` (the default) providers are stored as-is and re-resolved **on every call** — use this for providers with side effects or time-varying values. This separation is orthogonal to cache validity (`hash_trustable`).
 
@@ -208,7 +208,7 @@ pc2 = WorkflowInterpreter(rendered)
 await pc2.run()  # Every node re-resolves dependencies from scratch
 ```
 
-## 4.1.8 DI Preload Cache (v0.4.2+)
+## 4.1.8 DI Preload Cache
 
 When `__flags__.WORKFLOW_DI_PRELOAD_CACHE` is enabled, the interpreter pre-resolves dependency injection for **every node** during the `run()` initialization phase — before the first node executes.
 

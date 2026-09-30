@@ -2,7 +2,7 @@
 
 In the previous chapters we systematically covered locating and addressing. Usually that is more than enough. In practice, however, the existing functionality is not fully flexible: if we need to modify part of a workflow, the standard route — without "hacking" — requires walking an entire pipeline: dump interpreter state → modify the source composition (ADT) → create a new interpreter instance → rebase the interpreter. _That is cumbersome and heavyweight_.
 
-Consider how real operating systems work: dynamically loading a library from outside does not require recompiling the whole program, and can even be **hot-reloaded at runtime**. Inspired by this, AmritaSense introduces a brand-new feature in v0.7.0 — **dynamic linking**.
+Consider how real operating systems work: dynamically loading a library from outside does not require recompiling the whole program, and can even be **hot-reloaded at runtime**. Inspired by this, AmritaSense provides a brand-new feature: **dynamic linking**.
 
 Before we get to usage and internals, one thing must be made clear up front: dynamic linking causes a **dynamic structural change of the compiled artifact**, and the previous chapters never explained the nature of the address space in a visual way. So this chapter first explores an alternative model of orchestration output, and only then moves to the main topic.
 

@@ -173,7 +173,7 @@ class ExecuteWhen(SelfCompileInstruction):
 ExecuteWhen(has_data, process_data)
 ```
 
-等价于 `IF(has_data, process_data)`——条件为假时工作流直接跳过该动作（v0.6.0 起无需 `ELSE(NOP)`）。
+等价于 `IF(has_data, process_data)`——条件为假时工作流直接跳过该动作（无需 `ELSE(NOP)`）。
 
 ### 扩展：带否则分支的版本
 

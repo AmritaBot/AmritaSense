@@ -78,7 +78,7 @@ await WorkflowInterpreter(comp.render()).run()
 
 > 因为 `RET` 不设置跳转标记，保存的地址必须是真正目标的**前驱**（`目标 - 1`）。这里的 `"resume"` NOP 就扮演这个角色。
 
-## CALL（v0.3.0+）
+## CALL
 
 `CALL(to_adr, from_adr=from_adr)` 是一个便捷指令，将 `PUSH_RET` + `JMP` 合并为一个节点。内部执行：
 
@@ -130,7 +130,7 @@ comp_b = (
 
 ## 子图式调用：配合 FN 使用
 
-v0.6.0 起，编写自包含"子程序"的现代方式是 **`FN(entrypoint, block)`**——它内嵌跳过机制（`_fn_escape`）并自动追加 `RET()`。用 `CALL(entrypoint)` 调用即可，无需手动 `PUSH_RET` / `JMP` / `RET` 管线：
+编写自包含"子程序"的现代方式是 **`FN(entrypoint, block)`**——它内嵌跳过机制（`_fn_escape`）并自动追加 `RET()`。用 `CALL(entrypoint)` 调用即可，无需手动 `PUSH_RET` / `JMP` / `RET` 管线：
 
 ```python
 from amrita_sense import Node, WorkflowInterpreter

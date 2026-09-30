@@ -73,7 +73,7 @@ class PointerVector:
 - **相对寻址**: 在同一层级内进行偏移
 - **近寻址**: 修改当前层级索引，保持其他层级不变
 
-## InterpreterContext（v0.4.x+）
+## InterpreterContext
 
 `InterpreterContext` 是一个数据类，存储解释器执行状态的完整快照。由 `PUSH_CONTEXT`/`POP_CONTEXT` 和 `INT`/`IRET` 用于保存/恢复工作流。
 
@@ -98,7 +98,7 @@ class InterpreterContext:
 - `stack`：返回地址栈的快照。若排除则为 `None`。
 - `exception`：panic 异常的快照，无 panic 则为 `None`。
 
-## DICache（v0.4.2+）
+## DICache
 
 `DICache` 是管理 `WorkflowInterpreter` 中依赖注入结果缓存的数据类。它将参数指纹与 LRU 缓存结合，避免重复 DI 解析。
 

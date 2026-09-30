@@ -9,7 +9,7 @@ Before reading this article, make sure you understand:
 
 ## Overview
 
-`FUN_BLOCK` places **one** sub-workflow into a child interpreter for **sequential** execution — the parent suspends and waits, then continues. But in real-world scenarios you often need to execute **multiple** independent sub-tasks **simultaneously**: calling several microservices in parallel, batch-processing data shards, or running independent computation branches. AmritaSense v0.4.4 introduces `BATCH_RUN` for exactly this purpose.
+`FUN_BLOCK` places **one** sub-workflow into a child interpreter for **sequential** execution — the parent suspends and waits, then continues. But in real-world scenarios you often need to execute **multiple** independent sub-tasks **simultaneously**: calling several microservices in parallel, batch-processing data shards, or running independent computation branches. `BATCH_RUN` exists for exactly this purpose.
 
 `BATCH_RUN` leverages the interpreter tree's `fork_interpreter()` mechanism to create an independent child interpreter for each input, executes them concurrently via `asyncio.gather()`, and collects results or exceptions afterward.
 

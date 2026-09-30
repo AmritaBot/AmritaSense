@@ -108,7 +108,7 @@ sequenceDiagram
 - 这意味着 `wait_to_suspend()` 可以在解释器启动**之前**或**之后**调用——只要信号在 SoS 上置位，解释器在下一个时钟周期就会命中。
 - 解释器的挂起是在节点间的**间隙**发生的，而不是在节点执行过程中。因此它是"协作式"的——节点必须完整执行到边界，解释器才能响应挂起。
 
-### 并发安全（v0.3.2+）
+### 并发安全
 
 `SuspendObjectStream` 具备完整的并发安全性。多个协程和线程可以安全地共享同一个实例——并发的 `wait_to_suspend()`、`resume()`、`yield_response()`、`push_object()` 调用均受 **CLCA（Cross Loop Callback-Allocate）信号设计模式** 保护。详见 [CLCA 设计模式](/zh/guide/practice/clca-design-pattern)。
 
