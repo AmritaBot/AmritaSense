@@ -4,7 +4,13 @@ import asyncio
 import datetime
 import inspect
 from collections import defaultdict
-from collections.abc import Awaitable, Callable, Hashable, Iterable
+from collections.abc import Awaitable, Callable, Hashable, Iterable, Mapping
+from contextlib import (
+    AbstractAsyncContextManager,
+    AbstractContextManager,
+    asynccontextmanager,
+    contextmanager,
+)
 from enum import Enum
 from threading import Lock
 from types import FrameType
@@ -12,7 +18,9 @@ from typing import (
     Any,
     ClassVar,
     Generic,
+    Literal,
     TypeVar,
+    cast,
     overload,
 )
 from uuid import UUID, uuid4
@@ -22,8 +30,11 @@ from exceptiongroup import ExceptionGroup
 from typing_extensions import Never, Self
 
 from amrita_sense._unsafe import __flags__
+from amrita_sense.di import DependencyStore, LifecycleScope, Scope, lift_sync_context
+from amrita_sense.exceptions import DependsDeclarationError, DependsInjectFailed
 from amrita_sense.hook import fun_typing
 from amrita_sense.logging import debug_log, logger
+from amrita_sense.utils import _fingerprint_args
 from amrita_sense.weakcache import WeakValueLRUCache
 
 from .event import BaseEvent, ConstructableEvent
@@ -145,68 +156,203 @@ class Matcher(Hashable):
 T = TypeVar("T")
 
 
-class DependsFactory(Generic[T]):
+def _callable_name(call: Callable[..., Any]) -> str:
+    return getattr(call, "__qualname__", None) or getattr(call, "__name__", repr(call))
+
+
+def detect_generator_kind(call: Callable[..., Any]) -> Literal["sync", "async"] | None:
+    """Classify a dependency provider as a generator, if it is one.
+
+    `inspect.unwrap` is required: `inspect.isgeneratorfunction` returns
+    `False` for a function already decorated with `@contextmanager` (and
+    likewise for `@asynccontextmanager`), while the wrapped function it
+    exposes through `__wrapped__` is the generator.  Without the unwrap,
+    every pre-decorated context-manager provider would be missed.
+
+    Returns `"async"` for `async def ... yield`, `"sync"` for `def ... yield`,
+    and `None` for an ordinary callable.
     """
-    Dependency factory class.
+    target = inspect.unwrap(call)
+    if inspect.isasyncgenfunction(target):
+        return "async"
+    if inspect.isgeneratorfunction(target):
+        return "sync"
+    return None
+
+
+class DependsFactory(Generic[T]):
+    """Dependency factory class.
+
+    Besides the provider itself this carries the *lifecycle* metadata needed
+    when the provider is a generator: `generator_kind` records whether its
+    teardown is synchronous or asynchronous, and `scope` records how long the
+    resource should stay alive.  Both are computed once, at declaration time,
+    so resolution never has to re-inspect the callable.
     """
 
     _depency_func: Callable[..., T | Awaitable[T]]
     _sign: DependencyMeta
     __cacheable: bool
 
-    __slots__ = ("__cacheable", "_depency_func", "_sign")
+    __slots__ = ("__cacheable", "_depency_func", "_sign", "generator_kind", "scope")
 
     @property
     def cacheable(self) -> bool:
-        """Whether the dependency is cacheable."""
+        """Whether the resolved value may be reused."""
         return self.__cacheable
 
+    @property
+    def use_cache(self) -> bool:
+        """Alias of `cacheable`, matching the upstream FastAPI/NoneBot2 naming."""
+        return self.__cacheable
+
+    @property
+    def is_lifecycle(self) -> bool:
+        """Whether the provider is a generator and therefore needs a scope."""
+        return self.generator_kind is not None
+
     def __init__(
-        self, depency: Callable[..., T | Awaitable[T]], cacheable: bool = False
+        self,
+        depency: Callable[..., T | Awaitable[T]],
+        cacheable: bool = False,
+        *,
+        scope: Scope | str | None = None,
     ):
         self._depency_func = depency
         self.__cacheable = cacheable
         self._sign = sign_func(self._depency_func)
+        self.generator_kind = detect_generator_kind(self._depency_func)
+        if self.generator_kind is None and scope is not None:
+            raise DependsDeclarationError(
+                f"`scope` is only meaningful for generator dependencies, but "
+                f"{_callable_name(depency)!r} is a plain callable; use "
+                "`use_cache=True` to reuse its value instead."
+            )
+        self.scope: Scope | None = Scope(scope) if scope is not None else None
 
-    async def resolve(self, *args, **kwargs) -> T | None:
+    def make_context_manager(
+        self, values: dict[str, Any]
+    ) -> AbstractAsyncContextManager[Any]:
+        """Build the (async) context manager for this generator provider.
+
+        A bare generator function is wrapped with `contextmanager` /
+        `asynccontextmanager`; a function already decorated with one of those
+        is used as-is.  Adapted from NoneBot2's `DependParam._solve`
+        (`nonebot/internal/params.py`), which draws the same distinction.
+        """
+        call = self._depency_func
+        if self.generator_kind == "async":
+            if inspect.isasyncgenfunction(call):
+                return asynccontextmanager(call)(**values)
+            return cast(AbstractAsyncContextManager[Any], call(**values))
+        if inspect.isgeneratorfunction(call):
+            return lift_sync_context(contextmanager(call)(**values))
+        return lift_sync_context(cast(AbstractContextManager[Any], call(**values)))
+
+    async def _resolve_kwargs(
+        self,
+        args: tuple,
+        kwargs: dict[str, Any],
+        store: DependencyStore | None,
+        lifecycles: Mapping[Scope, LifecycleScope] | None,
+        default_scope: Scope | None,
+    ) -> dict[str, Any] | None:
+        """Resolve this factory's own parameters, or `None` when it fails.
+
+        Nested `Depends` is supported here: the sub-factories are resolved
+        through the same lifecycle-aware entry point, so a nested generator
+        registers on the caller's scope rather than a fresh one.
+        """
+        failed, values, dkw = MatcherFactory._resolve_dependencies(
+            self._sign, session_args=args, session_kwargs=kwargs
+        )
+        if failed is not None:
+            return None
+        if dkw and not await MatcherFactory._do_runtime_resolve(
+            runtime_args={},
+            runtime_kwargs=dkw,
+            args2update=[],
+            kwargs2update=values,
+            session_args=list(args),
+            session_kwargs=kwargs,
+            exception_ignored=(),
+            store=store,
+            lifecycles=lifecycles,
+            default_scope=default_scope,
+        ):
+            return None
+        return values
+
+    async def resolve(
+        self,
+        *args: Any,
+        _store: DependencyStore | None = None,
+        _lifecycles: Mapping[Scope, LifecycleScope] | None = None,
+        _default_scope: Scope | None = None,
+        **kwargs: Any,
+    ) -> T | None:
         """
         Resolve dependencies for a function.
 
         Args:
             *args: Positional arguments for dependency injection
+            _store: Registry used to de-duplicate concurrent resolutions.
+            _lifecycles: Active scopes; required for generator providers.
+            _default_scope: Scope used when the declaration leaves it open.
             **kwargs: Keyword arguments for dependency injection
 
         Returns:
-            T: The resolved dependency
+            T: The resolved dependency, or `None` when resolution failed.
+
+        Raises:
+            DependsInjectFailed: When the provider is a generator, which can
+                only be resolved through an active lifecycle scope.
         """
-        failed, kwargs, dkw = MatcherFactory._resolve_dependencies(
-            self._sign,
-            session_args=args,
-            session_kwargs=kwargs,
+        values = await self._resolve_kwargs(
+            args, kwargs, _store, _lifecycles, _default_scope
         )
-        if dkw:
-            raise RuntimeError(
-                "As a resolver function, using `Depends` in dependency injection factory is disallowed."
-            )
-        if failed is not None:
+        if values is None:
             return None
-        rs: T | Awaitable[T] = self._depency_func(**kwargs)
+        if self.is_lifecycle:
+            raise DependsInjectFailed(
+                f"{_callable_name(self._depency_func)!r} is a generator "
+                "dependency; it has to be resolved through a lifecycle scope "
+                "rather than by calling `resolve()` directly."
+            )
+        rs: T | Awaitable[T] = self._depency_func(**values)
         if isinstance(rs, Awaitable):
             rs = await rs
         return rs
 
 
 def Depends(
-    dependency: Callable[..., T | Awaitable[T]], cacheable: bool = False
+    dependency: Callable[..., T | Awaitable[T]],
+    use_cache: bool = False,
+    scope: Scope | str | None = None,
+    *,
+    cacheable: bool | None = None,
 ) -> Any:
     """Dependency injection decorator.
 
+    A provider may also be a generator, in which case the value before its
+    `yield` is injected and the code after it runs as a teardown when the
+    surrounding scope closes (see `amrita_sense.di.Scope`).  Both plain
+    generator functions and providers already wrapped with `@contextmanager`
+    / `@asynccontextmanager` are accepted.
+
     **IMPORTANT**: For database sessions (or ORM frameworks like SQLAlchemy),
-    DI-caching may cause connection leaks.
+    reuse may cause connection leaks — keep `use_cache=False` and leave
+    `scope` at `"call"` unless the resource is genuinely meant to be shared.
 
     Args:
         dependency: The dependency function to inject.
-        cacheable: Whether to cache the dependency result.
+        use_cache: Whether to reuse the dependency result.  For generator
+            providers, sharing is governed by `scope` instead.
+        scope: How long a generator provider's resource stays alive —
+            `"call"`, `"dispatch"` or `"workflow"`.  Ignored for plain
+            providers.  Defaults to the widest scope available at the
+            resolution site.
+        cacheable: Deprecated alias of `use_cache`.
 
     Returns:
         DependsFactory: A factory for dependency injection
@@ -216,15 +362,25 @@ def Depends(
         async def get_example_dependency(...) -> Any | None:
             ...
 
+        async def with_session():
+            session = Session()
+            try:
+                yield session
+            finally:
+                await session.close()
+
         async def a_function_with_dependencies(
             event: PreCompletionEvent,
             dep: ExampleDependency = Depends(get_example_dependency),
+            session: Session = Depends(with_session, scope="workflow"),
         ):
             ...
         # If DependsFactory's return is None, this function won't be called.
         ```
     """
-    return DependsFactory[T](dependency, cacheable)
+    if cacheable is not None:
+        use_cache = cacheable
+    return DependsFactory[T](dependency, use_cache, scope=scope)
 
 
 class FailedEnum(Enum):
@@ -302,6 +458,57 @@ class MatcherFactory:
         return None, f_kwargs, d_kwargs
 
     @staticmethod
+    async def _resolve_scoped(
+        factory: DependsFactory,
+        session_args: list[Any],
+        session_kwargs: dict[str, Any],
+        store: DependencyStore,
+        lifecycles: Mapping[Scope, LifecycleScope] | None,
+        default_scope: Scope | None,
+    ) -> Any:
+        """Resolve a generator provider through its lifecycle scope.
+
+        The provider's own parameters are resolved first (which may itself
+        open nested generator dependencies on the same scope), then the
+        context manager is entered and its value returned.  Reuse is keyed by
+        the provider, the fingerprint of the arguments it was given and the
+        scope, so a changed input or a different lifecycle never hands back a
+        stale resource.
+        """
+        values = await factory._resolve_kwargs(
+            tuple(session_args), session_kwargs, store, lifecycles, default_scope
+        )
+        if values is None:
+            return None
+        scope: Scope | None = factory.scope or default_scope
+        lifecycle = lifecycles.get(scope) if (lifecycles and scope) else None
+        if scope is None or lifecycle is None:
+            raise DependsInjectFailed(
+                f"Dependency {_callable_name(factory._depency_func)!r} is a "
+                f"generator declaring scope "
+                f"{factory.scope.value if factory.scope else None!r}, but no "
+                "matching lifecycle scope is active at this resolution site."
+            )
+        key: tuple[int, int, Scope] = (
+            id(factory._depency_func),
+            _fingerprint_args(tuple(session_args), session_kwargs),
+            scope,
+        )
+        if scope is Scope.CALL:
+            #  A call scope owns a fresh value map for every call, so it *is*
+            #  the cache.  Routing it through the store would hand a later
+            #  call the previous call's resource.
+            return await lifecycle.acquire(
+                key, lambda: factory.make_context_manager(values)
+            )
+        return await store.resolve(
+            key,
+            lambda: lifecycle.acquire(
+                key, lambda: factory.make_context_manager(values)
+            ),
+        )
+
+    @staticmethod
     async def _do_runtime_resolve(
         runtime_args: dict[int, DependsFactory],
         runtime_kwargs: dict[str, DependsFactory],
@@ -310,8 +517,17 @@ class MatcherFactory:
         session_args: list[Any],
         session_kwargs: dict[str, Any],
         exception_ignored: tuple[type[BaseException], ...],
+        *,
+        store: DependencyStore | None = None,
+        lifecycles: Mapping[Scope, LifecycleScope] | None = None,
+        default_scope: Scope | None = None,
     ) -> bool:
         """Do a runtime resolve of dependencies.
+
+        Plain providers are resolved concurrently, as before.  Generator
+        providers are entered **one at a time** so that teardown order is the
+        exact reverse of declaration order — concurrent setup would leave the
+        closing order up to whichever provider happened to finish first.
 
         Args:
             runtime_args (dict[int, DependsFactory]): This is a dict of args dependencies (usually be passed in `trigger_event`) to resolve.
@@ -321,6 +537,12 @@ class MatcherFactory:
             session_args (list[Any]): This is a list of args that can be used from the session .
             session_kwargs (dict[str, Any]): This is a dict of kwargs that can be used from the session.
             exception_ignored (tuple[type[BaseException], ...]): These exception will be raised again if occurred.
+            store: Registry used to de-duplicate concurrent resolutions.  A
+                throwaway one is created when the caller has none, which keeps
+                the two providers within a single resolution call shared but
+                nothing beyond it.
+            lifecycles: Active scopes, looked up by `Scope`.
+            default_scope: Scope used when a declaration leaves it open.
 
         Raises:
             result: if these exception
@@ -328,42 +550,75 @@ class MatcherFactory:
         Returns:
             result (bool): Return True if all injections are resolved, otherwise returns False
         """
-        resolve_tasks = []
         if not runtime_args and not runtime_kwargs:
             return True
-        session_kwargs = session_kwargs
-        for idx, factory in runtime_args.items():
-            task = factory.resolve(*session_args, **session_kwargs)
-            resolve_tasks.append((idx, None, task))
-        for key, factory in runtime_kwargs.items():
-            task = factory.resolve(*session_args, **session_kwargs)
-            resolve_tasks.append((None, key, task))
-        resolved_results: list[Any | BaseException] = await asyncio.gather(
-            *[task for _, _, task in resolve_tasks], return_exceptions=True
-        )
-        excs = []
+        if store is None:
+            store = DependencyStore()
+
+        pending: list[tuple[int | None, str | None, DependsFactory]] = [
+            (idx, None, factory) for idx, factory in runtime_args.items()
+        ]
+        pending.extend((None, key, factory) for key, factory in runtime_kwargs.items())
+        plain = [item for item in pending if not item[2].is_lifecycle]
+        scoped = [item for item in pending if item[2].is_lifecycle]
+
         args_tmp: dict[int, Any] = {}
         kwargs_tmp: dict[str, Any] = {}
-        for (idx, key, _), result in zip(resolve_tasks, resolved_results):
-            if isinstance(result, BaseException):
-                if not __flags__.DISABLE_EXC_IGNORED and isinstance(
-                    result, exception_ignored
-                ):
-                    raise result
-                excs.append(result)
-            elif result is None:
-                return False
-            else:
-                if idx is not None:
+
+        if plain:
+            resolved_results: list[Any | BaseException] = await asyncio.gather(
+                *[
+                    factory.resolve(
+                        *session_args,
+                        _store=store,
+                        _lifecycles=lifecycles,
+                        _default_scope=default_scope,
+                        **session_kwargs,
+                    )
+                    for _, _, factory in plain
+                ],
+                return_exceptions=True,
+            )
+            excs: list[Exception] = []
+            for (idx, key, _), result in zip(plain, resolved_results):
+                if isinstance(result, BaseException):
+                    if not __flags__.DISABLE_EXC_IGNORED and isinstance(
+                        result, exception_ignored
+                    ):
+                        raise result
+                    if not isinstance(result, Exception):
+                        #  `ExceptionGroup` only accepts `Exception`s, and a
+                        #  bare `BaseException` such as cancellation must not
+                        #  be folded into a group anyway.
+                        raise result
+                    excs.append(result)
+                elif result is None:
+                    return False
+                elif idx is not None:
                     args_tmp[idx] = result
                 elif key is not None:
                     kwargs_tmp[key] = result
-        if excs:
-            raise ExceptionGroup("Some exceptions had occurred.", excs)
-        del resolved_results
+            if excs:
+                raise ExceptionGroup("Some exceptions had occurred.", excs)
+
+        for idx, key, factory in scoped:
+            value = await MatcherFactory._resolve_scoped(
+                factory,
+                session_args,
+                session_kwargs,
+                store,
+                lifecycles,
+                default_scope,
+            )
+            if value is None:
+                return False
+            if idx is not None:
+                args_tmp[idx] = value
+            elif key is not None:
+                kwargs_tmp[key] = value
+
         for k, v in args_tmp.items():
             args2update[k] = v
-        del args_tmp
         kwargs2update.update(kwargs_tmp)
         return True
 
@@ -375,6 +630,8 @@ class MatcherFactory:
         exception_ignored: tuple[type[BaseException], ...],
         extra_args: Iterable[Any],
         extra_kwargs: dict[str, Any],
+        store: DependencyStore | None = None,
+        lifecycles: Mapping[Scope, LifecycleScope] | None = None,
     ) -> bool:
         """Run a round of matcher
 
@@ -383,6 +640,8 @@ class MatcherFactory:
             exception_ignored (tuple[type[BaseException], ...]): Exceptions to ignore(to raise again)
             extra_args (tuple): extra args for dependency injection
             extra_kwargs (dict[str, Any]): extra kwargs for dependency injection
+            store: Registry used to de-duplicate concurrent resolutions.
+            lifecycles: Active scopes, shared with the enclosing dispatch.
 
         Returns:
             bool: Should continue to run.
@@ -440,6 +699,9 @@ class MatcherFactory:
                     session_args=session_args,
                     session_kwargs=extra_kwargs,
                     exception_ignored=exception_ignored,
+                    store=store,
+                    lifecycles=lifecycles,
+                    default_scope=Scope.DISPATCH,
                 ):
                     continue
 
@@ -549,35 +811,54 @@ class MatcherFactory:
             if priorities:
                 s_args = [event, *args]
                 session_kwargs: dict[str, Any] = kwargs.copy()
-                runtime_args: dict[int, DependsFactory] = {  # index -> DependsFactory
-                    k: v for k, v in enumerate(s_args) if isinstance(v, DependsFactory)
-                }
-                runtime_kwargs = {
-                    k: v
-                    for k, v in session_kwargs.items()
-                    if isinstance(v, DependsFactory)
-                }
-                # These args/kwargs will be generated by Depends
-                if runtime_args or runtime_kwargs:
-                    if not await cls._do_runtime_resolve(
-                        runtime_args=runtime_args,
-                        runtime_kwargs=runtime_kwargs,
-                        args2update=s_args,
-                        kwargs2update=session_kwargs,
-                        session_args=s_args,
-                        session_kwargs=session_kwargs,
-                        exception_ignored=exception_ignored,
-                    ):
-                        raise RuntimeError("Runtime arguments cannot be resolved")
-                for priority in priorities:
-                    logger.info(f"Running matchers for priority {priority}......")
-                    if not await cls._simple_run(
-                        handlers[priority],
-                        exception_ignored=exception_ignored,
-                        extra_args=s_args,
-                        extra_kwargs=session_kwargs,
-                    ):
-                        break
+                #  One dispatch scope covers every handler of this event, so a
+                #  generator dependency declared by two handlers is opened once
+                #  and torn down after the last of them returns.  This mirrors
+                #  NoneBot2's single per-event `AsyncExitStack`
+                #  (`nonebot/message.py`).
+                async with LifecycleScope(Scope.DISPATCH) as dispatch_scope:
+                    store = DependencyStore()
+                    lifecycles: Mapping[Scope, LifecycleScope] = {
+                        Scope.DISPATCH: dispatch_scope
+                    }
+                    runtime_args: dict[
+                        int, DependsFactory
+                    ] = {  # index -> DependsFactory
+                        k: v
+                        for k, v in enumerate(s_args)
+                        if isinstance(v, DependsFactory)
+                    }
+                    runtime_kwargs = {
+                        k: v
+                        for k, v in session_kwargs.items()
+                        if isinstance(v, DependsFactory)
+                    }
+                    # These args/kwargs will be generated by Depends
+                    if runtime_args or runtime_kwargs:
+                        if not await cls._do_runtime_resolve(
+                            runtime_args=runtime_args,
+                            runtime_kwargs=runtime_kwargs,
+                            args2update=s_args,
+                            kwargs2update=session_kwargs,
+                            session_args=s_args,
+                            session_kwargs=session_kwargs,
+                            exception_ignored=exception_ignored,
+                            store=store,
+                            lifecycles=lifecycles,
+                            default_scope=Scope.DISPATCH,
+                        ):
+                            raise RuntimeError("Runtime arguments cannot be resolved")
+                    for priority in priorities:
+                        logger.info(f"Running matchers for priority {priority}......")
+                        if not await cls._simple_run(
+                            handlers[priority],
+                            exception_ignored=exception_ignored,
+                            extra_args=s_args,
+                            extra_kwargs=session_kwargs,
+                            store=store,
+                            lifecycles=lifecycles,
+                        ):
+                            break
             else:
                 logger.info(
                     f"No registered Matcher for {event_type} event, skipping processing."

@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine, Sequence
+from collections.abc import (
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Mapping,
+    Sequence,
+)
 from contextlib import nullcontext
 from functools import wraps
 from inspect import iscoroutinefunction
@@ -22,6 +29,7 @@ import aiologic
 from typing_extensions import LiteralString
 
 from amrita_sense._unsafe import __flags__
+from amrita_sense.di import DependencyStore, LifecycleScope, Scope
 from amrita_sense.exceptions import (
     BreakLoop,
     DependsInjectFailed,
@@ -89,11 +97,16 @@ class WorkflowInterpreter(Generic[io_T]):
     _middleware: Callable[[WorkflowInterpreter], Awaitable[Any]] | None
     _pending_stop: bool
     object_io: io_T
+
+    _lifecycles: dict[Scope, LifecycleScope]
+    _dep_store: DependencyStore
+
     __slots__ = (
         "__ava_args",
         "__ava_kwargs",
         "__outer_interpreting",
         "_context_stack",
+        "_dep_store",
         "_di_cache",
         "_exc_ignored",
         "_glob_top_mod_lock",
@@ -102,6 +115,7 @@ class WorkflowInterpreter(Generic[io_T]):
         "_interpret_lock",
         "_interpreter_id",
         "_jump_marked",
+        "_lifecycles",
         "_middleware",
         "_panic_exc",
         "_parent_interpreter",
@@ -164,6 +178,11 @@ class WorkflowInterpreter(Generic[io_T]):
             args_hash=_fingerprint_args(self.__ava_args, self.__ava_kwargs),
             hash_trustable=True,
         )
+        # Dependency lifecycle: generator providers register their teardown on
+        # one of these scopes (see `amrita_sense.di`).  The workflow scope is
+        # long-lived and closed when the interpreter stops.
+        self._lifecycles = {Scope.WORKFLOW: LifecycleScope(Scope.WORKFLOW)}
+        self._dep_store = DependencyStore()
         # Runtime attrs
         object_io = object_io or SuspendObjectStream()
         self.object_io = cast(io_T, object_io)
@@ -667,6 +686,9 @@ class WorkflowInterpreter(Generic[io_T]):
             self._pending_stop = True
             if self._waiter_fut and not self._waiter_fut.done():
                 await self._waiter_fut
+        # Backstop for a run whose generator was abandoned before its `finally`
+        # could release workflow-scoped dependencies.  Idempotent.
+        await self._close_workflow_scope()
         if eol:
             if parent := self.parent:
                 parent.sub_interpreters.pop(self.id, None)
@@ -738,6 +760,10 @@ class WorkflowInterpreter(Generic[io_T]):
             InterruptNotice: When an external interrupt is requested.
         """
         exc_val: BaseException | None = None
+        #  Set when the run stops in a way that allows resuming (a suspend
+        #  interrupt or a panic), in which case workflow-scoped dependencies
+        #  have to stay open across the gap.
+        resumable = False
         if self._panic_exc is not None:
             logger.debug("Recovered from panic.")
             self._panic_exc = None
@@ -804,6 +830,8 @@ class WorkflowInterpreter(Generic[io_T]):
             logger.info("Cleaning up pointer stack...")
             if not isinstance(e, InterruptKeepContext):
                 self.reset()
+            else:
+                resumable = True
 
         except BaseException as e:
             if isinstance(e, Exception):
@@ -816,6 +844,9 @@ class WorkflowInterpreter(Generic[io_T]):
                     )
                 )
             exc_val = e
+            # A panic may be recovered by running the interpreter again, so the
+            # workflow scope is left open.
+            resumable = True
             raise
         finally:
             if exc_val is not None and isinstance(exc_val, Exception):
@@ -830,6 +861,8 @@ class WorkflowInterpreter(Generic[io_T]):
                 else:
                     self._waiter_fut.set_result(None)
             self._waiter_fut = None
+            if not resumable:
+                await self._close_workflow_scope()
 
     def _make_traceback(self) -> str:
         """Make a traceback string for the current workflow."""
@@ -1074,6 +1107,9 @@ class WorkflowInterpreter(Generic[io_T]):
             session_args=list(ava_args),
             session_kwargs=ava_kwargs,
             exception_ignored=self._exc_ignored,
+            store=self._dep_store,
+            lifecycles=self._lifecycles,
+            default_scope=Scope.WORKFLOW,
         ):
             raise DependsInjectFailed(
                 "Runtime resolve failed for kwargs: {}".format(
@@ -1093,6 +1129,10 @@ class WorkflowInterpreter(Generic[io_T]):
             results are merged into `static_kwargs` and **will be cached**.
         *   `cacheable=False` (default) factories are returned as-is in the
             second dict for **per-call** resolution.
+        *   Generator factories always land in the second dict regardless of
+            `cacheable`: a lifecycle resource must never be cached in the LRU
+            (an eviction would orphan its teardown) and must not be opened
+            eagerly by the cache preload.
         """
         fun = node.func
         fail, static_kwargs, all_factories = MatcherFactory._resolve_dependencies(
@@ -1109,7 +1149,7 @@ class WorkflowInterpreter(Generic[io_T]):
         cacheable: dict[str, DependsFactory] = {}
         non_cacheable: dict[str, DependsFactory] = {}
         for name, factory in all_factories.items():
-            if factory.cacheable:
+            if factory.cacheable and not factory.is_lifecycle:
                 cacheable[name] = factory
             else:
                 non_cacheable[name] = factory
@@ -1122,6 +1162,9 @@ class WorkflowInterpreter(Generic[io_T]):
                 session_args=list(ava_args),
                 session_kwargs=ava_kwargs,
                 exception_ignored=self._exc_ignored,
+                store=self._dep_store,
+                lifecycles=self._lifecycles,
+                default_scope=Scope.WORKFLOW,
             ):
                 raise DependsInjectFailed(
                     "Runtime resolve failed for cacheable factories: {}".format(
@@ -1222,30 +1265,83 @@ class WorkflowInterpreter(Generic[io_T]):
                 self._di_cache.payload[cache_key] = (static_kwargs, factories)
 
         #  Per-call resolution of non-cacheable factories
-        if factories:
-            kw_rsved = static_kwargs.copy()
-            if not await MatcherFactory._do_runtime_resolve(
-                runtime_args={},
-                runtime_kwargs=factories,
-                args2update=[],
-                kwargs2update=kw_rsved,
-                session_args=list(ava_args),
-                session_kwargs=ava_kwargs,
-                exception_ignored=self._exc_ignored,
-            ):
-                raise DependsInjectFailed(
-                    "Runtime resolve failed for kwargs: {}".format(
-                        ", ".join(factories.keys())
-                    )
-                )
-        else:
-            kw_rsved = static_kwargs
-        if iscoroutinefunction(fun):
-            return await fun(**kw_rsved)
-        elif node.wrap_to_async and not __flags__.FORCE_NOT_WRAP_TO_ASYNC:
-            return await asyncio.to_thread(fun, **kw_rsved)
-        else:
+        async def _invoke(kw_rsved: dict[str, Any]) -> Any:
+            if iscoroutinefunction(fun):
+                return await fun(**kw_rsved)
+            if node.wrap_to_async and not __flags__.FORCE_NOT_WRAP_TO_ASYNC:
+                return await asyncio.to_thread(fun, **kw_rsved)
             return fun(**kw_rsved)
+
+        if not factories:
+            return await _invoke(static_kwargs)
+
+        kw_rsved = static_kwargs.copy()
+        if any(factory.is_lifecycle for factory in factories.values()):
+            #  A generator dependency is torn down as soon as this node call
+            #  returns, so the scope has to wrap the invocation itself.  The
+            #  default stays `WORKFLOW`: `CALL` is opt-in, and only an explicit
+            #  `scope="call"` declaration resolves against this fresh scope.
+            async with LifecycleScope(Scope.CALL) as call_scope:
+                await self._inject_factories(
+                    factories,
+                    ava_args,
+                    ava_kwargs,
+                    kw_rsved,
+                    self._dep_store,
+                    {**self._lifecycles, Scope.CALL: call_scope},
+                    Scope.WORKFLOW,
+                )
+                return await _invoke(kw_rsved)
+        await self._inject_factories(
+            factories,
+            ava_args,
+            ava_kwargs,
+            kw_rsved,
+            self._dep_store,
+            self._lifecycles,
+            Scope.WORKFLOW,
+        )
+        return await _invoke(kw_rsved)
+
+    async def _inject_factories(
+        self,
+        factories: dict[str, DependsFactory],
+        ava_args: tuple,
+        ava_kwargs: dict[str, Any],
+        target: dict[str, Any],
+        store: DependencyStore,
+        lifecycles: Mapping[Scope, LifecycleScope],
+        default_scope: Scope,
+    ) -> None:
+        """Resolve `factories` into `target`, raising when resolution fails."""
+        if not await MatcherFactory._do_runtime_resolve(
+            runtime_args={},
+            runtime_kwargs=factories,
+            args2update=[],
+            kwargs2update=target,
+            session_args=list(ava_args),
+            session_kwargs=ava_kwargs,
+            exception_ignored=self._exc_ignored,
+            store=store,
+            lifecycles=lifecycles,
+            default_scope=default_scope,
+        ):
+            raise DependsInjectFailed(
+                "Runtime resolve failed for kwargs: {}".format(
+                    ", ".join(factories.keys())
+                )
+            )
+
+    async def _close_workflow_scope(self) -> None:
+        """Release every workflow-scoped dependency.
+
+        Idempotent, and immediately swaps in a fresh scope so a later run of
+        the same interpreter starts from a clean slate rather than a closed
+        one.
+        """
+        await self._lifecycles[Scope.WORKFLOW].aclose()
+        self._lifecycles[Scope.WORKFLOW] = LifecycleScope(Scope.WORKFLOW)
+        self._dep_store.clear()
 
 
 __all__ = ["PC_CHECKPOINT", "WorkflowInterpreter", "fun_T", "io_T"]
