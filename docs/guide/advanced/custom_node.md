@@ -28,9 +28,9 @@ Each node is essentially a thin wrapper around the original function. It preserv
 - `fun_sign`: the function signature extracted by `inspect.signature`, used by dependency injection to match parameters
 - `tag`: the node’s unique identifier string
 - `wrap_to_async`: whether synchronous functions should be wrapped to async
-- `address_able`: whether the node can be referenced by `ALIAS`; only `True` nodes can become `GOTO` or `CALL` targets
+- `address_able`: whether the node can be referenced by `ALIAS`; only `True` nodes can become `JMP` or `INVOKE` targets
 
-**Everything is a node** — this is AmritaSense’s core philosophy. Conditionals, loop bodies, exception handlers, and GOTO targets are all `Node` or `BaseNode` instances. Custom nodes are no exception.
+**Everything is a node** — this is AmritaSense’s core philosophy. Conditionals, loop bodies, exception handlers, and JMP targets are all `Node` or `BaseNode` instances. Custom nodes are no exception.
 
 ## 4.6.2 Handling sync and async nodes
 
@@ -102,7 +102,7 @@ Node atomicity is guaranteed by the **interpreter lock** and **cooperative inter
 
 If a custom node class inherits from `BaseNode`, it can override two lifecycle hooks:
 
-- `_post_compile(compose: NodeComposeRendered)` — called after the workflow graph is fully compiled. `CallNode` and `JumpNode` use this hook to resolve aliases to addresses at compile time, avoiding runtime overhead.
+- `_post_compile(compose: NodeComposeRendered)` — called after the workflow graph is fully compiled. `InvokeNode` and `JumpNode` use this hook to resolve aliases to addresses at compile time, avoiding runtime overhead.
 - `_pre_check(pointer: WorkflowInterpreter)` — called before each node execution. Used for runtime checks that depend on interpreter state (e.g., `BatchRun` forks child interpreters here).
 
 ## 4.6.4 `POINTER_DEPENDS`: access to the interpreter
@@ -132,9 +132,9 @@ By injecting `pc`, the node gains full access to the interpreter — reading the
 
 ### Power comes with responsibility
 
-With interpreter access, nodes can directly manipulate pointers and the call stack. This power comes with responsibility — internal jumps set `_jump_marked`, affecting interpreter behavior, and manual stack management can break call stack integrity.
+With interpreter access, nodes can directly manipulate pointers and the call stack. This power comes with responsibility — internal jumps set the `JMP` bit, affecting interpreter behavior, and manual stack management can break call stack integrity.
 
-Therefore, **inject `POINTER_DEPENDS` only when necessary**. Most nodes should use normal Python logic and composition-level instructions (`IF`, `WHILE`, `CALL`) to express control flow, and only directly access the interpreter when instructions cannot express the desired behavior.
+Therefore, **inject `POINTER_DEPENDS` only when necessary**. Most nodes should use normal Python logic and composition-level instructions (`IF`, `WHILE`, `INVOKE`) to express control flow, and only directly access the interpreter when instructions cannot express the desired behavior.
 
 ## 4.6.5 Safe runtime integration
 

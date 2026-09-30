@@ -129,39 +129,53 @@ Python's `except Exception` does not catch `BaseException` subclasses. Therefore
    raise InterruptNotice("Timeout: workflow exceeded time limit")
    ```
 
-2. **Insert `INTERRUPT` node in workflow**:
+2. **Insert `RESET` node in workflow**:
 
    ```python
-   from amrita_sense.instructions import INTERRUPT
+   from amrita_sense.instructions import RESET
 
-   workflow = Sequence(StepA(), Branch(If(condition=is_error, then=INTERRUPT), ...))
+   workflow = Sequence(StepA(), Branch(If(condition=is_error, then=RESET), ...))
    ```
 
-**InterruptKeepContext (v0.4.x+)**
+**InterruptKeepContext**
 
-`InterruptKeepContext` is a subclass of `InterruptNotice` that provides a **context-preserving** variant. When the interpreter catches it, instead of calling `reset()`, the pointer, call stacks, and dependency injection parameters are left intact. Execution can be resumed by calling `run()` again on the same interpreter.
+`InterruptKeepContext` is a subclass of `InterruptNotice` that provides a **context-preserving** variant. When the interpreter catches it, instead of calling `reset()`, the pointer, call stacks, dependency injection parameters and status register are left intact. Execution can be resumed by calling `run()` again on the same interpreter.
 
-| Exception              | After catch                       | Recoverable | Node                 |
-| ---------------------- | --------------------------------- | ----------- | -------------------- |
-| `InterruptNotice`      | `reset()` — clears all state      | ❌          | `INTERRUPT`          |
-| `InterruptKeepContext` | Skips `reset()` — state preserved | ✅ `run()`  | `INTERRUPT_KEEP_CTX` |
+| Exception              | After catch                       | Recoverable | Node      |
+| ---------------------- | --------------------------------- | ----------- | --------- |
+| `InterruptNotice`      | `reset()` — clears all state      | ❌          | `RESET`   |
+| `InterruptKeepContext` | Skips `reset()` — state preserved | ✅ `run()`  | `SUSPEND` |
 
 **Trigger methods**:
 
-1. Insert `INTERRUPT_KEEP_CTX` node in the workflow (from `amrita_sense.instructions.workfl_ctrl`)
+1. Insert `SUSPEND` node in the workflow (from `amrita_sense.instructions.workfl_ctrl`)
 2. Raise `InterruptKeepContext` directly from node code
 
-**Interpreter main loop handling**:
+**Resuming: the `HLT` flag**
+
+When a suspend is caught the pointer still addresses the node that raised it, so re-running the loop would simply execute that node again and halt in the same place forever. To prevent that, the interpreter sets `HLT` in its status register:
 
 ```python
-except InterruptNotice as e:
-    logger.info(f"Interrupt notice at {self._pointer} :{e.message}")
-    self._ret_addr_stack.clear()   # Clear entire call stack
-    self._pointer.clear()          # Reset pointer vector
-    self._jump_marked = False
+if not isinstance(e, InterruptKeepContext):
+    self.reset()
+else:
+    self._flags |= Flags.HLT  # pointer still addresses the halting node
 ```
 
-**This is termination, not suspension**. The call stack and pointer are fully cleared; the workflow exits and cannot be resumed from the interruption point. To re-execute, the workflow must be re-rendered and a new interpreter instance created.
+The next run consumes the bit before executing anything, stepping past the node instead of re-running it:
+
+```python
+if self._flags & Flags.HLT:
+    if not self.resume_from_halt():
+        break
+    continue
+```
+
+`resume_from_halt()` is the single implementation shared by the main loop and the debugger's `step`, so stepping past a suspend behaves exactly like running past it.
+
+The bit is cleared as soon as the pointer is moved deliberately — by any `@markup` jump method, by `rebase_ptr()`, or by `reset()`. `dump_interpreter()` also strips it, so a context snapshot never carries the halt and restoring one cannot resurrect it.
+
+**This is termination, not suspension**. For a plain `InterruptNotice`, the call stack and pointer are fully cleared; the workflow exits and cannot be resumed from the interruption point. To re-execute, the workflow must be re-rendered and a new interpreter instance created.
 
 ### Internal Interrupt Summary
 
@@ -231,9 +245,9 @@ Unlike `InterruptNotice` (which is still an exception thrown from within), `call
 - **Node execution is inside the lock**: Guarantees state consistency during execution
 - **External interrupt is mutually exclusive with the main loop**: Only one runs inside the lock at a time
 
-### `outer_interpreting` (v0.6.0+)
+### `outer_interpreting`
 
-During **any** `call_sub` execution (regardless of `interrupt`), the read-only property `outer_interpreting` is `True`; it is cleared when the call returns. `PUSH_AND_GOTO` / `INTERRUPT_INTO` consult it when `from_adr` / `ret_to` is `None`: inside a call they reuse the top of `_ret_addr_stack` (the parent's return address), otherwise they use the current pointer. This guarantees correct return semantics for sub-calls injected mid-cycle.
+During **any** `call_sub` execution (regardless of `interrupt`), the read-only property `outer_interpreting` is `True`; it is cleared when the call returns. `CALL` / `INT` consult it when `from_adr` / `ret_to` is `None`: inside a call they reuse the top of `_ret_addr_stack` (the parent's return address), otherwise they use the current pointer. This guarantees correct return semantics for sub-calls injected mid-cycle.
 
 ## 3.4.4 Interaction model for suspension (cooperative suspend points)
 
@@ -362,5 +376,5 @@ The core value of this system is:
 In the advanced chapters, we will explore how to combine this interruption mechanism with interpreter locks and external calls to build a full debugger or external monitoring system.
 
 ::: tip REPL Debugger
-Building on this interrupt infrastructure, v0.5.0 provides a dedicated `amrita_sense.debugger` module with breakpoints, stepping, and state inspection — a complete REPL debugging experience. Import everything with `from amrita_sense.debugger import *`; all functions are callable synchronously. See [REPL Debugging](/guide/practice/repl-debugging) for details.
+Building on this interrupt infrastructure, the `amrita_sense.debugger` module adds breakpoints, stepping, and state inspection — a complete REPL debugging experience. Import everything with `from amrita_sense.debugger import *`; all functions are callable synchronously. See [REPL Debugging](/guide/practice/repl-debugging) for details.
 :::

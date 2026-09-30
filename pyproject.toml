@@ -1,6 +1,6 @@
 [project]
 name = "amrita-sense"
-version = "0.8.0"
+version = "1.0.0"
 description = "Next-Gen event stream and workflow engine."
 readme = "README.md"
 requires-python = ">=3.10, <3.16"
@@ -62,3 +62,6 @@ ignore = [
 
 [tool.pyright]
 typeCheckingMode = "standard"
+#  The instruction-name deprecation shims rely on PEP 702; pyright does not
+#  report `@deprecated` usages unless this is enabled.
+reportDeprecated = "warning"

@@ -67,23 +67,23 @@ AmritaSense 提供了两种标准循环范式：`WHILE`（先判断后执行）�
 - 它会直接穿透到最外层的 `WhileNode` 或 `DONode`
 - `WhileNode` 和 `DONode` 内部用 `try-except BreakLoop` 捕获该信号，然后执行 `jump_near(NOP)` 干净退出
 
-> **v0.3.0+**：此自动加入行为可通过 `amrita_sense._unsafe` 中的 `__flags__.DISABLE_EXC_IGNORED = True` 禁用。详见 [Unsafe 特性](../unsafe.md)。
+> 此自动加入行为可通过 `amrita_sense._unsafe` 中的 `__flags__.DISABLE_EXC_IGNORED = True` 禁用。详见 [Unsafe 特性](../unsafe.md)。
 
 ### continue 的等效实现
 
 在 `action` 或 `do_node` 内部执行 `return`，即提前结束当前节点的执行。解释器自然步进到 `CheckUpNode`（WHILE）或 `DowhileNode`（DO-WHILE），然后下一轮条件检查开始。效果与 `continue` 完全一致。
 
-## 循环内的 GOTO 限制
+## 循环内的 JMP 限制
 
 `WHILE` 和 `DO-WHILE` 的编译期结构是固定的地址偏移布局。`WhileNode` 和 `DONode` 内部依赖 `call_offset` 和 `jump_near` 的相对偏移来完成条件调用和循环体调用。
 
-如果在循环体内部使用 `GOTO` 跳转到循环结构之外的地址：
+如果在循环体内部使用 `JMP` 跳转到循环结构之外的地址：
 
 - 循环的调用栈和返回地址不会正确清理
 - `WhileNode` 或 `DONode` 内部的 `try-except BreakLoop` 无法正常捕获 `BreakLoop`
 - 解释器可能进入不可预测的状态
 
-因此，**循环内部不应使用 `GOTO` 跳出循环**。需要跳出时应使用 `BreakLoop`，需要子程序复用时应使用 `CALL`。
+因此，**循环内部不应使用 `JMP` 跳出循环**。需要跳出时应使用 `BreakLoop`，需要子程序复用时应使用 `INVOKE`。
 
 ## 使用示例
 
@@ -124,7 +124,7 @@ def fetch():
 retry = DO(fetch).WHILE(has_more)
 ```
 
-## Squashed Loop 模式（v0.4.3+）
+## Squashed Loop 模式
 
 默认情况下，`WHILE` 和 `DO-WHILE` 循环使用**步进式**执行模型：解释器逐节点推进 `WhileNode`/`DONode` → condition → action → `CheckUpNode`/`DowhileNode`，每一步都经过完整的 `run_step_by()` 循环（指针推进、锁获取/释放、跳转操作）。
 
@@ -139,7 +139,7 @@ retry = DO(fetch).WHILE(has_more)
 ```python
 while await pc.call_offset(self._condi_offset):
     await pc.call_offset(self._do_offset)
-    if pc._jump_marked:
+    if pc.jump_marked:
         break
 pc.jump_near(self._else_addr)
 ```
@@ -174,10 +174,10 @@ except BreakLoop:
 | -------------------------------- | ---------- |
 | 需要在循环步内进行精确的外部中断 | **正常**   |
 | 具有大量迭代的热内层循环         | **压扁式** |
-| 与循环外部的 `GOTO` 跳转兼容     | **正常**   |
+| 与循环外部的 `JMP` 跳转兼容      | **正常**   |
 | 紧循环的最大吞吐量               | **压扁式** |
 
-> **注意**：在压扁模式下，`jump_marked` 会在每次 body 执行后检查。这意味着通过 `GOTO` 或 `CALL` 设置跳转标记的跳转仍然被支持——循环会中断，跳转目标在下一步执行。但是，`InterruptNotice` 和通过 `object_io` 的外部中断只能在 `call_offset` 边界注入，不能在循环子步骤之间。
+> **注意**：在压扁模式下，`jump_marked` 会在每次 body 执行后检查。这意味着通过 `JMP` 或 `INVOKE` 设置跳转标记的跳转仍然被支持——循环会中断，跳转目标在下一步执行。但是，`InterruptNotice` 和通过 `object_io` 的外部中断只能在 `call_offset` 边界注入，不能在循环子步骤之间。
 
 ## 何时用 WHILE，何时用 DO-WHILE
 

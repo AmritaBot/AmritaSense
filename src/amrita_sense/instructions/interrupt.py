@@ -21,15 +21,15 @@ def PUSH_CONTEXT(
     list, and optionally dependency args and return-address stack) onto the
     context stack.  The saved context's pointer is set to the given
     `alias_or_idata` address so that when the context is later restored (via
-    :func:`INTERRUPT_RET` or :meth:`~amrita_sense.runtime.workflow.WorkflowInterpreter.rebase_context`),
+    :func:`IRET` or :meth:`~amrita_sense.runtime.workflow.WorkflowInterpreter.rebase_context`),
     execution resumes at that address — i.e. it serves as the **return address**,
     not a jump target.
 
-    This is the low-level primitive — unlike :func:`INTERRUPT_INTO`, it does
+    This is the low-level primitive — unlike :func:`INT`, it does
     **not** perform any jump, does **not** set `if_flag`, and does **not**
     guard against being called inside an IF branch.
 
-    To restore the saved context and return, pair this with :func:`INTERRUPT_RET`
+    To restore the saved context and return, pair this with :func:`IRET`
     (auto-restore) or pop manually and call
     :meth:`~amrita_sense.runtime.workflow.WorkflowInterpreter.rebase_context`.
 
@@ -39,7 +39,7 @@ def PUSH_CONTEXT(
             context snapshot.  When the context is later restored, execution will
             resume at this address.  If `None`, defaults to the top of the
             **return-address stack** (i.e. the current instruction's return
-            address).  Since :func:`INTERRUPT_RET` does **not** set the jump flag
+            address).  Since :func:`IRET` does **not** set the jump flag
             when restoring, the interpreter will naturally advance to the next
             instruction (return-address + 1) after the restore.
         exclude_deps: If True (default), dependency args/kwargs are excluded
@@ -98,8 +98,8 @@ def POP_CONTEXT() -> NodeType[InterpreterContext]:
        flow into the next node's arguments.  To inspect or rebase the popped
        context, either:
 
-       * Use :func:`INTERRUPT_RET` which pops and auto-restores.
-       * Use a `CALL` / `pc.call_sub` to invoke a subroutine that receives
+       * Use :func:`IRET` which pops and auto-restores.
+       * Use an `INVOKE` / `pc.call_sub` to invoke a subroutine that receives
          the value via dependency injection.
        * Pop manually via `pc.context_stack.pop()` inside a `@Node` function.
 
@@ -115,7 +115,7 @@ def POP_CONTEXT() -> NodeType[InterpreterContext]:
     return call
 
 
-def INTERRUPT_INTO(
+def INT(
     jump_to: str | list[int],
     ret_to: str | list[int] | None = None,
     if_state: bool = False,
@@ -125,27 +125,31 @@ def INTERRUPT_INTO(
     Saves the current interpreter state (pointer, exception-ignore list,
     dependency args, return-address stack) and jumps to `jump_to`, but
     **overwrites the saved pointer with `ret_to`** so that when
-    :func:`INTERRUPT_RET` restores the context, execution resumes at
+    :func:`IRET` restores the context, execution resumes at
     `ret_to` — not at the original pre-jump position.
 
     This mirrors real CPU interrupt semantics: the return address is
     the instruction where execution should resume after the handler
     returns, not the interrupted instruction itself.
 
-    Since :func:`INTERRUPT_RET` uses
+    Since :func:`IRET` uses
     :meth:`~amrita_sense.runtime.workflow.WorkflowInterpreter.rebase_context`
     which does **not** set the jump flag, after restoring the context the
     interpreter will naturally advance to the next instruction
     (return-address + 1).
 
     Additionally sets `pc.if_flag = if_state`. While `if_flag` is
-    `True`, nested `INTERRUPT_INTO` is forbidden (raises
+    `True`, nested `INT` is forbidden (raises
     :class:`IllegalState`).
+
+    The context snapshot is taken **before** `if_flag` is written, so it
+    records the state to return to rather than the handler's own state;
+    :func:`IRET` therefore restores `if_flag` to its pre-interrupt value.
 
     Args:
         jump_to: Alias or absolute address to jump to **now** (the handler).
         ret_to: Alias or absolute address saved as the **return address** in
-            the context snapshot.  When :func:`INTERRUPT_RET` restores the
+            the context snapshot.  When :func:`IRET` restores the
             context, execution resumes here (and then advances to the next
             instruction, since no jump flag is set).  If `None`, defaults to
             the top of the **return-address stack** (i.e. the current
@@ -162,12 +166,11 @@ def INTERRUPT_INTO(
     jmp_addr: list[int] | None = None
     ret_addr: list[int] | None = None
 
-    @Node(BuiltinTags.INTERRUPT_INTO, wrap_to_async=False)
+    @Node(BuiltinTags.INT, wrap_to_async=False)
     def call(pc: WorkflowInterpreter) -> None:
         nonlocal jmp_addr, ret_addr
         if pc.if_flag:
             raise IllegalState("Interrupt into is not allowed in IF statement")
-        pc.if_flag = if_state
 
         # Resolve lazily, cache once
         assert jmp_addr is not None
@@ -178,9 +181,11 @@ def INTERRUPT_INTO(
             else:
                 ret_addr = pc._pointer.base_addr.copy()
 
+        # Snapshot before writing `if_state`: the context is the state to return to, not the handler's own.
         ctx: InterpreterContext = pc.dump_interpreter()
         ctx.ptr = PointerVector(ret_addr)  # override: return here after IRET
         pc.context_stack.push(ctx)
+        pc.if_flag = if_state
         pc.jump_to(jmp_addr)
 
     def _post_compile(compose: AbstractCompose[AddressCalculator]):
@@ -201,31 +206,40 @@ def INTERRUPT_INTO(
             )
 
         call.__sdb_dis__ = (
-            f"INTINTO {jmp_addr} -> {ret_addr if ret_addr is not None else '?'}"
+            f"INT {jmp_addr}, ret={ret_addr if ret_addr is not None else '?'}"
         )
+        call.__sdb_cmt__ = "save context and jump"
 
     call._post_compile = _post_compile
 
     return call
 
 
-def INTERRUPT_RET(reset_mark: bool = True) -> NodeType[None]:
+def IRET() -> NodeType[None]:
     """Create a workflow node that returns from a previous interrupt-into jump.
 
     Pops the top interpreter context from the context stack (which was saved by
-    :func:`INTERRUPT_INTO` or :func:`PUSH_CONTEXT`) and **reapplies** it via
+    :func:`INT` or :func:`PUSH_CONTEXT`) and **reapplies** it via
     :meth:`WorkflowInterpreter.rebase_context`.  This restores the pointer,
-    exception ignore list, dependency args, and return-address stack to their
-    pre-interrupt state.  The `if_flag` is also reset to `False`.
+    exception ignore list, dependency args, return-address stack and status
+    register to their pre-interrupt state.  `if_flag` therefore returns to the
+    value the snapshot was taken with — always `False` for :func:`INT`, which
+    refuses to run while already inside a handler.
 
     Returns:
-        A workflow node that restores the interpreter state and clears the `if_flag`.
+        A workflow node that restores the interpreter state from the context stack.
     """
 
-    @Node(BuiltinTags.INTERRUPT_RET, wrap_to_async=False)
+    @Node(BuiltinTags.IRET, wrap_to_async=False)
     def call(pc: WorkflowInterpreter) -> None:
         pc.rebase_context(pc.context_stack.pop())
-        if reset_mark:
-            pc.if_flag = False
+
+    call.__sdb_dis__ = "IRET"
+    call.__sdb_cmt__ = "return from interrupt"
 
     return call
+
+
+#  Deprecated names (renamed in 1.0.0); the static markers live in `_deprecated`.
+INTERRUPT_INTO = INT
+INTERRUPT_RET = IRET

@@ -1,6 +1,6 @@
 # REPL Debugging
 
-AmritaSense v0.5.0 introduces a dedicated debugger module `amrita_sense.debugger`, providing a pure-function, REPL-first debugging toolkit. It leverages the interpreter's built-in Panic/Recover mechanism, middleware injection, and step-by-step execution to let you debug workflows in a Python REPL just like local programs — no extra tools, no IDE plugins required.
+AmritaSense provides a dedicated debugger module `amrita_sense.debugger` — a pure-function, REPL-first debugging toolkit. It leverages the interpreter's built-in Panic/Recover mechanism, middleware injection, and step-by-step execution to let you debug workflows in a Python REPL just like local programs — no extra tools, no IDE plugins required.
 
 > **Prerequisites**
 > We recommend reading [Execution & Interrupt](/guide/concepts/exec_and_interrupt) for step-by-step execution and suspension mechanisms, and [External Interrupt](/guide/advanced/external_interrupt) for the `call_sub(interrupt=True)` principle. This article builds on that infrastructure to deliver a complete debugging experience.
@@ -105,14 +105,14 @@ Recursively expands the entire interpreter tree, showing each sub-interpreter's 
 
 ## Disassembly View
 
-A rendered workflow graph *is* an address-mapped instruction sequence — `[1, 0]` is an address and the pointer vector is the program counter. `dis()` renders it the way GDB renders machine code, with segments instead of indentation:
+A rendered workflow graph _is_ an address-mapped instruction sequence — `[1, 0]` is an address and the pointer vector is the program counter. `dis()` renders it the way GDB renders machine code, with segments instead of indentation:
 
 ```
 segment [root]:
 =>[0] (top) ALIAS top; alias for Alpha
-  [1]       CALL top -> [0]; CallNode
+  [1]       INVOKE top -> [0]; InvokeNode
   [2]       *segment [2]
-  [3]       JMP [0]; GOTO 'top'
+  [3]       JMP [0]; JMP 'top'
   [4]       NOP; no operation
 
 segment [2]:
@@ -159,26 +159,26 @@ The listing is colourised through [colorama](https://pypi.org/project/colorama/)
 >>> code_disp.COLOR = None    # auto-detect (default)
 ```
 
-Colour is applied *after* column padding, so enabling it never shifts the instruction column. Every palette entry is a module constant (`code_disp.C_PC`, `C_ADDR`, `C_MNEMONIC`, `C_OPERAND`, …), so a theme is just a matter of reassigning them.
+Colour is applied _after_ column padding, so enabling it never shifts the instruction column. Every palette entry is a module constant (`code_disp.C_PC`, `C_ADDR`, `C_MNEMONIC`, `C_OPERAND`, …), so a theme is just a matter of reassigning them.
 
 ### Magic attributes: `__sdb_dis__` and `__sdb_cmt__`
 
 The mnemonic comes from a **soft-constraint magic attribute** on the node, so an instruction can describe itself:
 
-| Attribute     | Effect                                                                   |
-| ------------- | ------------------------------------------------------------------------ |
-| `__sdb_dis__` | The text in the instruction column.                                       |
+| Attribute     | Effect                                                                      |
+| ------------- | --------------------------------------------------------------------------- |
+| `__sdb_dis__` | The text in the instruction column.                                         |
 | `__sdb_cmt__` | When not `None`, overrides the comment after `;` (which defaults to `tag`). |
 
-Both are read through a plain `getattr` at disassembly time — the input is an *already compiled* graph, so an operand such as a jump target is resolved by then. All three declaration forms work:
+Both are read through a plain `getattr` at disassembly time — the input is an _already compiled_ graph, so an operand such as a jump target is resolved by then. All three declaration forms work:
 
-| Form                  | Use it for                                                                                                                  |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| **class attribute**   | a fixed mnemonic shared by every instance.                                                                                   |
-| **`@property`**       | a value derived from instance state — it re-reads on every listing, so nothing has to be re-assigned after a recompile.      |
-| **instance attribute** | factory-created instructions whose operand only exists inside a closure (`PUSH_STACK`, `INTERRUPT_INTO`, …).                  |
+| Form                   | Use it for                                                                                                              |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **class attribute**    | a fixed mnemonic shared by every instance.                                                                              |
+| **`@property`**        | a value derived from instance state — it re-reads on every listing, so nothing has to be re-assigned after a recompile. |
+| **instance attribute** | factory-created instructions whose operand only exists inside a closure (`PUSH_RET`, `INT`, …).                         |
 
-Neither name is subject to name mangling (two trailing underscores), so `self.__sdb_dis__ = ...` inside a class body is safe. A property is a *data descriptor*, though, so a node that declares one intentionally rejects `self.__sdb_dis__ = ...` — that is what keeps the value single-sourced.
+Neither name is subject to name mangling (two trailing underscores), so `self.__sdb_dis__ = ...` inside a class body is safe. A property is a _data descriptor_, though, so a node that declares one intentionally rejects `self.__sdb_dis__ = ...` — that is what keeps the value single-sourced.
 
 ```python
 from amrita_sense.node.core import BaseNode, NodeComposeRendered
@@ -203,17 +203,17 @@ class MyJump(BaseNode):
         self._target = compose.calc.resolve_alias(self._alias)
 ```
 
-When a node declares nothing the view falls back to its `tag` — with a `__NAME__` decoration stripped, so `__RET_FAR__` shows as `RET_FAR` — or to the wrapped function name for auto-generated `NodeSuspend::…` tags.
+When a node declares nothing the view falls back to its `tag` — with a `__NAME__` decoration stripped, so `__RET__` shows as `RET` — or to the wrapped function name for auto-generated `NodeSuspend::…` tags.
 
 ### Operand notation
 
 A node never knows its own address, so a target that is relative to the enclosing segment cannot be printed as a full address. Operands are written to match the pointer operation they come from:
 
-| Notation       | Meaning                                   | Pointer operation |
-| -------------- | ----------------------------------------- | ----------------- |
-| `[1, 0]`       | an absolute address                       | `far_to`          |
-| `#3`           | slot 3 **of the node's own segment**      | `near_to`         |
-| `+2` / `-1`    | a delta **inside the node's own segment** | `offset`          |
+| Notation    | Meaning                                   | Pointer operation |
+| ----------- | ----------------------------------------- | ----------------- |
+| `[1, 0]`    | an absolute address                       | `far_to`          |
+| `#3`        | slot 3 **of the node's own segment**      | `near_to`         |
+| `+2` / `-1` | a delta **inside the node's own segment** | `offset`          |
 
 The built-in instruction set uses this throughout, so a listing of framework control flow reads like assembly:
 
@@ -232,14 +232,18 @@ segment [4]:
   [4, 0] TRY catch=ValueError#2; finally=#3 escape=#4
 ```
 
-Other built-in mnemonics you will see: `JMP [0]` (`GOTO`), `CALL sym -> [0]` (`CALL`), `CALL.FAR from -> to` (`PUSH_AND_GOTO`), `PUSH [0]` (`PUSH_STACK`), `PUSHCTX` / `INTINTO` / `INT.KEEP` (interrupts), `DO loop=#3 break=#5`, `DO.CHECK back=#0 exit=#3`, and the native fast-path set `NJMPIF` / `NWHILE` / `NDO.CHECK` / `NENTER`.
+Other built-in mnemonics you will see: `JMP [0]` (`JMP`), `INVOKE sym -> [0]`
+(`INVOKE`), `CALL to, ret=from` (`CALL`), `PUSH [0]` (`PUSH_RET`), `RET` (`RET`),
+`PUSHCTX` / `INT` / `IRET` (context and interrupt stack), `RESET` / `SUSPEND`
+(termination), `DO loop=#3 break=#5`, `DO.CHECK back=#0 exit=#3`, and the native
+fast-path set `NJMPIF` / `NWHILE` / `NDO.CHECK` / `NENTER`.
 
 ### Addressing modes and contract safety
 
 The listing is built by walking the graph through the `AbstractCompose` **contract** rather than a concrete class, because a rendered graph may be a `DLLComposeProxy` or a custom implementation (see [Compose Contracts](../advanced/compose-contracts)). Two consequences are worth knowing:
 
 - A container that refuses to be read — an unbuilt DLL proxy raises `NullPointerException` — is shown as an `(unreadable)` segment instead of aborting the listing.
-- The symbol table (`alias2vector_map`) is *not* part of the contract, so aliases are a soft feature: a graph without one degrades to plain addresses.
+- The symbol table (`alias2vector_map`) is _not_ part of the contract, so aliases are a soft feature: a graph without one degrades to plain addresses.
 
 Because a DLL rebase makes absolute addresses unreliable (see [Dynamic Linking](../advanced/dll_feature)), prefer aliases when reading a listing — the alias column tells you which addresses are symbols.
 
@@ -269,7 +273,7 @@ Every step also prints the [disassembly view](#disassembly-view) at the new prog
 
 ### `step_over(inter)` — Step Over
 
-Executes the node but **does not enter** subroutine calls (`call_sub` / `CALL`). Internally monitors `_ret_addr_stack` depth — as long as depth exceeds the starting value, execution continues until returning to the same stack frame.
+Executes the node but **does not enter** subroutine calls (`call_sub` / `INVOKE`). Internally monitors `_ret_addr_stack` depth — as long as depth exceeds the starting value, execution continues until returning to the same stack frame.
 
 ```python
 >>> step_over(inter)  # If current node calls call_sub,
@@ -329,7 +333,7 @@ debug_middleware(pc):
     3. Otherwise call pc._call() directly
 ```
 
-A hit means the node at the current address is *about to* run — nothing has executed yet. The debugger remembers that address so the next `cont()` skips the check once and lets the node run; without that, the same breakpoint would fire again before the node ever got a chance to execute, and `cont()` could never progress. An explicit `step()` discards a pending resume, since stepping bypasses breakpoint checks anyway.
+A hit means the node at the current address is _about to_ run — nothing has executed yet. The debugger remembers that address so the next `cont()` skips the check once and lets the node run; without that, the same breakpoint would fire again before the node ever got a chance to execute, and `cont()` could never progress. An explicit `step()` discards a pending resume, since stepping bypasses breakpoint checks anyway.
 
 ::: details Middleware injection details
 When the first breakpoint is set, the debugger:

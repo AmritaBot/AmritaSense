@@ -8,7 +8,7 @@ AmritaSense defines a lean, purpose-specific exception hierarchy for handling va
 class InterruptNotice(BaseException):
     """Special exception for immediate workflow termination.
 
-    Raised by the INTERRUPT node or external systems. As a BaseException
+    Raised by the RESET node or external systems. As a BaseException
     subclass, it bypasses regular CATCH blocks and penetrates directly to
     the interpreter's top-level handler, ensuring clean and unconditional
     termination.
@@ -17,11 +17,11 @@ class InterruptNotice(BaseException):
 
 **Why inherit from `BaseException`**
 
-Python's `except Exception` does not catch `BaseException` subclasses. Therefore, no `TRY/CATCH` block in the workflow can intercept `InterruptNotice` by default. This is an intentional design choice — `INTERRUPT` must be an "uncatchable" emergency termination signal. The only exception is explicitly adding `InterruptNotice` to `exception_ignored`, at which point it becomes catchable as a regular exception.
+Python's `except Exception` does not catch `BaseException` subclasses. Therefore, no `TRY/CATCH` block in the workflow can intercept `InterruptNotice` by default. This is an intentional design choice — `RESET` must be an "uncatchable" emergency termination signal. The only exception is explicitly adding `InterruptNotice` to `exception_ignored`, at which point it becomes catchable as a regular exception.
 
 **Trigger methods**
 
-- **Composition level**: Automatically raised when execution reaches an `INTERRUPT` node.
+- **Composition level**: Automatically raised when execution reaches an `RESET` node.
 - **External injection**: External systems can directly `raise InterruptNotice()`; the interpreter catches and terminates at the next node boundary.
 
 **Interpreter response**
@@ -31,10 +31,10 @@ When the interpreter main loop catches `InterruptNotice`:
 1. Logs the current pointer position and notification message
 2. Clears `_ret_addr_stack` (the call stack)
 3. Resets `_pointer` (the pointer vector)
-4. Resets the `_jump_marked` flag
+4. Resets the entire status register
 5. The workflow exits cleanly with no residual state
 
-## InterruptKeepContext (v0.4.x+)
+## InterruptKeepContext
 
 `InterruptKeepContext` is a subclass of `InterruptNotice` that terminates workflow execution while **preserving interpreter state**. Unlike `InterruptNotice`, which triggers a full `reset()`, this exception leaves the pointer, call stack, and dependency injection parameters intact.
 
@@ -42,7 +42,7 @@ Use cases:
 
 - Pause-inspect-resume debugging
 - Checkpoint-restart workflows
-- Triggered by the `INTERRUPT_KEEP_CTX` instruction node
+- Triggered by the `SUSPEND` instruction node
 
 ## NullPointerException
 
@@ -57,13 +57,13 @@ class NullPointerException(Exception):
 
 **Trigger scenarios**
 
-- A GOTO, CALL, or other jump instruction's target address does not exist in the `NodeComposeRendered`.
-- An alias lookup fails in `alias2vector_map` (at which point `JumpNode` and `CallNode`'s `_post_compile` raises `AliasNotFoundError`).
+- A JMP, INVOKE, or other jump instruction's target address does not exist in the `NodeComposeRendered`.
+- An alias lookup fails in `alias2vector_map` (at which point `JumpNode` and `InvokeNode`'s `_post_compile` raises `AliasNotFoundError`).
 - An out-of-bounds index is accessed at runtime via `find_addr`.
 
 **Relationship with alias validation**
 
-`NullPointerException` is the fallback exception for runtime address failures. In practice, when using `ALIAS` + `GOTO`/`CALL` for normal addressing, typos are caught at compile time during `_post_compile` with correction suggestions. Only raw `list[int]` addresses that are invalid at runtime will raise this exception.
+`NullPointerException` is the fallback exception for runtime address failures. In practice, when using `ALIAS` + `JMP`/`INVOKE` for normal addressing, typos are caught at compile time during `_post_compile` with correction suggestions. Only raw `list[int]` addresses that are invalid at runtime will raise this exception.
 
 ## BreakLoop
 
@@ -84,7 +84,7 @@ class BreakLoop(Exception):
 - It penetrates all intermediate exception handling layers and reaches the innermost `WhileNode` or `DONode`.
 - The loop node catches `BreakLoop` and executes `jump_near(NOP)`, exiting cleanly.
 
-> **v0.3.0+**: This auto-inclusion can be disabled via `__flags__.DISABLE_EXC_IGNORED = True` from `amrita_sense._unsafe`. See [Unsafe Features](../../guide/advanced/unsafe.md) for details.
+> This auto-inclusion can be disabled via `__flags__.DISABLE_EXC_IGNORED = True` from `amrita_sense._unsafe`. See [Unsafe Features](../../guide/advanced/unsafe.md) for details.
 
 **Usage**
 
@@ -102,7 +102,7 @@ def process_item():
 
 **Note**: Developers should **not** manually add `BreakLoop` to `exception_ignored` — it is already added automatically during interpreter initialization. Adding it again has no additional effect; attempting to remove it would cause `CATCH` blocks inside loops to accidentally capture `BreakLoop`, breaking loop semantics.
 
-## IllegalState (v0.3.0+)
+## IllegalState
 
 Raised when an operation is attempted in an invalid state. Common triggers:
 
@@ -122,9 +122,9 @@ class DependsException(Exception):
     """Base class for all dependency injection related exceptions."""
 ```
 
-### AliasNotFoundError (v0.4.x+)
+### AliasNotFoundError
 
-Raised when a GOTO or CALL instruction references an alias that does not exist in the workflow graph's alias registry. Detected at compile time during `_post_compile`. Replaces the generic `RuntimeError` / `ValueError` previously used for alias resolution failures.
+Raised when a JMP or INVOKE instruction references an alias that does not exist in the workflow graph's alias registry. Detected at compile time during `_post_compile`. Replaces the generic `RuntimeError` / `ValueError` previously used for alias resolution failures.
 
 ### DependsResolveFailed
 
@@ -157,12 +157,33 @@ class DependsInjectFailed(Exception):
 
 - A `Depends` factory function raises an exception at runtime that is not in `_exc_ignored`.
 - When resolving multiple dependencies concurrently, all failures are collected into an `ExceptionGroup` and re-raised.
+- A generator dependency is resolved at a site where the scope it declares (or the default scope) is not active.
 
 **Critical behavior: `Depends` returning `None` terminates immediately**
 
 Unlike the event system's "return `None` to skip" behavior, in node execution, if a dependency factory declared via `Depends` returns `None`, the workflow **raises an exception and terminates immediately**. Nodes are atomic execution units, and dependency resolution failure means the node cannot run — this is not a "skip" scenario. Therefore, dependency factory functions designed for nodes should always return a valid value (or raise an explicit exception when unable to provide one, rather than returning `None`).
 
-## GraphBuildError (v0.4.x+)
+A generator dependency that yields `None` counts as a failure under the same rule, but its teardown still runs.
+
+### DependsDeclarationError
+
+```python
+class DependsDeclarationError(Exception):
+    """Raised when a dependency declaration is contradictory.
+
+    Raised while the dependency graph is built (i.e. when a node or an
+    event handler is constructed), so a malformed declaration fails fast
+    instead of surfacing as a resolution failure at execution time.
+    """
+```
+
+**Trigger conditions**
+
+- `Depends` appears in both the annotation and the default value of the same parameter.
+- Several `Depends` markers appear in the same `Annotated` annotation.
+- A `scope` is declared for a provider that is not a generator.
+
+## GraphBuildError
 
 Raised when workflow graph building or rendering fails. Common triggers:
 
@@ -170,7 +191,7 @@ Raised when workflow graph building or rendering fails. Common triggers:
 - Attempting to build an already-built `NodeComposeRendered`
 - Missing original graph during rendering
 
-## StreamStateError (v0.4.x+)
+## StreamStateError
 
 Raised when a `SuspendObjectStream` operation is attempted in an invalid state. Common triggers:
 
@@ -195,7 +216,8 @@ Exception
 ├── StreamStateError          # Stream operation in illegal state
 └── DependsException          # Dependency injection base class
     ├── DependsResolveFailed   # Dependencies cannot be resolved
-    └── DependsInjectFailed    # Exception during dependency injection
+    ├── DependsInjectFailed    # Exception during dependency injection
+    └── DependsDeclarationError # Contradictory dependency declaration
 ```
 
 **Design principles**:
@@ -203,11 +225,11 @@ Exception
 - `InterruptNotice` inherits from `BaseException`, achieving natural uncatchability.
 - `InterruptKeepContext` inherits from `InterruptNotice`, preserving context for later recovery.
 - `BreakLoop` inherits from `Exception`, but gains equivalent penetration capability through automatic inclusion in `_exc_ignored`.
-- `IllegalState` was added in v0.3.0 to protect interpreter tree API call validity and instruction syntax constraints.
-- `AliasNotFoundError` / `GraphBuildError` / `StreamStateError` are fine-grained exception types added in v0.4.x+.
+- `IllegalState` protects interpreter tree API call validity and instruction syntax constraints.
+- `AliasNotFoundError` / `GraphBuildError` / `StreamStateError` are fine-grained exception types.
 - All dependency-related exceptions inherit from `DependsException`, allowing users to catch the entire dependency error category as needed.
 
-## `search_exceptions()` (v0.3.0+)
+## `search_exceptions()`
 
 ```python
 from amrita_sense.utils import search_exceptions

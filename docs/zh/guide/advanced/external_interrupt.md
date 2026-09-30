@@ -45,7 +45,7 @@ await interpreter.call_sub(
 
 ### `ARCHIVED_NODES` 的结构
 
-`ARCHIVED_NODES` 是一个自编译指令，它接收一系列节点（通常通过 `ALIAS` 标记以支持 `CALL` 寻址），自动生成如下结构：
+`ARCHIVED_NODES` 是一个自编译指令，它接收一系列节点（通常通过 `ALIAS` 标记以支持 `INVOKE` 寻址），自动生成如下结构：
 
 ```text
 SubprogramJumpNode -> ALIAS(node1, "name1") -> ALIAS(node2, "name2") -> ... -> NOP
@@ -90,9 +90,9 @@ interrupt_handlers = ARCHIVED_NODES(
 
 它本身具有 `address_able=True`，可以被别名化（尽管通常不需要）。这种设计让存储区对正常执行流完全透明，但对地址解析（通过别名查表）完全开放。
 
-### 为什么不用 GOTO？
+### 为什么不用 JMP？
 
-`SubprogramJumpNode` 是专门为跳过存储区设计的，语义更明确。而 `GOTO` 是通用跳转指令，可能会被误用。使用专用的跳转节点可以降低开发者混淆的风险。
+`SubprogramJumpNode` 是专门为跳过存储区设计的，语义更明确。而 `JMP` 是通用跳转指令，可能会被误用。使用专用的跳转节点可以降低开发者混淆的风险。
 
 ## 4.4.4 构建安全的可注入节点库
 
@@ -138,9 +138,9 @@ pc.object_io.resume()
 
 通过这套机制，AmritaSense 将外部干预从“破坏性中断”变为“安全的功能调用”，为构建全功能调试器、监控系统和动态流控提供了坚实的基础。
 
-## 4.4.5 中断例程与上下文快照（v0.4.x+）
+## 4.4.5 中断例程与上下文快照
 
-AmritaSense v0.4.x+ 提供了用于工作流**内部**中断式控制转移的内置指令：`INTERRUPT_INTO` / `INTERRUPT_RET`。与从解释器**外部**注入代码的 `call_sub(interrupt=True)` 不同，这些指令直接放置在 `>>` 链中，执行：
+AmritaSense 提供了用于工作流**内部**中断式控制转移的内置指令：`INT` / `IRET`。与从解释器**外部**注入代码的 `call_sub(interrupt=True)` 不同，这些指令直接放置在 `>>` 链中，执行：
 
 1. 保存完整解释器状态 → `InterpreterContext`
 2. 跳转到处理例程（如存储在 `ARCHIVED_NODES` 中）
@@ -152,10 +152,10 @@ AmritaSense v0.4.x+ 提供了用于工作流**内部**中断式控制转移的�
 - 带状态检查的调试断点
 - 嵌套中断处理（LIFO 上下文栈）
 
-**外部 vs 内部**：`call_sub(interrupt=True)` 是外部驱动的（调试器、HTTP 端点）；`INTERRUPT_INTO`/`INTERRUPT_RET` 是在 `>>` 链中内部编排的。两种机制互补且可组合使用。
+**外部 vs 内部**：`call_sub(interrupt=True)` 是外部驱动的（调试器、HTTP 端点）；`INT`/`IRET` 是在 `>>` 链中内部编排的。两种机制互补且可组合使用。
 
 完整示例和模式请参见[中断例程与中断返回](/zh/guide/practice/interrupt-routine)。
 
 ::: tip REPL 调试器
-基于上述外部调用机制和中断体系，AmritaSense v0.5.0 提供了完整的 REPL 调试器模块 `amrita_sense.debugger`，将步进执行、断点管理和状态检查封装为同步函数，无需手写 `run_step_by()` 循环。详情请参见 [REPL 调试](/zh/guide/practice/repl-debugging)。
+基于上述外部调用机制和中断体系，AmritaSense 提供了完整的 REPL 调试器模块 `amrita_sense.debugger`，将步进执行、断点管理和状态检查封装为同步函数，无需手写 `run_step_by()` 循环。详情请参见 [REPL 调试](/zh/guide/practice/repl-debugging)。
 :::

@@ -1,12 +1,12 @@
 # Advanced Practice: Subgraph Isolation Calls
 
-AmritaSense v0.3.0 introduces the `FUN_BLOCK` instruction and a full **interpreter tree model**, enabling workflows to launch isolated sub-workflows with their own lifecycle, middleware, and error boundaries.
+AmritaSense provides the `FUN_BLOCK` instruction and a full **interpreter tree model**, enabling workflows to launch isolated sub-workflows with their own lifecycle, middleware, and error boundaries.
 
 ## Concept
 
 A subgraph isolation call takes a compiled `NodeComposeRendered` graph and executes it inside a **child `WorkflowInterpreter`**. The parent interpreter suspends waiting for the child to complete. This is analogous to calling a function in a traditional language, but with full runtime isolation — separate execution context, separate middleware, and a separate suspend/resume lifecycle.
 
-The key difference from `CALL`/`call_sub` is that `FUN_BLOCK` launches the sub-workflow as an **independent interpreter** in the tree, rather than reusing the current interpreter's pointer stack.
+The key difference from `INVOKE`/`call_sub` is that `FUN_BLOCK` launches the sub-workflow as an **independent interpreter** in the tree, rather than reusing the current interpreter's pointer stack.
 
 ## The Interpreter Tree
 
@@ -56,7 +56,7 @@ FUN_BLOCK(
   - `UNSET` (default): Inherits the parent's middleware, unless `__flags__.NO_SHARED_MIDDLEWARE` is `True`.
   - `None`: No middleware for the child interpreter.
   - A callable: Custom middleware for this child only.
-- `object_io` (`SuspendObjectStream | None`): I/O stream for the child. Default `None` shares the parent's `SuspendObjectStream`. Since v0.3.2, `SuspendObjectStream` is concurrency-safe via the **CLCA (Cross Loop Callback-Allocate) signal design pattern**, so sharing across interpreters and even threads is safe.
+- `object_io` (`SuspendObjectStream | None`): I/O stream for the child. Default `None` shares the parent's `SuspendObjectStream`. `SuspendObjectStream` is concurrency-safe via the **CLCA (Cross Loop Callback-Allocate) signal design pattern**, so sharing across interpreters and even threads is safe.
 - `one_time_interp` (`bool`): If `True`, a new `WorkflowInterpreter` is created on every invocation and torn down after completion. If `False` (default), the interpreter is reused across invocations (its state is reset but not reconstructed).
 
 ### Return Value
@@ -190,7 +190,7 @@ comp = main_start >> Try(FUN_BLOCK(sub_comp), CATCH=(ValueError, handle_value_er
 
 | Scenario                                            | Recommendation                            |
 | --------------------------------------------------- | ----------------------------------------- |
-| Simple subroutine call/return within same state     | `CALL` / `call_sub`                       |
+| Simple subroutine call/return within same state     | `INVOKE` / `call_sub`                     |
 | Independent sub-workflow with error isolation       | `FUN_BLOCK`                               |
 | Parallel execution of multiple sub-workflows        | `fork_interpreter()` + `asyncio.gather()` |
 | Sub-workflow with custom middleware                 | `FUN_BLOCK(middleware=...)`               |

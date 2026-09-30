@@ -1,13 +1,13 @@
 import pytest
 
 from amrita_sense.exceptions import InterruptNotice
-from amrita_sense.instructions.workfl_ctrl import INTERRUPT, NOP
+from amrita_sense.instructions.workfl_ctrl import NOP, RESET
 
 
 class TestWorkflCtrlNodes:
     """Unit tests for workflow control nodes.
 
-    These tests ensure the `NOP` and `INTERRUPT` node constants expose the
+    These tests ensure the `NOP` and `RESET` node constants expose the
     expected attributes and runtime behavior. Tests use the Node wrapper API
     rather than assuming an `extract()` method exists.
     """
@@ -24,9 +24,9 @@ class TestWorkflCtrlNodes:
         result = NOP()
         assert result is None
 
-    def test_interrupt_raises_interrupt_notice(self):
-        """Calling INTERRUPT should raise InterruptNotice immediately."""
-        assert hasattr(INTERRUPT, "func")
+    def test_reset_raises_interrupt_notice(self):
+        """Calling RESET should raise InterruptNotice immediately."""
+        assert hasattr(RESET, "func")
 
         with pytest.raises(InterruptNotice):
-            INTERRUPT()
+            RESET()

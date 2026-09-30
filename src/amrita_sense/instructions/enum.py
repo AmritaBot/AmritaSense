@@ -20,7 +20,12 @@ from typing_extensions import LiteralString
 
 
 class BuiltinTags(str, Enum):
-    """String-mixin enumeration of all built-in instruction tags."""
+    """String-mixin enumeration of all built-in instruction tags.
+
+    Members renamed in 1.0.0 carry an **alias** with the old name; an alias
+    shares the member's value, so ``BuiltinTags.RET_FAR is BuiltinTags.RET``.
+    Aliases show up in ``__members__`` but not in ``list(BuiltinTags)``.
+    """
 
     #  Context stack / Interrupts
     PUSH_CONTEXT = "__PUSH_CONTEXT__"
@@ -29,21 +34,36 @@ class BuiltinTags(str, Enum):
     POP_CONTEXT = "__POP_CONTEXT__"
     """Tag for :func:`~amrita_sense.instructions.interrupt.POP_CONTEXT`."""
 
-    INTERRUPT_INTO = "__INTERRUPT_INTO__"
-    """Tag for :func:`~amrita_sense.instructions.interrupt.INTERRUPT_INTO`."""
+    INT = "__INT__"
+    """Tag for :func:`~amrita_sense.instructions.interrupt.INT`."""
 
-    INTERRUPT_RET = "__INTERRUPT_RET__"
-    """Tag for :func:`~amrita_sense.instructions.interrupt.INTERRUPT_RET`."""
+    INTERRUPT_INTO = "__INT__"
+    """Alias of :attr:`INT` (renamed in 1.0.0)."""
+
+    IRET = "__IRET__"
+    """Tag for :func:`~amrita_sense.instructions.interrupt.IRET`."""
+
+    INTERRUPT_RET = "__IRET__"
+    """Alias of :attr:`IRET` (renamed in 1.0.0)."""
 
     #  Return-address stack
-    RET_FAR = "__RET_FAR__"
-    """Tag for :func:`~amrita_sense.instructions.ret2.RET_FAR`."""
+    RET = "__RET__"
+    """Tag for :func:`~amrita_sense.instructions.ret2.RET`."""
 
-    PUSH_STACK = "__PUSH_STACK__"
-    """Tag for :func:`~amrita_sense.instructions.ret2.PUSH_STACK`."""
+    RET_FAR = "__RET__"
+    """Alias of :attr:`RET` (renamed in 1.0.0)."""
 
-    PUSH_AND_GOTO = "__PUSH_AND_GOTO__"
-    """Tag for :func:`~amrita_sense.instructions.ret2.PUSH_AND_GOTO`."""
+    PUSH_RET = "__PUSH_RET__"
+    """Tag for :func:`~amrita_sense.instructions.ret2.PUSH_RET`."""
+
+    PUSH_STACK = "__PUSH_RET__"
+    """Alias of :attr:`PUSH_RET` (renamed in 1.0.0)."""
+
+    CALL = "__CALL__"
+    """Tag for :func:`~amrita_sense.instructions.ret2.CALL`."""
+
+    PUSH_AND_GOTO = "__CALL__"
+    """Alias of :attr:`CALL` (renamed in 1.0.0)."""
 
     #  Subprogram
     ARCHIVED_SEGMENT = "__ARCHIVED_SEGMENT__"
@@ -80,9 +100,9 @@ AUTO_PREFIX: LiteralString = "NodeSuspend::"
 
 AUTO_TAGS: dict[LiteralString, str] = {
     "NOP": f"{AUTO_PREFIX}_no_operation",
-    "INTERRUPT": f"{AUTO_PREFIX}_interrput_operation",
-    "INTERRUPT_KEEP_CTX": f"{AUTO_PREFIX}_interrupt_keep_ctx",
-    "GOTO": f"{AUTO_PREFIX}_jump",
+    "RESET": f"{AUTO_PREFIX}_reset_operation",
+    "SUSPEND": f"{AUTO_PREFIX}_suspend_operation",
+    "JMP": f"{AUTO_PREFIX}_jump",
     "IF_CONDJUMP": f"{AUTO_PREFIX}_do",
     "ELSE_WORKER": f"{AUTO_PREFIX}_else_worker",
     "DO_NODE": f"{AUTO_PREFIX}_do_worker",
@@ -97,23 +117,23 @@ Auto-generated tags for built-in instructions whose nodes pass `tag=None`.
 These are produced by the `BaseNode._init` fallback and are shared
 across many node types — they are **not** unique identifiers.
 
-=============================== ============================================
-Tag                             Instruction(s)
-=============================== ============================================
-`NodeSuspend::_no_operation`  :data:`~amrita_sense.instructions.workfl_ctrl.NOP`
-`NodeSuspend::_interrput_operation` :data:`~amrita_sense.instructions.workfl_ctrl.INTERRUPT`
-`NodeSuspend::_interrupt_keep_ctx`  :data:`~amrita_sense.instructions.workfl_ctrl.INTERRUPT_KEEP_CTX`
-`NodeSuspend::_jump`          :func:`~amrita_sense.instructions.jump.GOTO` (JumpNode)
-`NodeSuspend::__call__`       SubprogramJumpNode, CallNode, NativeIfJumpNode,
-                                NativeWhileNode, NativeDoWhileNode,
-                                NativeBubbleEnterNode, FuncBlock
-`NodeSuspend::_do`            ConditionJumpNode (IF chain)
-`NodeSuspend::_else_worker`   ELSE clause worker node
-`NodeSuspend::_do_worker`     DONode
-`NodeSuspend::_do_while_worker` DowhileNode
-`NodeSuspend::_while_worker`  WhileNode
-`NodeSuspend::_while_checkup` CheckUpNode
-=============================== ============================================
+================================== ============================================
+Tag                                Instruction(s)
+================================== ============================================
+`NodeSuspend::_no_operation`       :data:`~amrita_sense.instructions.workfl_ctrl.NOP`
+`NodeSuspend::_reset_operation`    :data:`~amrita_sense.instructions.workfl_ctrl.RESET`
+`NodeSuspend::_suspend_operation`  :data:`~amrita_sense.instructions.workfl_ctrl.SUSPEND`
+`NodeSuspend::_jump`               :func:`~amrita_sense.instructions.jump.JMP` (JumpNode)
+`NodeSuspend::__call__`            SubprogramJumpNode, InvokeNode, NativeIfJumpNode,
+                                     NativeWhileNode, NativeDoWhileNode,
+                                     NativeBubbleEnterNode, FuncBlock
+`NodeSuspend::_do`                 ConditionJumpNode (IF chain)
+`NodeSuspend::_else_worker`        ELSE clause worker node
+`NodeSuspend::_do_worker`          DONode
+`NodeSuspend::_do_while_worker`    DowhileNode
+`NodeSuspend::_while_worker`       WhileNode
+`NodeSuspend::_while_checkup`      CheckUpNode
+================================== ============================================
 """
 
 __all__ = [

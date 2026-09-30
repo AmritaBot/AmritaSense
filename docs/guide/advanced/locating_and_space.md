@@ -1,12 +1,12 @@
 # Locating & Scope
 
-In AmritaSense, a workflow is not a static graph of node connections; it is a **nonlinear execution flow over a linear node array**. Understanding “locating and scope” means understanding how to precisely mark targets on that array, compute offsets, and establish scope boundaries so that instructions like GOTO can perform accurate jumps.
+In AmritaSense, a workflow is not a static graph of node connections; it is a **nonlinear execution flow over a linear node array**. Understanding “locating and scope” means understanding how to precisely mark targets on that array, compute offsets, and establish scope boundaries so that instructions like JMP can perform accurate jumps.
 
 This chapter dives into the core mechanisms that make up this addressing system: compile-time alias binding, runtime address resolution, and Bubble scope isolation.
 
 ## 4.2.1 Compile-time binding: the ALIAS alias system
 
-`ALIAS` is the **compile-time foundation** of the locating system. It binds a node to a globally unique symbol name and registers it into `alias2vector_map` during render time so that GOTO and CALL can resolve it at runtime.
+`ALIAS` is the **compile-time foundation** of the locating system. It binds a node to a globally unique symbol name and registers it into `alias2vector_map` during render time so that JMP and INVOKE can resolve it at runtime.
 
 ### Alias registration mechanism
 
@@ -25,7 +25,7 @@ These constraints ensure the alias table remains clean and resolvable at runtime
 ### Practical usage
 
 ```python
-from amrita_sense.instructions import ALIAS, IF, GOTO
+from amrita_sense.instructions import ALIAS, IF, JMP
 from amrita_sense.node import Node
 
 
@@ -35,19 +35,19 @@ def action():
 
 
 # ALIAS binds action to the symbol "main_action"
-# After that, GOTO("main_action") or CALL("main_action") can reference it directly.
+# After that, JMP("main_action") or INVOKE("main_action") can reference it directly.
 labeled_action = ALIAS(action, "main_action")
 
-workflow = IF(some_condition, GOTO("main_action")) >> labeled_action
+workflow = IF(some_condition, JMP("main_action")) >> labeled_action
 ```
 
-## 4.2.2 Runtime resolution: GOTO unconditional jump
+## 4.2.2 Runtime resolution: JMP unconditional jump
 
-`GOTO` is the most direct control flow jump instruction in AmritaSense. At runtime, it looks up the target address from the alias table and performs a single pointer rewrite so the interpreter directly executes the target node.
+`JMP` is the most direct control flow jump instruction in AmritaSense. At runtime, it looks up the target address from the alias table and performs a single pointer rewrite so the interpreter directly executes the target node.
 
 ### Jump target validation
 
-`GOTO`'s `JumpNode` completes address resolution during compile-time `_post_compile`. This design allows errors to be caught **before runtime**:
+`JMP`'s `JumpNode` completes address resolution during compile-time `_post_compile`. This design allows errors to be caught **before runtime**:
 
 - When using an alias, `_post_compile` checks whether the alias exists in `alias2vector_map`.
 - If the alias is not found, `JumpNode` lists all registered aliases, performs a fuzzy match with `difflib`, and raises an error with a "did you mean X?" suggestion.
@@ -55,28 +55,28 @@ workflow = IF(some_condition, GOTO("main_action")) >> labeled_action
 
 ### Jump marker mechanism
 
-All jump methods (`jump_to`, `jump_near`, `jump_offset`, etc.) use the `@markup` decorator. Its purpose is to set the `_jump_marked` flag after a jump occurs, which prevents the interpreter from performing the normal pointer advance immediately after the jump. This ensures that **jumping and stepping are mutually exclusive** — execution is either explicitly moved or automatically advanced, never both.
+All jump methods (`jump_to`, `jump_near`, `jump_offset`, etc.) use the `@markup` decorator. Its purpose is to set the `JMP` bit after a jump occurs, which prevents the interpreter from performing the normal pointer advance immediately after the jump. This ensures that **jumping and stepping are mutually exclusive** — execution is either explicitly moved or automatically advanced, never both.
 
 ### Best practices
 
-1. **Prefer aliases over raw addresses**: `GOTO("target")` is more readable than `GOTO([1, 3, 5])`, and the alias table provides uniqueness validation at compile time.
-2. **Do not use GOTO as a substitute for loops**: GOTO does not push a return address onto the call stack and is not suitable for cases requiring a return. Use `CALL` for subroutine calls that need to return — this will be covered in detail in [the next chapter](./child_node.md).
-3. **Mind Bubble boundaries**: GOTO can jump across any nesting level, but overusing cross-level jumps makes control flow difficult to trace. Prefer `jump_near` within the same Bubble and `jump_to` for cross-Bubble jumps.
+1. **Prefer aliases over raw addresses**: `JMP("target")` is more readable than `JMP([1, 3, 5])`, and the alias table provides uniqueness validation at compile time.
+2. **Do not use JMP as a substitute for loops**: JMP does not push a return address onto the call stack and is not suitable for cases requiring a return. Use `INVOKE` for subroutine calls that need to return — this will be covered in detail in [the next chapter](./child_node.md).
+3. **Mind Bubble boundaries**: JMP can jump across any nesting level, but overusing cross-level jumps makes control flow difficult to trace. Prefer `jump_near` within the same Bubble and `jump_to` for cross-Bubble jumps.
 
-## 4.2.3 CALL instruction: the entry point for subroutine invocation
+## 4.2.3 INVOKE instruction: the entry point for subroutine invocation
 
-In addition to `GOTO`'s one-way jump, AmritaSense also provides the `CALL` instruction for **calling a subroutine and automatically returning after execution**. `CALL` shares the same alias-based addressing system as `GOTO` — both rely on `ALIAS` for symbol registration, and both complete address resolution and spelling correction during the compile-time `_post_compile` phase.
+In addition to `JMP`'s one-way jump, AmritaSense also provides the `INVOKE` instruction for **calling a subroutine and automatically returning after execution**. `INVOKE` shares the same alias-based addressing system as `JMP` — both rely on `ALIAS` for symbol registration, and both complete address resolution and spelling correction during the compile-time `_post_compile` phase.
 
 ### Core differences
 
-| Feature                  | GOTO                                | CALL                                     |
+| Feature                  | JMP                                 | INVOKE                                   |
 | ------------------------ | ----------------------------------- | ---------------------------------------- |
 | Saves return address?    | No                                  | Yes (pushes onto `_ret_addr_stack`)      |
 | After-execution behavior | Continues advancing from the target | Automatically pops the stack and returns |
 | Use cases                | One-way jumps, branch merging       | Subroutine reuse, interrupt handling     |
 
 > **Further reading**
-> The complete `CALL` mechanism — including call stack management, the `ARCHIVED_NODES` storage structure, `SubprogramJumpNode` skip logic, and interrupt vector table implementation — will be covered in detail in [Chapter 4.3: Calling Subroutines](./child_node.md).
+> The complete `INVOKE` mechanism — including call stack management, the `ARCHIVED_NODES` storage structure, `SubprogramJumpNode` skip logic, and interrupt vector table implementation — will be covered in detail in [Chapter 4.3: Calling Subroutines](./child_node.md).
 
 ## 4.2.4 Scope isolation: Bubble scopes and near addressing
 
@@ -110,8 +110,8 @@ In complex conditional chains, different branches may each contain nested workfl
 
 ```python
 complex_flow = (
-    IF(cond1, GOTO("exit")) >> ALIAS(nested_workflow, "branch_a") >> ALIAS(NOP, "exit")
+    IF(cond1, JMP("exit")) >> ALIAS(nested_workflow, "branch_a") >> ALIAS(NOP, "exit")
 )
 ```
 
-`nested_workflow` is an independent Bubble; its internal GOTO, CALL, and other operations do not affect the address space of `complex_flow`. This isolation is key to AmritaSense's ability to safely handle deeply nested workflows — developers can bracket scope boundaries just like writing code, and the interpreter automatically manages entry and exit.
+`nested_workflow` is an independent Bubble; its internal JMP, INVOKE, and other operations do not affect the address space of `complex_flow`. This isolation is key to AmritaSense's ability to safely handle deeply nested workflows — developers can bracket scope boundaries just like writing code, and the interpreter automatically manages entry and exit.

@@ -31,9 +31,9 @@ Key operations:
 
 The stack is protected by a lock and raises `OverflowError` if capacity is exceeded.
 
-## InterpreterContext (v0.4.x+)
+## InterpreterContext
 
-`InterpreterContext` is a dataclass that stores a complete snapshot of the interpreter's execution state. It is used by `PUSH_CONTEXT`/`POP_CONTEXT` and `INTERRUPT_INTO`/`INTERRUPT_RET` for save/restore workflows.
+`InterpreterContext` is a dataclass that stores a complete snapshot of the interpreter's execution state. It is used by `PUSH_CONTEXT`/`POP_CONTEXT` and `INT`/`IRET` for save/restore workflows.
 
 ```python
 @dataclass
@@ -45,6 +45,7 @@ class InterpreterContext:
     extra: dict[str, Any] = field(default_factory=dict)
     stack: Stack[PointerVector] | None = None
     exception: Exception | None = None
+    flags: Flags = Flags.NONE
 ```
 
 Fields:
@@ -55,8 +56,20 @@ Fields:
 - `extra`: Extension data dictionary for custom use.
 - `stack`: Snapshot of the return-address stack. `None` if excluded.
 - `exception`: Snapshot of the panic exception, or `None` if no panic occurred.
+- `flags`: Snapshot of the status register. `dump_interpreter()` strips `HLT` when it builds the snapshot, because a snapshot records the state to come back to and "the loop is parked on this node" is not part of it. Restoring therefore never resurrects a halt.
 
-## DICache (v0.4.2+)
+## Flags
+
+`Flags` is an `IntFlag` holding the interpreter's discrete control-flow state. Keeping the bits in one register makes snapshotting, restoring and clearing them a single assignment.
+
+| Member | Meaning                                                                |
+| ------ | ---------------------------------------------------------------------- |
+| `NONE` | No bit set                                                             |
+| `IF`   | Inside an interrupt handler; `INT` is rejected while set               |
+| `HLT`  | Halted on a node; the next run steps past it before executing anything |
+| `JMP`  | A jump already moved the pointer; the main loop must not advance it    |
+
+## DICache
 
 `DICache` is a dataclass that manages the dependency injection result cache within the `WorkflowInterpreter`. It combines args fingerprinting with an LRU cache to avoid redundant DI resolution.
 

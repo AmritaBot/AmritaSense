@@ -20,11 +20,11 @@ from amrita_sense.debugger.code_disp import (
 )
 from amrita_sense.instructions import (
     ALIAS,
-    CALL,
-    GOTO,
     IF,
+    INVOKE,
+    JMP,
     NOP,
-    PUSH_STACK,
+    PUSH_RET,
     WHILE,
     Try,
 )
@@ -135,11 +135,11 @@ class TestMagicAttributes:
         assert resolve_dis(NOP) == "NOP"
         assert resolve_cmt(NOP) == "no operation"
 
-    def test_goto_resolves_its_target_at_compile_time(self) -> None:
-        cmp = (ALIAS(beta, "target") >> GOTO("target") >> NOP).render()
+    def test_jmp_resolves_its_target_at_compile_time(self) -> None:
+        cmp = (ALIAS(beta, "target") >> JMP("target") >> NOP).render()
         listing = disassemble(WorkflowInterpreter(cmp), around=None)
         assert "JMP [0]" in listing
-        assert "GOTO 'target'" in listing
+        assert "JMP 'target'" in listing
 
     def test_call_alias_is_shown(self) -> None:
         listing = disassemble(
@@ -215,15 +215,15 @@ class TestDeclarationForms:
         assert "RESOLVED [1, 1]" in disassemble(inter, around=None)
 
     def test_closure_factory_node_uses_an_instance_attribute(self) -> None:
-        """`PUSH_STACK` is built by a factory, so its operand lives on the instance."""
-        cmp = (ALIAS(alpha, "sym") >> PUSH_STACK("sym") >> NOP).render()
+        """`PUSH_RET` is built by a factory, so its operand lives on the instance."""
+        cmp = (ALIAS(alpha, "sym") >> PUSH_RET("sym") >> NOP).render()
         listing = disassemble(WorkflowInterpreter(cmp), around=None)
         assert "PUSH [0]" in listing
 
     def test_unresolved_operand_renders_as_unknown(self) -> None:
         """Before compilation the operand is unknown, and says so."""
-        assert resolve_dis(GOTO("sym")) == "JMP ?"
-        assert resolve_dis(CALL("sym")) == "CALL sym -> ?"
+        assert resolve_dis(JMP("sym")) == "JMP ?"
+        assert resolve_dis(INVOKE("sym")) == "INVOKE sym -> ?"
 
 
 #  control-flow operand notation

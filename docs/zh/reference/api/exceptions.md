@@ -8,7 +8,7 @@ AmritaSense 定义了一套精简且职责明确的异常体系，用于处理�
 class InterruptNotice(BaseException):
     """Special exception for immediate workflow termination.
 
-    Raised by the INTERRUPT node or external systems. As a BaseException
+    Raised by the RESET node or external systems. As a BaseException
     subclass, it bypasses regular CATCH blocks and penetrates directly to
     the interpreter's top-level handler, ensuring clean and unconditional
     termination.
@@ -17,11 +17,11 @@ class InterruptNotice(BaseException):
 
 **为什么继承 `BaseException`**
 
-Python 的 `except Exception` 不会捕获 `BaseException` 的子类。因此，工作流中的任何 `TRY/CATCH` 块默认无法拦截 `InterruptNotice`。这是设计上的刻意选择——`INTERRUPT` 必须是“不可捕获”的紧急终止信号。唯一的例外是显式将 `InterruptNotice` 加入 `exception_ignored`，此时它变为可被 CATCH 捕获的普通异常。
+Python 的 `except Exception` 不会捕获 `BaseException` 的子类。因此，工作流中的任何 `TRY/CATCH` 块默认无法拦截 `InterruptNotice`。这是设计上的刻意选择——`RESET` 必须是“不可捕获”的紧急终止信号。唯一的例外是显式将 `InterruptNotice` 加入 `exception_ignored`，此时它变为可被 CATCH 捕获的普通异常。
 
 **触发方式**
 
-- **编排层面**：工作流执行到 `INTERRUPT` 节点时自动抛出
+- **编排层面**：工作流执行到 `RESET` 节点时自动抛出
 - **外部注入**：外部系统直接 `raise InterruptNotice()`，解释器在下一次节点边界捕获并终止
 
 **解释器响应**
@@ -31,10 +31,10 @@ Python 的 `except Exception` 不会捕获 `BaseException` 的子类。因此，
 1. 记录当前指针位置和通知消息
 2. 清空 `_ret_addr_stack`（调用栈）
 3. 重置 `_pointer`（指针向量）
-4. 重置 `_jump_marked` 标记
+4. 重置整个状态寄存器
 5. 工作流干净退出，不留下残留状态
 
-## InterruptKeepContext（v0.4.x+）
+## InterruptKeepContext
 
 `InterruptKeepContext` 是 `InterruptNotice` 的子类，终止工作流执行但**保留解释器状态**。与 `InterruptNotice` 触发完整 `reset()` 不同，此异常会保留指针、调用栈和依赖注入参数。
 
@@ -42,7 +42,7 @@ Python 的 `except Exception` 不会捕获 `BaseException` 的子类。因此，
 
 - 暂停-检查-恢复调试
 - 检查点-重启工作流
-- 由 `INTERRUPT_KEEP_CTX` 指令节点触发
+- 由 `SUSPEND` 指令节点触发
 
 ## NullPointerException
 
@@ -57,13 +57,13 @@ class NullPointerException(Exception):
 
 **触发场景**
 
-- `GOTO`、`CALL` 等跳转指令的目标地址在 `NodeComposeRendered` 中不存在
-- 别名解析时在 `alias2vector_map` 中找不到对应条目（此时 `JumpNode` 和 `CallNode` 的 `_post_compile` 会抛出 `AliasNotFoundError`）
+- `JMP`、`INVOKE` 等跳转指令的目标地址在 `NodeComposeRendered` 中不存在
+- 别名解析时在 `alias2vector_map` 中找不到对应条目（此时 `JumpNode` 和 `InvokeNode` 的 `_post_compile` 会抛出 `AliasNotFoundError`）
 - 运行时通过 `find_addr` 访问越界的索引
 
 **与别名校验的关系**
 
-`NullPointerException` 是运行时地址失效时的兜底异常。在实际使用中，如果通过 `ALIAS` + `GOTO`/`CALL` 正常寻址，拼写错误会在编译期的 `_post_compile` 阶段被拦截并提供纠错建议。裸地址 `list[int]` 直接使用时，若地址无效才会在运行时抛出此异常。
+`NullPointerException` 是运行时地址失效时的兜底异常。在实际使用中，如果通过 `ALIAS` + `JMP`/`INVOKE` 正常寻址，拼写错误会在编译期的 `_post_compile` 阶段被拦截并提供纠错建议。裸地址 `list[int]` 直接使用时，若地址无效才会在运行时抛出此异常。
 
 ## BreakLoop
 
@@ -80,7 +80,7 @@ class BreakLoop(Exception):
 
 `BreakLoop` 在 `WorkflowInterpreter` 初始化时被自动加入 `_exc_ignored` 元组。这意味着：
 
-> **v0.3.0+**：此自动加入行为可通过 `amrita_sense._unsafe` 中的 `__flags__.DISABLE_EXC_IGNORED = True` 禁用。详见 [Unsafe 特性](../../guide/advanced/unsafe.md)。
+> 此自动加入行为可通过 `amrita_sense._unsafe` 中的 `__flags__.DISABLE_EXC_IGNORED = True` 禁用。详见 [Unsafe 特性](../../guide/advanced/unsafe.md)。
 
 - 循环体内部的任何 `TRY/CATCH` 块**不能**捕获 `BreakLoop`
 - 它会穿透中间所有异常处理层，直达最内层的 `WhileNode` 或 `DONode`
@@ -102,7 +102,7 @@ def process_item():
 
 **注意**：开发者**不应**手动将 `BreakLoop` 加入 `exception_ignored`——它在解释器初始化时已自动加入。如果额外添加，不会产生新效果；如果试图移除，会导致循环内的 CATCH 块意外捕获 `BreakLoop`，破坏循环语义。
 
-## IllegalState（v0.3.0+）
+## IllegalState
 
 当操作在不合法状态下被尝试时抛出。常见触发场景：
 
@@ -122,9 +122,9 @@ class DependsException(Exception):
     """Base class for all dependency injection related exceptions."""
 ```
 
-### AliasNotFoundError（v0.4.x+）
+### AliasNotFoundError
 
-GOTO 或 CALL 指令引用的别名在工作流图的别名注册表中不存在时抛出。在编译期的 `_post_compile` 阶段检测。替代了之前用于别名解析失败的通用 `RuntimeError` / `ValueError`。
+JMP 或 INVOKE 指令引用的别名在工作流图的别名注册表中不存在时抛出。在编译期的 `_post_compile` 阶段检测。替代了之前用于别名解析失败的通用 `RuntimeError` / `ValueError`。
 
 ### DependsResolveFailed
 
@@ -157,12 +157,33 @@ class DependsInjectFailed(Exception):
 
 - `Depends` 工厂函数在运行时抛出异常，且该异常不在 `_exc_ignored` 中
 - 并发解析多个依赖时，所有失败异常被收集进 `ExceptionGroup` 并重新抛出
+- 生成器依赖在其声明（或默认）的 scope 未激活的解析点被解析
 
 **关键行为：`Depends` 返回 `None` 直接终止**
 
 与事件系统的“返回 `None` 则跳过处理器”不同，在节点执行中，如果某个 `Depends` 声明的依赖工厂返回了 `None`，工作流会**直接抛出异常并终止**。节点是原子执行单元，依赖解析失败意味着节点无法运行——这不是可以“跳过”的场景。因此，为节点设计的依赖工厂函数应始终返回有效值（或在无法提供时抛出明确的异常，而非返回 `None`）。
 
-## `search_exceptions()`（v0.3.0+）
+生成器依赖 `yield None` 同样按上述规则视为失败，但它的清理逻辑仍会执行。
+
+### DependsDeclarationError
+
+```python
+class DependsDeclarationError(Exception):
+    """Raised when a dependency declaration is contradictory.
+
+    Raised while the dependency graph is built (i.e. when a node or an
+    event handler is constructed), so a malformed declaration fails fast
+    instead of surfacing as a resolution failure at execution time.
+    """
+```
+
+**触发条件**
+
+- 同一个参数的注解与默认值中都写了 `Depends`
+- 同一个 `Annotated` 注解中出现多个 `Depends` 标记
+- 给不是生成器的提供者声明了 `scope`
+
+## `search_exceptions()`
 
 ```python
 from amrita_sense.utils import search_exceptions
@@ -174,7 +195,7 @@ def search_exceptions(
 
 递归搜索一个序列（可能包含嵌套的异常列表），返回所有 `BaseException` 实例的扁平列表。`FUN_BLOCK` 内部使用该函数从子解释器树中收集异常。
 
-## GraphBuildError（v0.4.x+）
+## GraphBuildError
 
 工作流图构建或渲染失败时抛出。常见触发场景：
 
@@ -182,7 +203,7 @@ def search_exceptions(
 - 尝试构建已构建过的 `NodeComposeRendered`
 - 渲染过程中缺少原始图
 
-## StreamStateError（v0.4.x+）
+## StreamStateError
 
 `SuspendObjectStream` 操作在不合法状态下被尝试时抛出。常见触发场景：
 
@@ -207,7 +228,8 @@ Exception
 ├── StreamStateError          # 流操作状态非法
 └── DependsException          # 依赖注入基类
     ├── DependsResolveFailed   # 依赖无法解析
-    └── DependsInjectFailed    # 依赖注入过程异常
+    ├── DependsInjectFailed    # 依赖注入过程异常
+    └── DependsDeclarationError # 依赖声明自相矛盾
 ```
 
 **设计原则**：
@@ -215,6 +237,6 @@ Exception
 - `InterruptNotice` 继承 `BaseException`，实现天然的不可捕获性
 - `InterruptKeepContext` 继承 `InterruptNotice`，保留上下文供后续恢复
 - `BreakLoop` 继承 `Exception`，但通过自动加入 `_exc_ignored` 获得等效的穿透能力
-- `IllegalState` 是 v0.3.0 新增，用于保护解释器树 API 的调用合法性和指令语法约束
-- `AliasNotFoundError`/`GraphBuildError`/`StreamStateError` 为 v0.4.x+ 新增的细分异常类型
+- `IllegalState` 用于保护解释器树 API 的调用合法性和指令语法约束
+- `AliasNotFoundError`/`GraphBuildError`/`StreamStateError` 为细分异常类型
 - 依赖相关异常统一继承 `DependsException`，允许用户按需捕获整个依赖类别的错误

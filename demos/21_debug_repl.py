@@ -85,9 +85,7 @@ COMPOSE = (start_node >> middle_node >> crash_node >> never_reached).render()
 inter = WorkflowInterpreter(COMPOSE)
 
 
-#  A second workflow whose graph spans several segments: a nested composition
-#  becomes its own segment, and a DLL slot becomes a placeholder segment whose
-#  contents can be rebased later with `dll.apply()`.
+# A second workflow whose graph spans several segments: a nested composition becomes its own segment, and a DLL slot becomes a placeholder segment whose contents can be rebased later with `dll.apply()`.
 
 
 @Node(tag="load")

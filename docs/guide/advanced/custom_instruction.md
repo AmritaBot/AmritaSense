@@ -43,7 +43,7 @@ Decompose the instruction’s semantics into a concrete node sequence. For examp
 
 ### Step 2: calculate jump addresses
 
-If the expanded structure contains jumps (`GOTO`, `ConditionJumpNode`, etc.), calculate offsets based on the node list length inside `extract()`. All addresses must be statically determinable integers.
+If the expanded structure contains jumps (`JMP`, `ConditionJumpNode`, etc.), calculate offsets based on the node list length inside `extract()`. All addresses must be statically determinable integers.
 
 ### Step 3: return `NodeCompose`
 
@@ -176,7 +176,7 @@ class ExecuteWhen(SelfCompileInstruction):
 ExecuteWhen(has_data, process_data)
 ```
 
-This is equivalent to `IF(has_data, process_data)` — when the condition is false the workflow just skips the action (no `ELSE(NOP)` needed since v0.6.0).
+This is equivalent to `IF(has_data, process_data)` — when the condition is false the workflow just skips the action (no `ELSE(NOP)` needed).
 
 ### Extended version with else branch
 
@@ -195,12 +195,12 @@ class ExecuteWhenElse(SelfCompileInstruction):
 
 A custom instruction expands into nodes the user never wrote, so a debugger listing shows framework internals by default. A node can describe its own line with two **soft-constraint magic attributes** read by the REPL debugger's disassembler:
 
-| Attribute     | Effect                                                                      |
-| ------------- | --------------------------------------------------------------------------- |
-| `__sdb_dis__` | The mnemonic shown in the instruction column.                                |
+| Attribute     | Effect                                                                         |
+| ------------- | ------------------------------------------------------------------------------ |
+| `__sdb_dis__` | The mnemonic shown in the instruction column.                                  |
 | `__sdb_cmt__` | When not `None`, overrides the comment after `;` (defaults to the node `tag`). |
 
-Both are read through a plain `getattr` at disassembly time — the input is an *already compiled* graph, so an operand such as a jump target is resolved by then. Prefer a `@property` when the value depends on compilation: it re-reads instance state on every listing, so nothing has to be re-assigned after a recompile.
+Both are read through a plain `getattr` at disassembly time — the input is an _already compiled_ graph, so an operand such as a jump target is resolved by then. Prefer a `@property` when the value depends on compilation: it re-reads instance state on every listing, so nothing has to be re-assigned after a recompile.
 
 ```python
 class RetryJump(BaseNode):
@@ -227,7 +227,7 @@ class RetryJump(BaseNode):
 
 Four details are worth remembering:
 
-- A `@property` is a data descriptor, so the node rejects `self.__sdb_dis__ = ...` — that is what keeps the value single-sourced. Use a class attribute for a fixed mnemonic, or an instance attribute when the operand only exists inside a closure (`PUSH_STACK`, `INTERRUPT_INTO`, …).
+- A `@property` is a data descriptor, so the node rejects `self.__sdb_dis__ = ...` — that is what keeps the value single-sourced. Use a class attribute for a fixed mnemonic, or an instance attribute when the operand only exists inside a closure (`PUSH_RET`, `INT`, …).
 - Neither name is subject to name mangling (two trailing underscores), so `self.__sdb_dis__ = ...` inside a class body is safe.
 - `_post_compile` runs again after every DLL `apply()` rebase, and a property picks up the new operand automatically — so a mnemonic that embeds an address stays correct when the slot is relinked.
 - A node never knows its own address, so an operand relative to its own segment must be written as `#N` (a `near_to` slot) or `+N` (an `offset` delta) instead of a full address.

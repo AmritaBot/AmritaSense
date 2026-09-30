@@ -1,9 +1,9 @@
-# Context Snapshot &amp; Interrupt Transfer Instructions (PUSH_CONTEXT/POP_CONTEXT/INTERRUPT_INTO/INTERRUPT_RET)
+# Context Snapshot &amp; Interrupt Transfer Instructions (PUSH_CONTEXT/POP_CONTEXT/INT/IRET)
 
-`PUSH_CONTEXT`, `POP_CONTEXT`, `INTERRUPT_INTO` and `INTERRUPT_RET` are four instructions introduced in v0.4.x+ that work together to provide **full interpreter state save/restore** — analogous to a CPU's context-switch mechanism.
+`PUSH_CONTEXT`, `POP_CONTEXT`, `INT` and `IRET` are four instructions that work together to provide **full interpreter state save/restore** — analogous to a CPU's context-switch mechanism.
 
 > **Key distinction**
-> `PUSH_STACK` / `RET_FAR` save and restore **only the return address** (`_ret_addr_stack`). `PUSH_CONTEXT` / `POP_CONTEXT` save and restore the **entire interpreter state**: pointer, exception-ignore list, dependency injection parameters, return-address stack, and panic exception. `INTERRUPT_INTO` / `INTERRUPT_RET` wrap the former pair into a convenient "interrupt ➔ handler ➔ return" pattern.
+> `PUSH_RET` / `RET` save and restore **only the return address** (`_ret_addr_stack`). `PUSH_CONTEXT` / `POP_CONTEXT` save and restore the **entire interpreter state**: pointer, exception-ignore list, dependency injection parameters, return-address stack, and panic exception. `INT` / `IRET` wrap the former pair into a convenient "interrupt ➔ handler ➔ return" pattern.
 
 ## Non-self-compiled direct nodes
 
@@ -15,8 +15,8 @@ They are exported from `amrita_sense.instructions`:
 from amrita_sense.instructions import (
     PUSH_CONTEXT,
     POP_CONTEXT,
-    INTERRUPT_INTO,
-    INTERRUPT_RET,
+    INT,
+    IRET,
 )
 ```
 
@@ -31,9 +31,9 @@ def PUSH_CONTEXT(
 ) -> NodeType[None]
 ```
 
-Saves a complete snapshot of the current interpreter state onto the **context stack** (`pc.context_stack`). Since v0.6.0 it does **not** jump — the snapshot's pointer is set to the resolved `alias_or_idata` address so that when the context is later restored, execution resumes there (it serves as the **return address**, not a jump target). If you need to move to the sub-flow, follow it with an explicit `GOTO` / `INTERRUPT_INTO`.
+Saves a complete snapshot of the current interpreter state onto the **context stack** (`pc.context_stack`). It does **not** jump — the snapshot's pointer is set to the resolved `alias_or_idata` address so that when the context is later restored, execution resumes there (it serves as the **return address**, not a jump target). If you need to move to the sub-flow, follow it with an explicit `JMP` / `INT`.
 
-This is the low-level primitive — unlike `INTERRUPT_INTO`, it does **not** set `if_flag` and does **not** guard against being called inside an IF branch. Pair with `INTERRUPT_RET` to restore; or pop manually and call `pc.rebase_context()`.
+This is the low-level primitive — unlike `INT`, it does **not** set `if_flag` and does **not** guard against being called inside an IF branch. Pair with `IRET` to restore; or pop manually and call `pc.rebase_context()`.
 
 ### Parameters
 
@@ -59,9 +59,9 @@ This is the low-level primitive — unlike `INTERRUPT_INTO`, it does **not** set
 1. Resolves `alias_or_idata` (or the top of `_ret_addr_stack` when `None`) to an absolute address.
 2. Calls `pc.dump_interpreter(exclude_deps, exclude_stack)` to build an `InterpreterContext`.
 3. Overwrites `ctx.ptr` with the resolved return address.
-4. Pushes the context onto `pc.context_stack` — **no jump is performed** (v0.6.0+).
+4. Pushes the context onto `pc.context_stack` — **no jump is performed**.
 
-> Since `INTERRUPT_RET` restores via `rebase_context` (no jump flag), execution resumes at the node **after** the saved address. Save the predecessor of your real resume point (e.g. a `NOP` before it), or rely on `INTERRUPT_INTO(..., ret_to=None)` which handles this automatically.
+> Since `IRET` restores via `rebase_context` (no jump flag), execution resumes at the node **after** the saved address. Save the predecessor of your real resume point (e.g. a `NOP` before it), or rely on `INT(..., ret_to=None)` which handles this automatically.
 
 ---
 
@@ -73,7 +73,7 @@ def POP_CONTEXT() -> NodeType[InterpreterContext]
 
 Pops the top `InterpreterContext` from the context stack and **returns it as the node's result**. The return value goes to the interpreter's step-by-step generator — it does **not** automatically flow into the next `>>` node's arguments.
 
-To actually restore state, either use `INTERRUPT_RET()` which pops and auto-restores, or pop manually via `pc.context_stack.pop()` inside a `@Node` function.
+To actually restore state, either use `IRET()` which pops and auto-restores, or pop manually via `pc.context_stack.pop()` inside a `@Node` function.
 
 ### Execution flow
 
@@ -82,17 +82,17 @@ To actually restore state, either use `INTERRUPT_RET()` which pops and auto-rest
 
 ---
 
-## INTERRUPT_INTO
+## INT
 
 ```python
-def INTERRUPT_INTO(
+def INT(
     jump_to: str | list[int],
     ret_to: str | list[int] | None = None,
     if_state: bool = False,
 ) -> NodeType[None]
 ```
 
-A convenience instruction for interrupt-style control transfer. It saves the current interpreter state and jumps to `jump_to`, but **overwrites the saved pointer with `ret_to`** so that `INTERRUPT_RET` resumes at `ret_to` — not at the original position.
+A convenience instruction for interrupt-style control transfer. It saves the current interpreter state and jumps to `jump_to`, but **overwrites the saved pointer with `ret_to`** so that `IRET` resumes at `ret_to` — not at the original position.
 
 This mirrors real CPU interrupt semantics: the return address is the instruction where execution should resume after the handler returns.
 
@@ -114,7 +114,7 @@ This mirrors real CPU interrupt semantics: the return address is the instruction
 6. Pushes the context onto `pc.context_stack`.
 7. Jumps to `jump_to` via `pc.jump_to()`.
 
-> `INTERRUPT_RET` restores via `rebase_context` (no jump flag), so execution resumes at the node **after** the saved return address. With `ret_to=None` in the main flow, the saved address is the instruction itself — the interpreter advances onto the next node, which is exactly the "return here" point.
+> `IRET` restores via `rebase_context` (no jump flag), so execution resumes at the node **after** the saved return address. With `ret_to=None` in the main flow, the saved address is the instruction itself — the interpreter advances onto the next node, which is exactly the "return here" point.
 
 ### Restrictions
 
@@ -122,13 +122,13 @@ This mirrors real CPU interrupt semantics: the return address is the instruction
 
 ---
 
-## INTERRUPT_RET
+## IRET
 
 ```python
-def INTERRUPT_RET() -> NodeType[None]
+def IRET() -> NodeType[None]
 ```
 
-The counterpart to `INTERRUPT_INTO`. Pops the top `InterpreterContext` from the context stack and restores the interpreter to its pre-interrupt state via `pc.rebase_context(ctx)`. Also clears `pc.if_flag`.
+The counterpart to `INT`. Pops the top `InterpreterContext` from the context stack and restores the interpreter to its pre-interrupt state via `pc.rebase_context(ctx)`. Also clears `pc.if_flag`.
 
 ### Execution flow
 
@@ -140,15 +140,15 @@ The counterpart to `INTERRUPT_INTO`. Pops the top `InterpreterContext` from the 
 
 ## Comparison: Three Save/Restore Mechanisms
 
-| Feature                | PUSH_STACK + RET_FAR       | PUSH_CONTEXT + INTERRUPT_RET       | INTERRUPT_INTO + INTERRUPT_RET     |
-| ---------------------- | -------------------------- | ---------------------------------- | ---------------------------------- |
-| **Saves**              | Return address only        | Full interpreter state             | Full interpreter state             |
-| **Jumps on save**      | No (separate GOTO needed)  | No (separate GOTO needed, v0.6.0+) | Yes (jump_to)                      |
-| **Return address**     | PUSH_STACK target          | Resolved alias / ret-stack top     | `ret_to` param (or default)        |
-| **Dependency args**    | Not saved                  | Optional (exclude_deps=False)      | Always saved                       |
-| **if_flag management** | Not involved               | Not involved                       | Auto set on entry, cleared on exit |
-| **Use case**           | Custom call/return schemes | Context save + jump primitives     | Interrupt-style handler entry/exit |
-| **Complexity**         | Low                        | Low                                | Low                                |
+| Feature                | PUSH_RET + RET             | PUSH_CONTEXT + IRET            | INT + IRET                         |
+| ---------------------- | -------------------------- | ------------------------------ | ---------------------------------- |
+| **Saves**              | Return address only        | Full interpreter state         | Full interpreter state             |
+| **Jumps on save**      | No (separate JMP needed)   | No (separate JMP needed)       | Yes (jump_to)                      |
+| **Return address**     | PUSH_RET target            | Resolved alias / ret-stack top | `ret_to` param (or default)        |
+| **Dependency args**    | Not saved                  | Optional (exclude_deps=False)  | Always saved                       |
+| **if_flag management** | Not involved               | Not involved                   | Auto set on entry, cleared on exit |
+| **Use case**           | Custom call/return schemes | Context save + jump primitives | Interrupt-style handler entry/exit |
+| **Complexity**         | Low                        | Low                            | Low                                |
 
 ---
 
@@ -158,7 +158,7 @@ The counterpart to `INTERRUPT_INTO`. Pops the top `InterpreterContext` from the 
 
 ```python
 from amrita_sense import ALIAS, NOP, Node, WorkflowInterpreter
-from amrita_sense.instructions import GOTO, INTERRUPT_RET, PUSH_CONTEXT
+from amrita_sense.instructions import JMP, IRET, PUSH_CONTEXT
 
 
 @Node()
@@ -173,17 +173,17 @@ async def sub_work() -> None:
 
 @Node()
 async def after_restore() -> None:
-    print("Back — restored by INTERRUPT_RET")
+    print("Back — restored by IRET")
 
 
 comp = (
     start
     >> PUSH_CONTEXT("resume")  # snapshot; return address = the resume NOP
-    >> GOTO("sub_entry")  # explicit jump into the sub-flow (v0.6.0+)
-    >> ALIAS(NOP, "resume")  # INTERRUPT_RET rebases here -> advance onto after_restore
+    >> JMP("sub_entry")  # explicit jump into the sub-flow
+    >> ALIAS(NOP, "resume")  # IRET rebases here -> advance onto after_restore
     >> after_restore
     >> ALIAS(sub_work, "sub_entry")
-    >> INTERRUPT_RET()
+    >> IRET()
 )
 await WorkflowInterpreter(comp.render()).run()
 ```
@@ -192,7 +192,7 @@ await WorkflowInterpreter(comp.render()).run()
 
 ```python
 from amrita_sense import Node, WorkflowInterpreter
-from amrita_sense.instructions import INTER_FN, INTERRUPT_INTO
+from amrita_sense.instructions import INTER_FN, INT
 
 
 @Node()
@@ -214,7 +214,7 @@ handler_block = INTER_FN("int_handler", handler)
 
 comp = (
     main_start
-    >> INTERRUPT_INTO("int_handler", None)  # None = return after this node
+    >> INT("int_handler")  # None = return after this node
     >> back
     >> handler_block  # skipped by normal flow
 )

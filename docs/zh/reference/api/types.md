@@ -73,9 +73,9 @@ class PointerVector:
 - **相对寻址**: 在同一层级内进行偏移
 - **近寻址**: 修改当前层级索引，保持其他层级不变
 
-## InterpreterContext（v0.4.x+）
+## InterpreterContext
 
-`InterpreterContext` 是一个数据类，存储解释器执行状态的完整快照。由 `PUSH_CONTEXT`/`POP_CONTEXT` 和 `INTERRUPT_INTO`/`INTERRUPT_RET` 用于保存/恢复工作流。
+`InterpreterContext` 是一个数据类，存储解释器执行状态的完整快照。由 `PUSH_CONTEXT`/`POP_CONTEXT` 和 `INT`/`IRET` 用于保存/恢复工作流。
 
 ```python
 @dataclass
@@ -87,6 +87,7 @@ class InterpreterContext:
     extra: dict[str, Any] = field(default_factory=dict)
     stack: Stack[PointerVector] | None = None
     exception: Exception | None = None
+    flags: Flags = Flags.NONE
 ```
 
 字段说明：
@@ -97,8 +98,20 @@ class InterpreterContext:
 - `extra`：扩展数据字典，供自定义使用。
 - `stack`：返回地址栈的快照。若排除则为 `None`。
 - `exception`：panic 异常的快照，无 panic 则为 `None`。
+- `flags`：状态寄存器的快照。`dump_interpreter()` 在构建快照时会剥掉 `HLT`，因为快照记录的是「要回到的状态」，而「主循环正停在这个节点上」不属于其中。因此恢复快照永远不会让挂起复活。
 
-## DICache（v0.4.2+）
+## Flags
+
+`Flags` 是一个 `IntFlag`，集中保存解释器的离散控制流状态。把各位放进同一个寄存器，使快照、恢复与清空都退化为一次赋值。
+
+| 成员   | 含义                                       |
+| ------ | ------------------------------------------ |
+| `NONE` | 未置任何位                                 |
+| `IF`   | 处于中断处理程序内部；置位时禁止嵌套 `INT` |
+| `HLT`  | 停在某个节点上；下一次运行会先跳过它       |
+| `JMP`  | 本轮已跳转；主循环不得再推进指针           |
+
+## DICache
 
 `DICache` 是管理 `WorkflowInterpreter` 中依赖注入结果缓存的数据类。它将参数指纹与 LRU 缓存结合，避免重复 DI 解析。
 

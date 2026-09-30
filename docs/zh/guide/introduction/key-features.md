@@ -20,10 +20,10 @@ AmritaSense 提供了一级公民的控制流指令集，无需依赖外部图�
 
 - **条件分支**：`IF` / `ELIF` / `ELSE`，无需强制配对 `ELSE`，支持链式组合
 - **循环结构**：`WHILE`（前置条件）和 `DO...WHILE`（后置条件），支持 `BreakLoop` 跳出
-- **跳转指令**：`GOTO` 配合 `ALIAS` 实现无条件跳转，`CALL` 配合 `ARCHIVED_NODES` 实现子程序调用与返回
+- **跳转指令**：`JMP` 配合 `ALIAS` 实现无条件跳转，`INVOKE` 配合 `ARCHIVED_NODES` 实现子程序调用与返回
 - **异常处理**：`TRY...CATCH...THEN...FIN`，完整对齐 Python 的异常处理语义，支持异常穿透控制
 
-v0.5.1 新增了原生控制流指令 `NATIVE_IF` / `NATIVE_WHILE` / `NATIVE_DO` / `BREAK_LOOP`，作为传统指令的**正交扩展**，提供基于 `PUSH/JMP/CONTINUE/BREAK_LOOP` 的更底层控制流，可在需要精确指针控制的场景中使用。v0.6.0 起循环体统一以 `CONTINUE()` 结尾，`BREAK_LOOP()` / `CONTINUE()` 均为工厂函数。
+原生控制流指令 `NATIVE_IF` / `NATIVE_WHILE` / `NATIVE_DO` / `BREAK_LOOP` 是传统指令的**正交扩展**，提供基于 `PUSH/JMP/CONTINUE/BREAK_LOOP` 的更底层控制流，可在需要精确指针控制的场景中使用。循环体统一以 `CONTINUE()` 结尾，`BREAK_LOOP()` / `CONTINUE()` 均为工厂函数。
 
 所有控制流指令在编译期展开为底层节点组合，运行时完全通过指针偏移完成，无需图遍历、字符串路由或状态字典查找。
 
@@ -58,7 +58,7 @@ v0.5.1 新增了原生控制流指令 `NATIVE_IF` / `NATIVE_WHILE` / `NATIVE_DO`
 
 ## 1.2.8 原生 Debugger 实现
 
-AmritaSense v0.5.0 内置了一套完整的 REPL 调试器——无需额外安装插件或工具。它利用解释器原生的 Panic/Recover 机制和中间件注入，直接在 Python REPL 中实现断点、步进和状态检查。
+AmritaSense 内置了一套完整的 REPL 调试器——无需额外安装插件或工具。它利用解释器原生的 Panic/Recover 机制和中间件注入，直接在 Python REPL 中实现断点、步进和状态检查。
 
 - **双 API 设计** — 同步 API（`step`、`cont`）用于交互式 REPL；异步 API（`step_async`、`cont_async`）用于调试脚本和已有事件循环的程序
 - **断点系统** — 按标签（`break_at_tag`）或地址（`break_at_addr`）设置断点，支持条件表达式

@@ -80,7 +80,7 @@ By default, `fork_interpreter()` inherits the parent's middleware when `middlewa
 
 **When to use**: When you want strict middleware isolation between parent and child interpreters, and prefer an explicit opt-in model.
 
-### `SQUASHED_LOOP` (v0.4.3+)
+### `SQUASHED_LOOP`
 
 ```python
 SQUASHED_LOOP: bool = False
@@ -90,7 +90,7 @@ When enabled, `WHILE` and `DO-WHILE` loops execute as a single native Python `wh
 
 **When to use**: In hot-loop scenarios (tight inner loops with many iterations) where per-iteration overhead is measurable and you don't need external interruption at individual loop sub-steps. Note that in squashed mode, `BreakLoop` and `jump_marked` are still respected — jumps to addresses outside the loop structure are not supported.
 
-### `WORKFLOW_DI_NO_CACHE` (v0.4.2+)
+### `WORKFLOW_DI_NO_CACHE`
 
 ```python
 WORKFLOW_DI_NO_CACHE: bool = False
@@ -102,7 +102,7 @@ Setting this flag to `True` forces every node invocation to re-resolve dependenc
 
 **When to use**: When your dependency providers have side effects that must execute on every invocation, or when args change frequently and the cache hit rate is expected to be low. Note that this flag is in `_writeables` and can be toggled at runtime.
 
-### `WORKFLOW_DI_PRELOAD_CACHE` (v0.4.2+)
+### `WORKFLOW_DI_PRELOAD_CACHE`
 
 ```python
 WORKFLOW_DI_PRELOAD_CACHE: bool = False
@@ -114,7 +114,7 @@ When enabled, the interpreter pre-resolves dependency injection for **all nodes*
 
 > **⚠️ Conflict**: This flag conflicts with `NO_DEPENDENCY_META_CACHE`. Setting both simultaneously raises `RuntimeError`.
 
-### `WORKFLOW_DI_PRELOAD_BATCH` (v0.4.2+)
+### `WORKFLOW_DI_PRELOAD_BATCH`
 
 ```python
 WORKFLOW_DI_PRELOAD_BATCH: int = 10
@@ -124,7 +124,7 @@ Controls the batch size for DI preloading when `WORKFLOW_DI_PRELOAD_CACHE` is en
 
 **When to use**: Tune this value when you need to balance preload speed against event-loop responsiveness. This flag is in `_writeables` and can be adjusted at any time before calling `run()`.
 
-### Flag Conflict Detection (v0.4.2+)
+### Flag Conflict Detection
 
 Certain flag combinations are mutually exclusive. The engine enforces this at assignment time — setting a flag that would create a conflict raises `RuntimeError` with a message listing the conflicting flags.
 

@@ -35,7 +35,7 @@ Both names accept three declaration forms, all resolved through a plain
   correct across recompiles with no assignment step (a read-only property
   intentionally rejects `self.__sdb_dis__ = ...`);
 * an **instance attribute** — for factory-created instructions whose operand
-  only exists inside a closure (`PUSH_STACK`, `INTERRUPT_INTO`, …), and for
+  only exists inside a closure (`PUSH_RET`, `INT`, `CALL`, …), and for
   module-level node singletons such as `NOP`.
 
 Neither name is subject to name mangling (two trailing underscores), so

@@ -1,12 +1,12 @@
 # 高级实践：子图隔离调用
 
-AmritaSense v0.3.0 引入了 `FUN_BLOCK` 指令和完整的**解释器树模型**，使工作流能够启动隔离的子工作流，拥有独立的生命周期、中间件和错误边界。
+AmritaSense 提供了 `FUN_BLOCK` 指令和完整的**解释器树模型**，使工作流能够启动隔离的子工作流，拥有独立的生命周期、中间件和错误边界。
 
 ## 概念
 
 子图隔离调用将一个已编译的 `NodeComposeRendered` 图放入一个**子 `WorkflowInterpreter`** 中执行。父解释器挂起等待子解释器完成。这类似于传统语言中的函数调用，但具有完全的运行时隔离——独立的执行上下文、独立的中间件、独立的挂起/恢复生命周期。
 
-与 `CALL`/`call_sub` 的关键区别在于：`FUN_BLOCK` 将子工作流作为树中的**独立解释器**启动，而非复用当前解释器的指针栈。
+与 `INVOKE`/`call_sub` 的关键区别在于：`FUN_BLOCK` 将子工作流作为树中的**独立解释器**启动，而非复用当前解释器的指针栈。
 
 ## 解释器树
 
@@ -56,7 +56,7 @@ FUN_BLOCK(
   - `UNSET`（默认）：继承父中间件，除非 `__flags__.NO_SHARED_MIDDLEWARE` 为 `True`。
   - `None`：子解释器不使用中间件。
   - 一个可调用对象：仅该子解释器使用此自定义中间件。
-- `object_io`（`SuspendObjectStream | None`）：子解释器的 I/O 流。默认 `None` 会共享父解释器的 `SuspendObjectStream`。自 v0.3.2 起，`SuspendObjectStream` 通过 **CLCA（Cross Loop Callback-Allocate）信号设计模式** 实现了并发安全，因此在解释器甚至线程间共享都是安全的。
+- `object_io`（`SuspendObjectStream | None`）：子解释器的 I/O 流。默认 `None` 会共享父解释器的 `SuspendObjectStream`。`SuspendObjectStream` 通过 **CLCA（Cross Loop Callback-Allocate）信号设计模式** 实现了并发安全，因此在解释器甚至线程间共享都是安全的。
 - `one_time_interp`（`bool`）：若为 `True`，每次调用都创建新的 `WorkflowInterpreter`，完成后销毁。若为 `False`（默认），解释器在多次调用间复用（状态被重置但不会重建）。
 
 ### 返回值
@@ -190,7 +190,7 @@ comp = main_start >> Try(FUN_BLOCK(sub_comp), CATCH=(ValueError, handle_value_er
 
 | 场景                           | 推荐方案                                  |
 | ------------------------------ | ----------------------------------------- |
-| 同状态下的简单子程序调用/返回  | `CALL` / `call_sub`                       |
+| 同状态下的简单子程序调用/返回  | `INVOKE` / `call_sub`                     |
 | 需要错误隔离的独立子工作流     | `FUN_BLOCK`                               |
 | 多个子工作流的并行执行         | `fork_interpreter()` + `asyncio.gather()` |
 | 需要自定义中间件的子工作流     | `FUN_BLOCK(middleware=...)`               |

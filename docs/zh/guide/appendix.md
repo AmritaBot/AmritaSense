@@ -20,7 +20,7 @@ AmritaSense 的核心寻址数据结构。它是一个变长整数数组，每�
 
 ### 9.1.5 Instruction Set（指令集）
 
-AmritaSense 提供的一套完备的控制流原语，包括 `IF/ELIF/ELSE`（条件分支）、`WHILE/DO-WHILE`（循环）、`GOTO`（无条件跳转）、`CALL`（子程序调用）、`TRY/CATCH/THEN/FIN`（异常处理）、`NOP`（哨兵）和 `INTERRUPT`（强制终止）。所有指令在编译期展开为底层节点组合，运行时通过指针跳转完成。
+AmritaSense 提供的一套完备的控制流原语，包括 `IF/ELIF/ELSE`（条件分支）、`WHILE/DO-WHILE`（循环）、`JMP`（无条件跳转）、`INVOKE`（子程序调用）、`TRY/CATCH/THEN/FIN`（异常处理）、`NOP`（哨兵）和 `RESET`（强制终止）。所有指令在编译期展开为底层节点组合，运行时通过指针跳转完成。
 
 ### 9.1.6 Self-Compile Instruction（自编译指令）
 
@@ -40,22 +40,22 @@ AmritaSense 提供的协作式中断机制。工作流在指定标记点主动�
 
 ### 9.1.10 Alias（别名）
 
-通过 `ALIAS` 指令为节点绑定的全局唯一符号名。编译期注册到 `alias2vector_map`，供 `GOTO` 和 `CALL` 在运行时查表解析。这是 AmritaSense 符号寻址体系的基础。
+通过 `ALIAS` 指令为节点绑定的全局唯一符号名。编译期注册到 `alias2vector_map`，供 `JMP` 和 `INVOKE` 在运行时查表解析。这是 AmritaSense 符号寻址体系的基础。
 
 ### 9.1.11 Subprogram（子程序）
 
-通过 `ARCHIVED_NODES` 指令定义的、被 `SubprogramJumpNode` 跳过、仅通过 `CALL` 或外部注入访问的节点序列。子程序可以存储中断处理逻辑、调试工具或可复用的功能模块，正常执行流不受其存在的影响。若要归档完整节点组合（如函数体），改用 `ARCHIVED_SEGMENT`；`FN` / `INTER_FN` 在其上构建命名函数块（参见[函数块调用](/zh/guide/advanced/function-block-call)）。
+通过 `ARCHIVED_NODES` 指令定义的、被 `SubprogramJumpNode` 跳过、仅通过 `INVOKE` 或外部注入访问的节点序列。子程序可以存储中断处理逻辑、调试工具或可复用的功能模块，正常执行流不受其存在的影响。若要归档完整节点组合（如函数体），改用 `ARCHIVED_SEGMENT`；`FN` / `INTER_FN` 在其上构建命名函数块（参见[函数块调用](/zh/guide/advanced/function-block-call)）。
 
 ### 9.1.12 其他核心术语
 
 - **解释锁（Interpret Lock）**：`aiologic.Lock` 实例，保证每次只有一个节点在执行，是外部安全调用的互斥基础
-- **跳转标记（Jump Mark）**：`_jump_marked` 标志，为 `True` 时解释器跳过常规的指针推进步骤，下一轮从跳转目标开始
+- **跳转标记（Jump Mark）**：状态寄存器的 `JMP` 位，置起时解释器跳过常规的指针推进步骤，下一轮从跳转目标开始
 - **异常穿透（Exception Penetration）**：通过 `exception_ignored` 标记的异常不会被任何 `CATCH` 块捕获，直达顶层处理器
 - **Call Stack（调用栈）**：`Stack[PointerVector]`，管理子程序调用的返回地址
-- **DI Cache（DI 缓存）**（v0.4.2+）：`DICache` — `WorkflowInterpreter` 内部基于 LRU 的缓存，存储已解析的依赖注入 kwargs。键为 `hash((id(node.func), args_hash))`（v0.6.0 起），避免相同节点函数在相同参数类型下重复解析 DI。载体为最大 2048 条的 `LRUCache`。由 unsafe 标志 `WORKFLOW_DI_NO_CACHE`、`WORKFLOW_DI_PRELOAD_CACHE` 和 `WORKFLOW_DI_PRELOAD_BATCH` 控制。
-- **Address Calculator（地址计算器）**（v0.4.4+）：`AddressCalculator` — 通过 `NodeComposeRendered.calc` 暴露的无状态地址计算工具，提供 `advance()`、`resolve_alias()`、`find_addr()`、`find_addr_safe()` 方法。将原先散落在解释器 `_ptr_cache` 中的指针推进逻辑固化为编译图的一部分。
-- **Debugger（调试器）**（v0.5.0+）：`amrita_sense.debugger` 模块提供的一套 REPL 优先的纯函数式调试工具包。包含状态检查（`inspect`、`where`、`backtrace`、`list_nodes`、`list_sub_intp`）、步进执行（`step`、`step_over`、`step_out`、`cont`）和断点管理（`break_at_tag`、`break_at_addr`、`clear_break_*`、`list_breaks`）。通过组合式中间件（middleware）注入实现，不修改核心运行时。同步函数可直接在 REPL 中调用而无需 `await`。
-- **Breakpoint（断点）**（v0.5.0+）：标记在特定节点标签或地址上的执行暂停点。通过 `amrita_sense.debugger` 的 `break_at_tag()` 和 `break_at_addr()` 设置，支持条件表达式（`condition` 参数）。命中断点时抛出 `BreakpointHit`（继承 `BaseException` 而非 `Exception`，避免触发 panic 机制），由 `cont()` 捕获后暂停执行。
+- **DI Cache（DI 缓存）**：`DICache` — `WorkflowInterpreter` 内部基于 LRU 的缓存，存储已解析的依赖注入 kwargs。键为 `hash((id(node.func), args_hash))`，避免相同节点函数在相同参数类型下重复解析 DI。载体为最大 2048 条的 `LRUCache`。由 unsafe 标志 `WORKFLOW_DI_NO_CACHE`、`WORKFLOW_DI_PRELOAD_CACHE` 和 `WORKFLOW_DI_PRELOAD_BATCH` 控制。
+- **Address Calculator（地址计算器）**：`AddressCalculator` — 通过 `NodeComposeRendered.calc` 暴露的无状态地址计算工具，提供 `advance()`、`resolve_alias()`、`find_addr()`、`find_addr_safe()` 方法。将原先散落在解释器 `_ptr_cache` 中的指针推进逻辑固化为编译图的一部分。
+- **Debugger（调试器）**：`amrita_sense.debugger` 模块提供的一套 REPL 优先的纯函数式调试工具包。包含状态检查（`inspect`、`where`、`backtrace`、`list_nodes`、`list_sub_intp`）、步进执行（`step`、`step_over`、`step_out`、`cont`）和断点管理（`break_at_tag`、`break_at_addr`、`clear_break_*`、`list_breaks`）。通过组合式中间件（middleware）注入实现，不修改核心运行时。同步函数可直接在 REPL 中调用而无需 `await`。
+- **Breakpoint（断点）**：标记在特定节点标签或地址上的执行暂停点。通过 `amrita_sense.debugger` 的 `break_at_tag()` 和 `break_at_addr()` 设置，支持条件表达式（`condition` 参数）。命中断点时抛出 `BreakpointHit`（继承 `BaseException` 而非 `Exception`，避免触发 panic 机制），由 `cont()` 捕获后暂停执行。
 
 ### 9.1.13 缩写词
 
@@ -73,7 +73,7 @@ AmritaSense 提供的协作式中断机制。工作流在指定标记点主动�
 在 AmritaSense 中，**工作流同样构建在一组原语之上**：
 
 - **节点是执行原语**：每一个 `@Node()` 包装的函数都是不可再分的原子执行单元。解释器不会在节点内部中断执行，节点要么完整运行，要么完全不运行
-- **指令是控制流原语**：`IF`、`GOTO`、`CALL`、`TRY` 等指令是流程控制的最小语义单元。它们定义了解释器能执行的最基本控制流操作——条件跳转、无条件跳转、子程序调用、异常捕获
+- **指令是控制流原语**：`IF`、`JMP`、`INVOKE`、`TRY` 等指令是流程控制的最小语义单元。它们定义了解释器能执行的最基本控制流操作——条件跳转、无条件跳转、子程序调用、异常捕获
 - **指令是架构边界**：正如 ISA 定义了硬件与软件之间的契约，AmritaSense 的指令集定义了"编译器能生成什么"与"解释器能执行什么"之间的稳定边界。自编译指令（`SelfCompileInstruction`）在编译期展开为底层原语节点，运行时仅处理这些已展开的原语
 
 原语的核心价值在于**简单与完备的统一**：每个原语只做一件事，但一组原语的组合可以表达任意复杂的逻辑。这正是 AmritaSense "极简即真理"设计哲学的理论根源。
@@ -162,3 +162,89 @@ Amrita 社区遵循贡献者盟约行为准则：
 - **"流程图何必是图"**——理解 AmritaSense 设计理念的核心文章
 - **"KISS 原则"**：Keep It Simple, Stupid——AmritaSense 遵循的设计哲学
 - **"Unix 哲学"**：小、专注、可组合——AmritaSense 的模块化设计基础
+
+## 9.5 已弃用的指令名（1.0.0）
+
+渲染后的工作流图**本身**就是一段带地址映射的指令序列，因此 `amrita_sense.debugger` 的反汇编视图一直打印 CPU 风格的助记符。AmritaSense 1.0.0 把公开指令改名，让 API 与反汇编终于用同一套词汇。
+
+### 9.5.1 新旧对照表
+
+| 旧名（≤ 0.8）                     | 新名（1.0+）                     | 类型 | 旧名仍可导入 | 说明                             |
+| --------------------------------- | -------------------------------- | ---- | ------------ | -------------------------------- |
+| `GOTO`                            | `JMP`                            | 函数 | ✅           | 直接替换                         |
+| `PUSH_STACK`                      | `PUSH_RET`                       | 函数 | ✅           | 直接替换                         |
+| `RET_FAR`                         | `RET`                            | 函数 | ✅           | 直接替换                         |
+| `PUSH_AND_GOTO(from_adr, to_adr)` | `CALL(to_adr, *, from_adr=None)` | 函数 | ✅           | **参数顺序已变**                 |
+| `CALL`                            | `INVOKE`                         | 函数 | ❌           | **无别名，会静默改变语义，见下** |
+| `INTERRUPT_INTO`                  | `INT`                            | 函数 | ✅           | 直接替换                         |
+| `INTERRUPT_RET`                   | `IRET`                           | 函数 | ✅           | 直接替换                         |
+| `INTERRUPT`                       | `RESET`                          | 常量 | ✅           | 直接替换，**无静态告警**         |
+| `INTERRUPT_KEEP_CTX`              | `SUSPEND`                        | 常量 | ✅           | 直接替换，**无静态告警**         |
+| `CallNode`                        | `InvokeNode`                     | 类   | ✅           | 直接替换                         |
+
+`ALIAS` 有意保留原名：运行时的词汇体系全是 alias（`alias2vector_map`、`AddressCalculator.resolve_alias`、`AliasNotFoundError`），而 `AliasNode` 是**占据真实地址槽的可寻址节点**——叫 `LABEL` 既不一致也不准确，因为汇编里的 `LABEL` 是零宽的。
+
+### 9.5.2 ⚠️ `CALL` 会静默改变语义
+
+这是唯一没有兼容别名的改名，也是最需要多看两眼的一处。
+
+旧的 `CALL(alias)` 执行一次单步 `call_sub`。该名字被远调用指令接管后，`CALL(alias)` 的含义变成"压入返回地址并跳转"——**它不会报错，只是做了另一件事**。旧行为现在叫 `INVOKE(alias)`。
+
+用下面的命令审计代码：
+
+```bash
+grep -rn '\bCALL(' --include='*.py'
+```
+
+把每一处旧的 `CALL(x)` 改为 `INVOKE(x)`。
+
+### 9.5.3 ⚠️ 常量没有静态弃用告警
+
+`INTERRUPT` 与 `INTERRUPT_KEEP_CTX` 是模块级**常量**，不是函数。PEP 702（`@deprecated`）没有针对变量的装饰器形式，因此类型检查器无法标记它们：它们是静默别名。若你在用它们，请手工检索：
+
+```bash
+grep -rn '\bINTERRUPT\b' --include='*.py'
+```
+
+上表中的**函数**改名则带有静态标记，只要开启 `reportDeprecated`，类型检查器就会提示：
+
+```toml
+[tool.pyright]
+reportDeprecated = "warning"   # 默认为关闭
+```
+
+### 9.5.4 ⚠️ `BuiltinTags` 的字符串值已变
+
+与改名指令对应的 `BuiltinTags` 成员现在持有新值，旧成员名以**同值别名**保留（`BuiltinTags.RET_FAR is BuiltinTags.RET`）。别名会出现在 `__members__` 中，但不出现在 `list(BuiltinTags)` 里。
+
+| 成员（旧）       | 成员（新） | 值（旧）               | 值（新）         |
+| ---------------- | ---------- | ---------------------- | ---------------- |
+| `RET_FAR`        | `RET`      | `"__RET_FAR__"`        | `"__RET__"`      |
+| `PUSH_STACK`     | `PUSH_RET` | `"__PUSH_STACK__"`     | `"__PUSH_RET__"` |
+| `PUSH_AND_GOTO`  | `CALL`     | `"__PUSH_AND_GOTO__"`  | `"__CALL__"`     |
+| `INTERRUPT_INTO` | `INT`      | `"__INTERRUPT_INTO__"` | `"__INT__"`      |
+| `INTERRUPT_RET`  | `IRET`     | `"__INTERRUPT_RET__"`  | `"__IRET__"`     |
+
+用枚举成员做比较依然有效；硬编码旧的 tag **字符串**则不行。
+
+### 9.5.5 反汇编助记符
+
+`dis()` 的输出随名字一同变化：
+
+| 指令           | 旧助记符              | 新助记符            |
+| -------------- | --------------------- | ------------------- |
+| `JMP`          | `JMP`                 | `JMP`（不变）       |
+| `PUSH_RET`     | `PUSH`                | `PUSH`（不变）      |
+| `RET`          | `RET_FAR`             | `RET`               |
+| `CALL`         | `CALL.FAR from -> to` | `CALL to, ret=from` |
+| `INVOKE`       | `CALL sym -> [0]`     | `INVOKE sym -> [0]` |
+| `INT`          | `INTINTO jmp -> ret`  | `INT jmp, ret=ret`  |
+| `IRET`         | `INTERRUPT_RET`       | `IRET`              |
+| `RESET`        | `INT`                 | `RESET`             |
+| `SUSPEND`      | `INT.KEEP`            | `SUSPEND`           |
+| `PUSH_CONTEXT` | `PUSHCTX`             | `PUSHCTX`（不变）   |
+| `ALIAS`        | `ALIAS sym`           | `ALIAS sym`（不变） |
+
+### 9.5.6 移除计划
+
+本节所有别名均已弃用，将在 **2.0 移除**。深层导入路径（如 `from amrita_sense.instructions.ret2 import PUSH_STACK`）通过各替换位置旁的纯别名继续可用，但这些别名不带静态标记——建议改用顶层 `amrita_sense` 或 `amrita_sense.instructions` 导入。

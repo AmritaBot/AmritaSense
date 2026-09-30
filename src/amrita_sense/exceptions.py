@@ -76,6 +76,19 @@ class DependsInjectFailed(DependsException):
     """
 
 
+class DependsDeclarationError(DependsException):
+    """Exception raised when a dependency declaration is contradictory.
+
+    Raised while the dependency graph is built (i.e. when a node or an event
+    handler is constructed), so a malformed declaration fails fast instead of
+    surfacing as a resolution failure at execution time.  Currently reported
+    for:
+
+    * declaring `Depends` in both the annotation and the default value;
+    * declaring several `Depends` markers in the same `Annotated` annotation.
+    """
+
+
 class IllegalState(Exception):
     """Exception raised when an illegal state is encountered.
 

@@ -137,41 +137,55 @@ class InterruptNotice(BaseException):
 
    解释器在下一个节点边界捕获此异常。
 
-2. **工作流中插入 `INTERRUPT` 节点**：
+2. **工作流中插入 `RESET` 节点**：
 
    ```python
-   from amrita_sense.instructions import INTERRUPT
+   from amrita_sense.instructions import RESET
 
-   workflow = Sequence(StepA(), Branch(If(condition=is_error, then=INTERRUPT), Else(...)))
+   workflow = Sequence(StepA(), Branch(If(condition=is_error, then=RESET), Else(...)))
    ```
 
-   `INTERRUPT` 是一个 `address_able=False` 的特殊节点，执行时直接抛出 `InterruptNotice("Interrupt Node")`。
+   `RESET` 是一个 `address_able=False` 的特殊节点，执行时直接抛出 `InterruptNotice("Interrupt Node")`。
 
-**InterruptKeepContext（v0.4.x+）**
+**InterruptKeepContext**
 
-`InterruptKeepContext` 是 `InterruptNotice` 的子类，提供**保留上下文**的变体。解释器捕获后不调用 `reset()`，而是保留指针、调用栈和依赖注入参数。可在同一解释器上再次调用 `run()` 恢复执行。
+`InterruptKeepContext` 是 `InterruptNotice` 的子类，提供**保留上下文**的变体。解释器捕获后不调用 `reset()`，而是保留指针、调用栈、依赖注入参数与标志寄存器。可在同一解释器上再次调用 `run()` 恢复执行。
 
-| 异常                   | 捕获后                    | 可恢复     | 对应节点             |
-| ---------------------- | ------------------------- | ---------- | -------------------- |
-| `InterruptNotice`      | `reset()` — 清空所有状态  | ❌         | `INTERRUPT`          |
-| `InterruptKeepContext` | 跳过 `reset()` — 状态保留 | ✅ `run()` | `INTERRUPT_KEEP_CTX` |
+| 异常                   | 捕获后                    | 可恢复     | 对应节点  |
+| ---------------------- | ------------------------- | ---------- | --------- |
+| `InterruptNotice`      | `reset()` — 清空所有状态  | ❌         | `RESET`   |
+| `InterruptKeepContext` | 跳过 `reset()` — 状态保留 | ✅ `run()` | `SUSPEND` |
 
 **触发方式**：
 
-1. 在工作流中插入 `INTERRUPT_KEEP_CTX` 节点（从 `amrita_sense.instructions.workfl_ctrl` 导入）
+1. 在工作流中插入 `SUSPEND` 节点（从 `amrita_sense.instructions.workfl_ctrl` 导入）
 2. 从节点代码中直接 `raise InterruptKeepContext()`
 
-**解释器主循环处理流程**：
+**恢复执行：`HLT` 标志**
+
+挂起被捕获时指针仍指向抛出它的那个节点，直接重跑主循环只会再次执行该节点并停在原地，永远无法前进。为此解释器在状态寄存器中置起 `HLT`：
 
 ```python
-except InterruptNotice as e:
-    logger.info(f"Interrupt notice at {self._pointer} :{e.message}")
-    self._ret_addr_stack.clear()   # 清空整个调用栈
-    self._pointer.clear()          # 重置指针向量
-    self._jump_marked = False      # 清除跳转标记
+if not isinstance(e, InterruptKeepContext):
+    self.reset()
+else:
+    self._flags |= Flags.HLT  # 指针仍指向挂起节点
 ```
 
-**这是终止，不是挂起**。调用栈和指针被完全清空，工作流退出，无法从中断点恢复。如需重新执行，必须重新渲染工作流并创建新的解释器实例。
+下一次运行会在执行任何节点之前消费该位，跳过这个节点而不是重跑它：
+
+```python
+if self._flags & Flags.HLT:
+    if not self.resume_from_halt():
+        break
+    continue
+```
+
+`resume_from_halt()` 是主循环与调试器 `step` 共用的唯一实现，因此「步过挂起点」与「运行过挂起点」行为完全一致。
+
+只要指针被显式移动，该位就会清除——任何 `@markup` 跳转方法、`rebase_ptr()`、`reset()` 都会清它。`dump_interpreter()` 也会剥掉它，因此上下文快照永远不携带挂起位，恢复快照也就无法让挂起复活。
+
+**这是终止，不是挂起**。对于普通的 `InterruptNotice`，调用栈和指针被完全清空，工作流退出，无法从中断点恢复。如需重新执行，必须重新渲染工作流并创建新的解释器实例。
 
 ### 内中断总结
 
@@ -240,9 +254,9 @@ flowchart TB
 - **节点执行在锁之内**：确保节点执行期间状态一致性
 - **外中断与主循环互斥**：同一时刻只有一个在锁内运行，保证状态安全
 
-### `outer_interpreting`（v0.6.0+）
+### `outer_interpreting`
 
-**任何** `call_sub` 执行期间（无论 `interrupt` 取值），只读属性 `outer_interpreting` 为 `True`；调用返回时清除。`PUSH_AND_GOTO` / `INTERRUPT_INTO` 在 `from_adr` / `ret_to` 为 `None` 时据此选择默认返回地址：调用期间复用 `_ret_addr_stack` 栈顶（父级的返回地址），否则使用当前指针。这保证了周期中途注入的子调用返回语义正确。
+**任何** `call_sub` 执行期间（无论 `interrupt` 取值），只读属性 `outer_interpreting` 为 `True`；调用返回时清除。`CALL` / `INT` 在 `from_adr` / `ret_to` 为 `None` 时据此选择默认返回地址：调用期间复用 `_ret_addr_stack` 栈顶（父级的返回地址），否则使用当前指针。这保证了周期中途注入的子调用返回语义正确。
 
 ## 3.4.4 挂起操作的交互模型（协作式挂起点）
 
@@ -366,7 +380,7 @@ AmritaSense 的流程中断体系，涵盖了从节点级异常到外部强制�
 | 外中断（`call_sub(interrupt=True)`）     | 中断 | 无"恢复"概念           | 外部调用方          | 内部完全不可控，由锁序列化 |
 
 ::: tip REPL 调试器
-基于上述中断体系，v0.5.0 提供了专门的 `amrita_sense.debugger` 模块，封装了断点、步进、状态检查等完整的 REPL 调试功能。支持 `from amrita_sense.debugger import *`，所有函数均可直接在 REPL 中同步调用。详情请参见 [REPL 调试](/zh/guide/practice/repl-debugging)。
+基于上述中断体系，`amrita_sense.debugger` 模块补充了断点、步进、状态检查等完整的 REPL 调试功能。支持 `from amrita_sense.debugger import *`，所有函数均可直接在 REPL 中同步调用。详情请参见 [REPL 调试](/zh/guide/practice/repl-debugging)。
 :::
 
 这套体系的核心价值在于：

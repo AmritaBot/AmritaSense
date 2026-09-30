@@ -29,6 +29,9 @@ def my_node(dependency_value: ReturnType = Depends(dependency_provider_function)
     pass
 ```
 
+`Depends` may also be written inside the annotation with `Annotated` — see
+[4.1.10 `Annotated` Declarations](#_4-1-10-annotated-declarations).
+
 ### Built-in dependency tools
 
 AmritaSense provides several built-in dependency helpers in the `amrita_sense.runtime.deps` module:
@@ -153,13 +156,13 @@ TRY(NodeType(lambda: print("This won't execute"))).CATCH(
 
 This design ensures that dependency injection remains robust and predictable while giving developers a clear error handling mechanism.
 
-## 4.1.7 DI Result Cache (v0.4.2+)
+## 4.1.7 DI Result Cache
 
-Starting from v0.4.2, the `WorkflowInterpreter` maintains an internal DI result cache (`_di_cache`) to avoid redundant dependency resolution when the same node is executed multiple times with the same argument types.
+The `WorkflowInterpreter` maintains an internal DI result cache (`_di_cache`) to avoid redundant dependency resolution when the same node is executed multiple times with the same argument types.
 
 ### How it works
 
-Since v0.6.0, the cache key is built from the **node function identity** plus the argument fingerprint (the pointer position is **no longer** part of the key — the same node function shares cache entries across call sites):
+The cache key is built from the **node function identity** plus the argument fingerprint (the pointer position is not part of the key — the same node function shares cache entries across call sites):
 
 - **Function identity**: `id(node.func)` — the node's underlying function object
 - **Args fingerprint**: computed from the types of `_ava_args` and `_ava_kwargs`
@@ -180,9 +183,11 @@ cache_key = hash((id(node.func), code))
 
 The cache payload is an `LRUCache` (from `cachetools`) with a maximum of 2048 entries. When the cache is full, the least recently used entry is evicted. Each entry stores `(static_kwargs, non_cacheable_factories)` — see `cacheable` below.
 
-### `cacheable` factories (v0.6.0+)
+### `cacheable` / `use_cache` factories
 
-`DependsFactory(cacheable=True)` providers are resolved **once, at cache-write time**, and their results are stored in the cache. `cacheable=False` (the default) providers are stored as-is and re-resolved **on every call** — use this for providers with side effects or time-varying values. This separation is orthogonal to cache validity (`hash_trustable`).
+`DependsFactory(cacheable=True)` — or, with the preferred spelling, `Depends(f, use_cache=True)` — providers are resolved **once, at cache-write time**, and their results are stored in the cache. `cacheable=False` (the default) providers are stored as-is and re-resolved **on every call** — use this for providers with side effects or time-varying values. This separation is orthogonal to cache validity (`hash_trustable`).
+
+For **generator** providers, sharing is governed by `scope` instead of `use_cache`; see [4.1.11 Generator Dependencies and Lifecycle](#_4-1-11-generator-dependencies-and-lifecycle).
 
 ### Cache lifecycle
 
@@ -208,7 +213,7 @@ pc2 = WorkflowInterpreter(rendered)
 await pc2.run()  # Every node re-resolves dependencies from scratch
 ```
 
-## 4.1.8 DI Preload Cache (v0.4.2+)
+## 4.1.8 DI Preload Cache
 
 When `__flags__.WORKFLOW_DI_PRELOAD_CACHE` is enabled, the interpreter pre-resolves dependency injection for **every node** during the `run()` initialization phase — before the first node executes.
 
@@ -255,3 +260,86 @@ Setting `WORKFLOW_DI_NO_CACHE = True` together with `WORKFLOW_DI_PRELOAD_CACHE =
 ### `hash_trustable` guard
 
 `_refresh_di_cache_full()` will raise `DependsResolveFailed` if `hash_trustable` is `False` when called. Always call `rehash_args()` after modifying DI arguments to ensure cache integrity.
+
+## 4.1.10 `Annotated` Declarations
+
+`Depends` may be written inside the annotation instead of as the default value. Both forms are equivalent, and a parameter must not use both at once:
+
+```python
+from typing import Annotated
+
+from amrita_sense.hook.matcher import Depends
+
+
+@Node()
+def my_node(
+    by_default: ReturnType = Depends(provider),
+    by_annotation: Annotated[ReturnType, Depends(provider)] = ...,
+): ...
+```
+
+Only the type inside `Annotated` participates in type-based matching; any other metadata is ignored. When several `Depends` markers appear, the **last** one wins. This follows FastAPI's `analyze_param`.
+
+| Declaration                                | Result                                              |
+| ------------------------------------------ | --------------------------------------------------- |
+| `x: T`                                     | required — keyword match, then type traversal       |
+| `x: T = value`                             | optional, keeps `value` unless a keyword match wins |
+| `x: T = Depends(f)`                        | injected by `f`                                     |
+| `x: Annotated[T, Depends(f)]`              | injected by `f`                                     |
+| `x: Annotated[T, Depends(f)] = value`      | injected by `f`; `value` is ignored                 |
+| `x: Annotated[T, Depends(f)] = Depends(g)` | `DependsDeclarationError`                           |
+| `x: Annotated[T, "other metadata"]`        | treated as `x: T`                                   |
+
+A malformed declaration raises `DependsDeclarationError` while the node or handler is being **constructed**, not when it runs.
+
+## 4.1.11 Generator Dependencies and Lifecycle
+
+A provider may be a generator. The value before `yield` is injected, and everything after it runs as a teardown:
+
+```python
+from collections.abc import AsyncIterator
+
+
+async def get_session() -> AsyncIterator[Session]:
+    session = Session()
+    try:
+        yield session
+    finally:
+        await session.close()
+
+
+@Node()
+async def handler(session: Session = Depends(get_session, scope="workflow")): ...
+```
+
+Both bare generator functions (`def ... yield`, `async def ... yield`) and providers already wrapped with `@contextmanager` / `@asynccontextmanager` are accepted.
+
+### Scopes
+
+| Scope        | Closed when                                              |
+| ------------ | -------------------------------------------------------- |
+| `"call"`     | the node call that requested the dependency returns      |
+| `"dispatch"` | every handler of the current event dispatch has finished |
+| `"workflow"` | the interpreter stops                                    |
+
+`"call"` is available inside nodes, `"dispatch"` inside event handlers, and `"workflow"` in both. Leaving `scope` unset resolves to the widest scope available at the resolution site — `"workflow"` for nodes, `"dispatch"` for event handlers.
+
+Declaring a scope for a non-generator provider raises `DependsDeclarationError`. Declaring one that is not active at the resolution site raises `DependsInjectFailed`.
+
+Teardown runs in the reverse of declaration order, and it runs even when the node raises. A generator that yields `None` counts as a failed resolution — as with any other provider — but its teardown still runs.
+
+A `"workflow"` scope is deliberately **not** closed when a run ends in a panic or a suspend: both are resumable, so resources stay alive until the interpreter is terminated. `await interpreter.terminate()` releases them and is safe to call more than once.
+
+### Sharing and de-duplication
+
+Resources are keyed by the provider, the fingerprint of the arguments it was given, and the scope. Two nodes depending on the same `"workflow"`-scoped provider receive the **same instance**, and two resolvers racing on the same key await a single computation rather than opening the resource twice.
+
+Generator providers never enter the DI result cache — an LRU eviction would orphan their teardown — so they are also skipped by the cache preload.
+
+### Nested dependencies
+
+A provider may itself declare `Depends` parameters. Sub-dependencies resolve through the same lifecycle-aware path, so a nested generator registers on the caller's scope and is torn down together with it.
+
+### Database sessions
+
+For ORM sessions, prefer `scope="call"` — the session is then opened and closed around a single node, which is the safest default. Only widen to `"workflow"` when the session is genuinely meant to be shared across the run.

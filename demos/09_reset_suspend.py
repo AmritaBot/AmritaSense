@@ -1,11 +1,11 @@
-"""09_interrupt_notice.py — INTERRUPT, INTERRUPT_KEEP_CTX, and InterruptKeepContext
+"""09_reset_suspend.py — RESET, SUSPEND, and InterruptKeepContext
 
 Usage:
-    python demos/09_interrupt_notice.py
+    python demos/09_reset_suspend.py
 
 Demonstrates three termination / pause mechanisms:
-  1. INTERRUPT       — emergency stop (state cleared, irrecoverable)
-  2. INTERRUPT_KEEP_CTX — pause with state preserved (recoverable)
+  1. RESET            — emergency stop (state cleared, irrecoverable)
+  2. SUSPEND          — pause with state preserved (recoverable)
   3. InterruptKeepContext raised from node code — same effect as (2)
 
 IMPORTANT: InterruptNotice / InterruptKeepContext are caught by the
@@ -17,12 +17,12 @@ to detect what happened.
 import asyncio
 
 from amrita_sense import (
-    INTERRUPT,
+    RESET,
     Node,
     WorkflowInterpreter,
 )
 from amrita_sense.exceptions import InterruptKeepContext
-from amrita_sense.instructions.workfl_ctrl import INTERRUPT_KEEP_CTX
+from amrita_sense.instructions.workfl_ctrl import SUSPEND
 
 # shared nodes
 
@@ -42,28 +42,28 @@ async def this_wont_run() -> None:
     print("  [!] This line should NEVER appear (workflow already stopped)")
 
 
-# Demo 1: INTERRUPT — emergency stop, state cleared
+# Demo 1: RESET — emergency stop, state cleared
 
 
 async def demo_interrupt() -> None:
-    print("=== Demo 1: INTERRUPT instruction ===")
+    print("=== Demo 1: RESET instruction ===")
 
-    comp = (step_a >> INTERRUPT >> this_wont_run).render()
+    comp = (step_a >> RESET >> this_wont_run).render()
     interpreter = WorkflowInterpreter(comp)
 
     await interpreter.run()
-    # run() returns cleanly — no exception propagates on INTERRUPT
+    # run() returns cleanly — no exception propagates on RESET
     print(f"  Interpreter is_running: {interpreter.is_running}")
     print("  ✓ Workflow exited cleanly (state cleared, irrecoverable)\n")
 
 
-# Demo 2: INTERRUPT_KEEP_CTX — context-preserving pause
+# Demo 2: SUSPEND — context-preserving pause
 
 
 async def demo_keep_context() -> None:
-    print("=== Demo 2: INTERRUPT_KEEP_CTX instruction ===")
+    print("=== Demo 2: SUSPEND instruction ===")
 
-    comp = (step_a >> step_b >> INTERRUPT_KEEP_CTX >> this_wont_run).render()
+    comp = (step_a >> step_b >> SUSPEND >> this_wont_run).render()
     interpreter = WorkflowInterpreter(comp)
 
     await interpreter.run()

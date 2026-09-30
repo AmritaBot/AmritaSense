@@ -1,12 +1,12 @@
 # 定位与空间
 
-在 AmritaSense 中，工作流不是一张静态的节点连接图，而是一个**线性节点数组**上的**非线性执行流**。理解“定位与空间”，就是理解如何在这个数组上精准地标记目标、计算偏移、建立作用域，从而让 GOTO 等指令实现精确的跳转。
+在 AmritaSense 中，工作流不是一张静态的节点连接图，而是一个**线性节点数组**上的**非线性执行流**。理解“定位与空间”，就是理解如何在这个数组上精准地标记目标、计算偏移、建立作用域，从而让 JMP 等指令实现精确的跳转。
 
 本章将深入解析构成这套寻址体系的核心机制：编译期的别名绑定、运行时的地址解析，以及 Bubble 作用域的空间隔离。
 
 ## 4.2.1 编译期绑定：ALIAS 别名系统
 
-`ALIAS` 是定位体系的**编译期基础**。它为节点绑定一个全局唯一的符号名，并在渲染阶段注册到 `alias2vector_map`，供 GOTO 和 CALL 在运行时查表解析。
+`ALIAS` 是定位体系的**编译期基础**。它为节点绑定一个全局唯一的符号名，并在渲染阶段注册到 `alias2vector_map`，供 JMP 和 INVOKE 在运行时查表解析。
 
 ### 别名注册机制
 
@@ -25,7 +25,7 @@
 ### 实际应用
 
 ```python
-from amrita_sense.instructions import ALIAS, IF, GOTO
+from amrita_sense.instructions import ALIAS, IF, JMP
 from amrita_sense.node import Node
 
 
@@ -35,19 +35,19 @@ def action():
 
 
 # ALIAS 将 action 节点绑定到符号 "main_action"
-# 此后 GOTO("main_action") 或 CALL("main_action") 即可直接引用
+# 此后 JMP("main_action") 或 INVOKE("main_action") 即可直接引用
 labeled_action = ALIAS(action, "main_action")
 
-workflow = IF(some_condition, GOTO("main_action")) >> labeled_action
+workflow = IF(some_condition, JMP("main_action")) >> labeled_action
 ```
 
-## 4.2.2 运行时解析：GOTO 无条件跳转
+## 4.2.2 运行时解析：JMP 无条件跳转
 
-`GOTO` 是 AmritaSense 中最直接的控制流跳转指令。它在运行时通过别名查表获取目标地址，然后执行一次指针改写，使解释器下一步直接执行目标节点。
+`JMP` 是 AmritaSense 中最直接的控制流跳转指令。它在运行时通过别名查表获取目标地址，然后执行一次指针改写，使解释器下一步直接执行目标节点。
 
 ### 跳转目标验证
 
-`GOTO` 的 `JumpNode` 在编译期的 `_post_compile` 阶段完成地址解析。这一设计让错误可以被**前置到编译期**：
+`JMP` 的 `JumpNode` 在编译期的 `_post_compile` 阶段完成地址解析。这一设计让错误可以被**前置到编译期**：
 
 - 如果使用别名，`_post_compile` 会检查该别名是否存在于 `alias2vector_map` 中
 - 如果别名不存在，`JumpNode` 会列出所有已注册别名，并用 `difflib` 做模糊匹配，抛出带有“你是否想写 X？”建议的错误
@@ -55,28 +55,28 @@ workflow = IF(some_condition, GOTO("main_action")) >> labeled_action
 
 ### 跳转标记机制
 
-所有跳转方法（`jump_to`、`jump_near`、`jump_offset` 等）都使用 `@markup` 装饰器。它的作用是：在跳转发生后设置 `_jump_marked` 标志，阻止解释器在跳转后立即执行常规的指针推进。这确保了**跳转和步进是两个互斥的操作**——执行权要么被显式移动，要么自动前进一步，不会同时发生。
+所有跳转方法（`jump_to`、`jump_near`、`jump_offset` 等）都使用 `@markup` 装饰器。它的作用是：在跳转发生后置起 `JMP` 位，阻止解释器在跳转后立即执行常规的指针推进。这确保了**跳转和步进是两个互斥的操作**——执行权要么被显式移动，要么自动前进一步，不会同时发生。
 
 ### 最佳实践
 
-1. **优先使用别名而非裸地址**：`GOTO("target")` 比 `GOTO([1, 3, 5])` 更具可读性，且别名表在编译期做了唯一性校验
-2. **避免用 GOTO 替代循环**：GOTO 不会在调用栈上压入返回地址，不适用于需要返回的场景。如果需要子程序调用并返回，应使用 `CALL` 指令——这将在 [下一章](./child_node.md) 详细展开
-3. **留意 Bubble 边界**：GOTO 可以在任意层级间跳转，但滥用跨层级跳转会使控制流难以追踪。建议同一 Bubble 内用 `jump_near`，跨 Bubble 用 `jump_to`
+1. **优先使用别名而非裸地址**：`JMP("target")` 比 `JMP([1, 3, 5])` 更具可读性，且别名表在编译期做了唯一性校验
+2. **避免用 JMP 替代循环**：JMP 不会在调用栈上压入返回地址，不适用于需要返回的场景。如果需要子程序调用并返回，应使用 `INVOKE` 指令——这将在 [下一章](./child_node.md) 详细展开
+3. **留意 Bubble 边界**：JMP 可以在任意层级间跳转，但滥用跨层级跳转会使控制流难以追踪。建议同一 Bubble 内用 `jump_near`，跨 Bubble 用 `jump_to`
 
-## 4.2.3 CALL 指令：子程序调用的入口
+## 4.2.3 INVOKE 指令：子程序调用的入口
 
-除了 `GOTO` 的单向跳转，AmritaSense 还提供了 `CALL` 指令，用于**调用子程序并在执行完毕后自动返回**。`CALL` 与 `GOTO` 共享同一套别名寻址体系——两者都依赖 `ALIAS` 注册符号名，都在编译期的 `_post_compile` 阶段完成地址解析和拼写纠错。
+除了 `JMP` 的单向跳转，AmritaSense 还提供了 `INVOKE` 指令，用于**调用子程序并在执行完毕后自动返回**。`INVOKE` 与 `JMP` 共享同一套别名寻址体系——两者都依赖 `ALIAS` 注册符号名，都在编译期的 `_post_compile` 阶段完成地址解析和拼写纠错。
 
 ### 核心区别
 
-| 特性             | GOTO                   | CALL                         |
+| 特性             | JMP                    | INVOKE                       |
 | ---------------- | ---------------------- | ---------------------------- |
 | 是否保存返回地址 | 否                     | 是（压入 `_ret_addr_stack`） |
 | 执行完毕后行为   | 继续从目标节点向后推进 | 自动弹栈，回到调用点继续     |
 | 适用场景         | 单向跳转、分支合并     | 子程序复用、中断处理         |
 
 > **详细展开**
-> `CALL` 指令的完整机制——包括调用栈管理、`ARCHIVED_NODES` 子程序存储结构、`SubprogramJumpNode` 的跳过逻辑、以及中断向量表的实现——将在 [第 4.3 章：子节点调用](./child_node.md) 中详细解析。
+> `INVOKE` 指令的完整机制——包括调用栈管理、`ARCHIVED_NODES` 子程序存储结构、`SubprogramJumpNode` 的跳过逻辑、以及中断向量表的实现——将在 [第 4.3 章：子节点调用](./child_node.md) 中详细解析。
 
 ## 4.2.4 空间隔离：Bubble 作用域与 Near 寻址
 
@@ -110,8 +110,8 @@ Bubble 的核心价值在于**作用域隔离**：
 
 ```python
 complex_flow = (
-    IF(cond1, GOTO("exit")) >> ALIAS(nested_workflow, "branch_a") >> ALIAS(NOP, "exit")
+    IF(cond1, JMP("exit")) >> ALIAS(nested_workflow, "branch_a") >> ALIAS(NOP, "exit")
 )
 ```
 
-`nested_workflow` 是一个独立的 Bubble，其内部的 GOTO、CALL 等操作不会影响外层 `complex_flow` 的地址空间。这种隔离是 AmritaSense 能够安全处理多层嵌套工作流的关键——开发者可以像写代码一样用括号划清作用域边界，而解释器自动管理进出。
+`nested_workflow` 是一个独立的 Bubble，其内部的 JMP、INVOKE 等操作不会影响外层 `complex_flow` 的地址空间。这种隔离是 AmritaSense 能够安全处理多层嵌套工作流的关键——开发者可以像写代码一样用括号划清作用域边界，而解释器自动管理进出。

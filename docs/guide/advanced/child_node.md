@@ -1,12 +1,12 @@
 # Calling Subroutines
 
-AmritaSense provides a complete subroutine call mechanism. Unlike `GOTO`’s one-way jump, a subroutine call saves the current execution location, jumps to the target node sequence, executes it, and then automatically returns to the original caller. This mechanism serves both the composition-level `CALL` instruction and direct interpreter API calls inside node code.
+AmritaSense provides a complete subroutine call mechanism. Unlike `JMP`’s one-way jump, a subroutine call saves the current execution location, jumps to the target node sequence, executes it, and then automatically returns to the original caller. This mechanism serves both the composition-level `INVOKE` instruction and direct interpreter API calls inside node code.
 
 This chapter starts from the interpreter’s low-level API and explains call stack management, argument passing, and how to invoke subroutines in node code.
 
 ## 4.3.1 `call_sub`: the interpreter’s low-level call primitive
 
-`call_sub` is a low-level call primitive provided by `WorkflowInterpreter`. Both the composition-level `CALL` instruction and node-internal subroutine calls ultimately use it. Its core workflow is:
+`call_sub` is a low-level call primitive provided by `WorkflowInterpreter`. Both the composition-level `INVOKE` instruction and node-internal subroutine calls ultimately use it. Its core workflow is:
 
 ### Call stack management
 
@@ -26,7 +26,7 @@ This design lets the same call primitive serve both internal reuse and external 
 
 ### Jump mark priority
 
-After the subroutine completes, `call_sub` checks the `_jump_marked` flag. If the subroutine executed a jump operation such as `GOTO`, that flag is set to `True`. In that case, the `finally` block **does not restore the original execution pointer** — the new jump target is preserved, and the interpreter continues from there. This ensures subroutine-internal jumps can correctly affect the main workflow control flow.
+After the subroutine completes, `call_sub` checks the `JMP` bit. If the subroutine executed a jump operation such as `JMP`, that bit is set. In that case, the `finally` block **does not restore the original execution pointer** — the new jump target is preserved, and the interpreter continues from there. This ensures subroutine-internal jumps can correctly affect the main workflow control flow.
 
 ## 4.3.2 Passing arguments to subroutines
 
@@ -91,8 +91,8 @@ Every `call_sub` pushes the current address, and every return pops the top addre
 
 ### Jump override and return suppression
 
-If the subroutine executes `GOTO` or another jump operation, `_jump_marked` is set to `True`. In that case, `call_sub` skips restoring the saved pointer and does not pop the return address. This means the subroutine’s internal jump can “override” normal return behavior. Developers should understand that `GOTO` inside a subroutine may prevent automatic return stack cleanup and may require explicit stack management.
+If the subroutine executes `JMP` or another jump operation, the `JMP` bit is set. In that case, `call_sub` skips restoring the saved pointer and does not pop the return address. This means the subroutine’s internal jump can “override” normal return behavior. Developers should understand that `JMP` inside a subroutine may prevent automatic return stack cleanup and may require explicit stack management.
 
 ### Summary
 
-`call_sub` and the call stack form the low-level foundation of AmritaSense’s subroutine system. The composition-level `CALL` instruction is a declarative wrapper around this primitive, while node-internal `call_sub` gives developers full freedom to construct dynamic call chains in code. In the next chapter, we’ll explore how to combine these features with external interruption to build subroutine libraries that can be safely injected from outside.
+`call_sub` and the call stack form the low-level foundation of AmritaSense’s subroutine system. The composition-level `INVOKE` instruction is a declarative wrapper around this primitive, while node-internal `call_sub` gives developers full freedom to construct dynamic call chains in code. In the next chapter, we’ll explore how to combine these features with external interruption to build subroutine libraries that can be safely injected from outside.

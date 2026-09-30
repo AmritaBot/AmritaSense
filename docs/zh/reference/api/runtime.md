@@ -17,7 +17,7 @@ class WorkflowInterpreter(Generic[io_T]):
 
 **设计定位**
 
-`WorkflowInterpreter` 是 AmritaSense 的“CPU”。它从编译产物（默认实现为 `NodeComposeRendered`，契约见 [Compose 契约](/zh/guide/advanced/compose-contracts)）中读取节点，用 `PointerVector`（程序计数器）追踪当前位置，通过 `_ret_addr_stack`（调用栈）管理子程序返回。所有控制流指令——`IF`、`GOTO`、`CALL`、`TRY`——最终都通过解释器提供的跳转和调用方法实现。
+`WorkflowInterpreter` 是 AmritaSense 的“CPU”。它从编译产物（默认实现为 `NodeComposeRendered`，契约见 [Compose 契约](/zh/guide/advanced/compose-contracts)）中读取节点，用 `PointerVector`（程序计数器）追踪当前位置，通过 `_ret_addr_stack`（调用栈）管理子程序返回。所有控制流指令——`IF`、`JMP`、`INVOKE`、`TRY`——最终都通过解释器提供的跳转和调用方法实现。
 
 **泛型参数**
 
@@ -45,11 +45,11 @@ def __init__(
 - `exception_ignored`：声明为不可捕获的异常类型元组。`InterruptNotice` 和 `BreakLoop` 会被自动加入此元组
 - `extra_args` / `extra_kwargs`：传递给每个节点的额外参数，供依赖注入使用
 - `addr_stack`：可选的外部调用栈。若不传，解释器内部创建一个新的 `Stack[PointerVector]`
-- `context_stack`（v0.4.x+）：可选的预初始化解释器上下文栈，用于保存/恢复工作流。默认创建新的空 `Stack[InterpreterContext]`
+- `context_stack`：可选的预初始化解释器上下文栈，用于保存/恢复工作流。默认创建新的空 `Stack[InterpreterContext]`
 - `middleware`：可选异步可调用对象，接收 `WorkflowInterpreter` 实例。设置后，`run_step_by()` 和 `call_sub()` 不再直接调用节点，而是将执行委托给 middleware。middleware 可自行决定是否执行节点、如何执行、以及如何转换结果。
-- `parent_interpreter`（v0.3.0+）：可选的父 `WorkflowInterpreter`，用于构建解释器树。由 `fork_interpreter()` 自动设置——一般无需直接使用。
+- `parent_interpreter`：可选的父 `WorkflowInterpreter`，用于构建解释器树。由 `fork_interpreter()` 自动设置——一般无需直接使用。
 
-### Panic / Recover（v0.3.1+）
+### Panic / Recover
 
 当未处理异常从主执行循环逃逸时，解释器进入 **panic** 状态：保留异常（`_panic_exc`）、当前指针位置和所有调用栈，以便检查崩溃现场，并可恢复执行。
 
@@ -69,16 +69,15 @@ def __init__(
 
 - `_graph: AbstractCompose[AddressCalculator]`：编译后的只读工作流图，解释器从中读取节点
 - `_pointer: PointerVector`：当前执行位置。解释器主循环始终以它指向的节点作为执行目标
-- `_ret_addr_stack: Stack[PointerVector]`：返回地址栈。`call_sub` 和 `CALL` 指令压入返回地址，执行完毕弹栈恢复
-- `_jump_marked: bool`：跳转标记。当 `True` 时，主循环跳过本次的 `advance_pointer()` 步进，下一轮直接从跳转目标继续
+- `_ret_addr_stack: Stack[PointerVector]`：返回地址栈。`call_sub` 和 `INVOKE` 指令压入返回地址，执行完毕弹栈恢复
+- `_flags: Flags`：状态寄存器（`IntFlag`），集中保存 `IF`、`HLT`、`JMP` 三个离散控制流位
 - `_interpret_lock: aiologic.Lock`：解释锁。每次迭代获取一次，保证单个节点的执行原子性。同时也是外部安全调用的互斥锁
-- `_if_flag: bool`（v0.4.x+）：标记解释器是否处于中断上下文的布尔标志
-- `_context_stack: Stack[InterpreterContext]`（v0.4.x+）：`InterpreterContext` 快照的后进先出栈，用于 PUSH_CONTEXT/POP_CONTEXT 和 INTERRUPT_INTO/INTERRUPT_RET
+- `_context_stack: Stack[InterpreterContext]`：`InterpreterContext` 快照的后进先出栈，用于 PUSH_CONTEXT/POP_CONTEXT 和 INT/IRET
 - `_ava_args / _ava_kwargs`：执行期可用参数池，供依赖注入系统从中匹配节点的参数签名
-- `_exc_ignored: tuple[type[BaseException], ...]`：运行时自动包含 `InterruptNotice` 和 `BreakLoop`。这些异常不会被任何 `CATCH` 块捕获，直接穿透到顶层。**v0.3.0+**：可通过 `__flags__.DISABLE_EXC_IGNORED = True` 禁用此自动加入行为
+- `_exc_ignored: tuple[type[BaseException], ...]`：运行时自动包含 `InterruptNotice` 和 `BreakLoop`。这些异常不会被任何 `CATCH` 块捕获，直接穿透到顶层。可通过 `__flags__.DISABLE_EXC_IGNORED = True` 禁用此自动加入行为
 - `object_io: io_T`：泛型的外部 I/O 接口。节点可通过 `pc.object_io` 进行流式产出、挂起控制
 
-### 解释器树（v0.3.0+）
+### 解释器树
 
 解释器形成树结构：顶层解释器可通过 `fork_interpreter()` 创建子解释器，子解释器也可以有自己的子节点。
 
@@ -96,29 +95,29 @@ def __init__(
 
 `pending_stop: bool` — 是否已对该解释器调用 `terminate()`。
 
-`outer_interpreting: bool`（v0.6.0+，只读）— 子程序调用（`call_sub`）执行期间为 `True`。进入子程序时无条件置位，返回时在 `finally` 块中恢复为 `False`。`PUSH_AND_GOTO` / `INTERRUPT_INTO` 在 `from_adr` / `ret_to` 为 `None` 时据此选择默认返回地址：调用期间（标志为 `True`）复用 `_ret_addr_stack` 栈顶（父级压入的返回地址），否则使用当前指针。
+`outer_interpreting: bool`（只读）— 子程序调用（`call_sub`）执行期间为 `True`。进入子程序时无条件置位，返回时在 `finally` 块中恢复为 `False`。`CALL` / `INT` 在 `from_adr` / `ret_to` 为 `None` 时据此选择默认返回地址：调用期间（标志为 `True`）复用 `_ret_addr_stack` 栈顶（父级压入的返回地址），否则使用当前指针。
 
 `wait: asyncio.Future[None]` — 一个在解释器执行完成时 resolve 的 future。若解释器未运行则抛出 `IllegalState`。
 
-`get_exception() -> Exception | None`（v0.3.1+）— 获取上次 panic 异常。若解释器正常完成或从未崩溃，返回 `None`。崩溃后即时可用，用于诊断。
+`get_exception() -> Exception | None`— 获取上次 panic 异常。若解释器正常完成或从未崩溃，返回 `None`。崩溃后即时可用，用于诊断。
 
-`_di_cache: DICache`（v0.4.2+）— 内部 DI 结果缓存。以 `hash((id(node.func), args_hash))` 为键存储 `(static_kwargs, non_cacheable_factories)`（v0.6.0 起；指针位置不再参与键）。载体为 `LRUCache`，最大 2048 条。缓存失效见 `args_hash` 和 `args_hash_trustable`。
+`_di_cache: DICache`— 内部 DI 结果缓存。以 `hash((id(node.func), args_hash))` 为键存储 `(static_kwargs, non_cacheable_factories)`（指针位置不参与键）。载体为 `LRUCache`，最大 2048 条。缓存失效见 `args_hash` 和 `args_hash_trustable`。
 
-`args_hash_trustable: bool`（v0.4.2+，只读）— 缓存有效性门闩：若缓存的参数哈希已知有效，返回 `True`。修改 `_ava_args` 或 `_ava_kwargs` 时自动置为 `False`。调用 `rehash_args()` 恢复信任。为 `False` 期间，LRU payload 既不被读取也不被写入。
+`args_hash_trustable: bool`（只读）— 缓存有效性门闩：若缓存的参数哈希已知有效，返回 `True`。修改 `_ava_args` 或 `_ava_kwargs` 时自动置为 `False`。调用 `rehash_args()` 恢复信任。为 `False` 期间，LRU payload 既不被读取也不被写入。
 
-`args_hash: int`（v0.4.2+，只读）— 返回当前参数哈希，用作 DI 缓存键的一部分。由 `_fingerprint_args()` 计算。
+`args_hash: int`（只读）— 返回当前参数哈希，用作 DI 缓存键的一部分。由 `_fingerprint_args()` 计算。
 
-`rehash_args() -> None`（v0.4.2+）— 基于当前 `_ava_args` 和 `_ava_kwargs` 重新计算参数哈希，并将 `hash_trustable` 置为 `True`。若新哈希与旧值不同，清空整个 DI 缓存。
+`rehash_args() -> None`— 基于当前 `_ava_args` 和 `_ava_kwargs` 重新计算参数哈希，并将 `hash_trustable` 置为 `True`。若新哈希与旧值不同，清空整个 DI 缓存。
 
-`_rslv_node(node, ava_args, ava_kwargs) -> dict[str, Any]`（v0.4.2+，内部方法）— 为单个节点解析依赖。依次调用 `MatcherFactory._resolve_dependencies()` 和 `MatcherFactory._do_runtime_resolve()`。返回已解析的关键字参数字典。失败时抛出 `DependsResolveFailed` 或 `DependsInjectFailed`。
+`_rslv_node(node, ava_args, ava_kwargs) -> dict[str, Any]`内部方法）— 为单个节点解析依赖。依次调用 `MatcherFactory._resolve_dependencies()` 和 `MatcherFactory._do_runtime_resolve()`。返回已解析的关键字参数字典。失败时抛出 `DependsResolveFailed` 或 `DependsInjectFailed`。
 
-`_rslv_node_static(node, ava_args, ava_kwargs) -> tuple[dict[str, Any], dict[str, Any]]`（v0.6.0+，内部方法）— 为节点解析静态依赖与 `cacheable=True` 工厂，返回 `(static_kwargs, non_cacheable_factories)`。供 `_call()` 与预加载机制使用。`cacheable=False` 工厂按原样返回，每次调用重新解析。
+`_rslv_node_static(node, ava_args, ava_kwargs) -> tuple[dict[str, Any], dict[str, Any]]`内部方法）— 为节点解析静态依赖与 `cacheable=True` 工厂，返回 `(static_kwargs, non_cacheable_factories)`。供 `_call()` 与预加载机制使用。`cacheable=False` 工厂按原样返回，每次调用重新解析。
 
-`_refresh_di_cache_full() -> None`（v0.4.2+，内部方法）— 遍历整个工作流图，为每个节点预解析 DI 并以键 `hash((id(node.func), args_hash))` 存入 `_di_cache`（条目为 `(static_kwargs, non_cacheable_factories)`）。节点以 `WORKFLOW_DI_PRELOAD_BATCH` 控制的并发批量解析。仅在 `WORKFLOW_DI_PRELOAD_CACHE` 启用时于 `run()` 初始化阶段调用。若 `hash_trustable` 为 `False` 则抛出 `DependsResolveFailed`。
+`_refresh_di_cache_full() -> None`内部方法）— 遍历整个工作流图，为每个节点预解析 DI 并以键 `hash((id(node.func), args_hash))` 存入 `_di_cache`（条目为 `(static_kwargs, non_cacheable_factories)`）。节点以 `WORKFLOW_DI_PRELOAD_BATCH` 控制的并发批量解析。仅在 `WORKFLOW_DI_PRELOAD_CACHE` 启用时于 `run()` 初始化阶段调用。若 `hash_trustable` 为 `False` 则抛出 `DependsResolveFailed`。
 
 ### 主要方法
 
-#### 解释器树管理（v0.3.0+）
+#### 解释器树管理
 
 `fork_interpreter(compose=None, middleware=UNSET, object_io=None) -> WorkflowInterpreter`
 
@@ -126,7 +125,7 @@ def __init__(
 
 - `compose`：可选的渲染图（满足契约 `AbstractCompose[AddressCalculator]`，通常为 `NodeComposeRendered`）。若为 `None`，使用父解释器的图。
 - `middleware`：`UNSET`（继承父中间件）、`None`（无中间件）或自定义可调用对象。
-- `object_io`：可选的 `SuspendObjectStream`。若为 `None`，共享父解释器的 `object_io`。自 v0.3.2 起，`SuspendObjectStream` 通过 CLCA 信号设计模式实现了并发安全。
+- `object_io`：可选的 `SuspendObjectStream`。若为 `None`，共享父解释器的 `object_io`。`SuspendObjectStream` 通过 CLCA 信号设计模式实现了并发安全。
 
 `async terminate(eol: bool = True)`
 
@@ -148,38 +147,64 @@ def __init__(
 
 仅顶层可用：等待整棵解释器树完成。在非顶层解释器上调用会抛出 `IllegalState`。
 
-`get_exception() -> Exception | None`（v0.3.1+）
+`get_exception() -> Exception | None`
 
 返回上次 panic 异常，或 `None`（若解释器正常完成或从未崩溃）。用于检查前一次 `run()` 是否崩溃及为何崩溃。
 
-`reset()`（v0.3.1+）
+`reset()`
 
-将解释器执行状态重置为初始值：清除指针、返回地址栈、跳转标记、pending stop 标志、waiter future 和 panic 异常。此方法**与恢复流程无关**——从 panic 恢复只需直接调用 `run()`，无需先 reset。
+将解释器执行状态重置为初始值：清除指针、返回地址栈、pending stop 标志、waiter future、panic 异常、上下文栈以及整个状态寄存器。此方法**与恢复流程无关**——从 panic 恢复只需直接调用 `run()`，无需先 reset。
 
 `reset()` 适用于在不创建新解释器的前提下、从同一工作流图重新开始执行的场景。
 
-**`if_flag` 属性**（v0.4.x+）
+**`flags` 属性**
 
-获取或设置中断上下文标志。setter 校验值为 bool 类型。当为 `True` 时，`INTERRUPT_INTO` 无法调用（抛出 `IllegalState`）。
+返回解释器的状态寄存器。
 
-**`context_stack` 属性**（v0.4.x+）
+**类型**：`Flags`——一个 `IntFlag`，含三个成员：
+
+| 位    | 含义                                       |
+| ----- | ------------------------------------------ |
+| `IF`  | 处于中断处理程序内部；置位时禁止嵌套 `INT` |
+| `HLT` | 停在某个节点上；下一次运行会先跳过它       |
+| `JMP` | 本轮已跳转；主循环不得再推进指针           |
+
+**`jump_marked` 属性**
+
+`JMP` 位是否置起。
+
+**类型**：`bool`
+
+**`unmarkup() -> None`**
+
+清除 `JMP` 位，使主循环重新推进指针。
+
+**`resume_from_halt() -> bool`**
+
+清除 `HLT` 并把指针推过解释器挂起所在的节点；后面没有节点时返回 `False`。主循环与调试器 `step` 共用这一份实现，因此「步过挂起点」与「运行过挂起点」行为一致。
+
+**`if_flag` 属性**
+
+获取或设置 `IF` 位。setter 校验值为 bool 类型。当为 `True` 时，`INT` 无法调用（抛出 `IllegalState`）。
+
+**`context_stack` 属性**
 
 返回解释器的上下文栈——一个用于保存/恢复工作流的 `Stack[InterpreterContext]`。
 
-`dump_interpreter(exclude_deps=True, exclude_stack=True) -> InterpreterContext`（v0.4.x+）
+`dump_interpreter(exclude_deps=True, exclude_stack=True) -> InterpreterContext`
 
-导出当前解释器状态的完整快照。由 `PUSH_CONTEXT` 和 `INTERRUPT_INTO` 使用。
+导出当前解释器状态的完整快照。由 `PUSH_CONTEXT` 和 `INT` 使用。导出的 `flags` 会剥掉 `HLT`：快照记录的是「要回到的状态」，而「主循环正停在这个节点上」不属于其中。
 
 参数：
 
 - `exclude_deps`：若为 `True`（默认），从快照中排除依赖注入参数。
 - `exclude_stack`：若为 `True`（默认），从快照中排除返回地址栈。
 
-返回：包含 `ptr`、`exception_ignored`、可选 `s_args`/`s_kwargs`、可选 `stack`、`extra` 和 `exception` 字段的 `InterpreterContext` 数据类。
+返回：包含 `ptr`、`exception_ignored`、可选 `s_args`/`s_kwargs`、可选 `stack`、`extra`、`exception` 和 `flags` 字段的 `InterpreterContext` 数据类。
 
-`rebase_context(ctx: InterpreterContext) -> None`（v0.4.x+）
+`rebase_context(ctx: InterpreterContext) -> None`
 
-从 `InterpreterContext` 快照恢复解释器状态。从上下文中设置指针、异常忽略列表、依赖注入参数、返回地址栈和 panic 异常。
+从 `InterpreterContext` 快照恢复解释器状态。从上下文中设置指针、异常忽略列表、依赖注入参数、返回地址栈、panic 异常和状态寄存器。快照携带的每一位都如实恢复；`HLT` 不会复活，因为 `dump_interpreter` 在拍摄快照时就已经把它剥掉了。
 
 参数：
 
@@ -187,13 +212,13 @@ def __init__(
 
 #### 地址解析
 
-`get_graph() -> AbstractCompose[AddressCalculator]`（v0.4.4+）
+`get_graph() -> AbstractCompose[AddressCalculator]`
 
 返回当前工作流的编译产物。编译图的 `calc` 属性提供 `AddressCalculator`，包含 `resolve_alias()`、`find_addr()`、`find_addr_safe()`、`advance()` 方法。
 
 #### 跳转操作
 
-所有跳转方法均受 `@markup` 保护。`@markup` 确保一次调用只设置 `_jump_marked` 一次，且在 `_jump_marked` 已为 `True` 时不再执行。跳转后解释器主循环检测到标记，跳过常规指针推进，下一轮从跳转目标继续。
+所有跳转方法均受 `@markup` 保护。`@markup` 确保一次调用只设置 `JMP` 位一次，且在 `JMP` 已置起时不再执行；它同时会清除 `HLT`，因为显式跳转本身就推翻了「指针仍停在挂起节点上」这一条件。跳转后解释器主循环检测到该位，跳过常规指针推进，下一轮从跳转目标继续。
 
 `jump_to(addr: list[int])`
 
@@ -217,7 +242,7 @@ def __init__(
 
 `jump_far_ptr(offset: list[int])`
 
-多维绝对跳转。用 `far_to(offset)` 完整替换 `_pointer`。这是带 `@markup` 的跳转——会设置 `_jump_marked`，主循环随后不再步进。被 `CONTINUE` / `BREAK_LOOP` 用于跳回循环头或出口哨兵（`RET_FAR` 不使用它，而是用 `rebase_ptr`）。
+多维绝对跳转。用 `far_to(offset)` 完整替换 `_pointer`。这是带 `@markup` 的跳转——会置起 `JMP` 位，主循环随后不再步进。被 `CONTINUE` / `BREAK_LOOP` 用于跳回循环头或出口哨兵（`RET` 不使用它，而是用 `rebase_ptr`）。
 
 `jump_offset_far(offset: list[int])`
 
@@ -233,10 +258,10 @@ def __init__(
 2. 将 `_pointer` 替换为目标地址
 3. 若 `interrupt=True`，获取 `_interpret_lock`（用于外部安全调用）
 4. 调用 `_call` 执行子程序入口节点
-5. `finally` 块弹栈恢复 `_pointer`（除非 `_jump_marked` 为 `True`）
+5. `finally` 块弹栈恢复 `_pointer`（除非 `JMP` 位已置起）
 
 `interrupt=True` 用于外部系统在节点边界注入子程序。内部节点调用子程序时**必须**使用 `interrupt=False`，否则触发 `aiologic` 死锁检测。
-子程序执行期间 `outer_interpreting` 为 `True`——进入时无条件置位，返回时在 `finally` 块中清除。它让 `PUSH_AND_GOTO` / `INTERRUPT_INTO`（`from_adr` / `ret_to` 为 `None` 时）能从父级的栈条目解析默认返回地址。
+子程序执行期间 `outer_interpreting` 为 `True`——进入时无条件置位，返回时在 `finally` 块中清除。它让 `CALL` / `INT`（`from_adr` / `ret_to` 为 `None` 时）能从父级的栈条目解析默认返回地址。
 **`call_near(addr: int, \*ag, interrupt=False, **kw) -> Any`\*\*
 
 在当前层级内以近距地址调用子程序。通过 `near_to(addr)` 计算目标地址。
@@ -251,7 +276,7 @@ def __init__(
 
 #### `@markup` 装饰器
 
-`markup` 是一个静态方法装饰器，用于将方法标记为**指针操作**（跳转及其他修改程序计数器的操作）。被装饰的方法在调用时自动设置 `_jump_marked = True`，阻止主执行循环在方法完成后推进指针。
+`markup` 是一个静态方法装饰器，用于将方法标记为**指针操作**（跳转及其他修改程序计数器的操作）。被装饰的方法在调用时自动置起 `JMP` 位并清除 `HLT`，阻止主执行循环在方法完成后推进指针。
 
 装饰器的类型注解使用 `fun_T` TypeVar 保留原始方法签名。在 `TYPE_CHECKING` 下，它会返回原始函数以避免混淆静态类型检查器。所有被装饰的方法必须是返回 `None` 的实例方法。
 
@@ -330,12 +355,13 @@ await pc.run()
 1. 获取 `_interpret_lock`
 2. 确保 `_pointer` 有效（空则从 `[0]` 开始，图形空则退出）
 3. 在 `PC_CHECKPOINT` 断点等待外部挂起
-4. 执行当前节点（`_call()`）
-5. 若 `_jump_marked`，重置标记并跳过指针推进
-6. 否则调用 `advance_pointer()` 推进指针
-7. 指针推进失败（到达末尾）则退出
+4. 若 `HLT` 置起，则 `resume_from_halt()` 跳过挂起节点并进入下一轮
+5. 执行当前节点（`_call()`）
+6. 若 `JMP` 置起，清除该位并跳过指针推进
+7. 否则调用 `advance_pointer()` 推进指针
+8. 指针推进失败（到达末尾）则退出
 
-外层 `try` 捕获 `InterruptNotice` 后清理调用栈和指针，干净退出。
+外层 `try` 捕获 `InterruptNotice` 后：普通中断清空调用栈和指针并干净退出；`InterruptKeepContext` 则保留全部状态并置起 `HLT`，供下次运行跳过挂起节点。
 
 此方法让外部系统可以在每次节点执行前后介入——配合挂起机制和 `interrupt=True` 的 `call_sub`，构成了完整的调试器基础。
 
@@ -379,5 +405,5 @@ async for _ in pc.run_step_by():
 ```
 
 ::: tip REPL 调试器
-AmritaSense v0.5.0 提供了专门的 `amrita_sense.debugger` 模块，封装了上述步进执行、状态检查和断点管理等完整调试体验，无需手写 `run_step_by()` 循环。支持 `from amrita_sense.debugger import *` 一键导入，所有函数均可直接在 REPL 中同步调用（无需 `await`）。详情请参见 [REPL 调试](/zh/guide/practice/repl-debugging)。
+AmritaSense 提供了专门的 `amrita_sense.debugger` 模块，封装了上述步进执行、状态检查和断点管理等完整调试体验，无需手写 `run_step_by()` 循环。支持 `from amrita_sense.debugger import *` 一键导入，所有函数均可直接在 REPL 中同步调用（无需 `await`）。详情请参见 [REPL 调试](/zh/guide/practice/repl-debugging)。
 :::

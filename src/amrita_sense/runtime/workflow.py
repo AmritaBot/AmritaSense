@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine, Sequence
+from collections.abc import (
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Mapping,
+    Sequence,
+)
 from contextlib import nullcontext
 from functools import wraps
 from inspect import iscoroutinefunction
@@ -22,6 +29,7 @@ import aiologic
 from typing_extensions import LiteralString
 
 from amrita_sense._unsafe import __flags__
+from amrita_sense.di import DependencyStore, LifecycleScope, Scope
 from amrita_sense.exceptions import (
     BreakLoop,
     DependsInjectFailed,
@@ -37,7 +45,7 @@ from amrita_sense.node.abc_base import AbstractCompose
 from amrita_sense.node.addressing import AddressCalculator
 from amrita_sense.node.core import BaseNode
 from amrita_sense.node.self_compile import SelfCompileInstruction
-from amrita_sense.runtime.types import InterpreterContext
+from amrita_sense.runtime.types import Flags, InterpreterContext
 from amrita_sense.streaming import SuspendObjectStream
 from amrita_sense.types import DICache, PointerVector, Stack
 from amrita_sense.utils import TimeInsighter, _fingerprint_args, isabstractmethod
@@ -60,7 +68,7 @@ class WorkflowInterpreter(Generic[io_T]):
 
     _graph: AbstractCompose[AddressCalculator]
     _pointer: PointerVector
-    _jump_marked: bool
+    _flags: Flags
 
     __ava_args: tuple
     __ava_kwargs: dict[str, Any]
@@ -75,7 +83,6 @@ class WorkflowInterpreter(Generic[io_T]):
     __outer_interpreting: bool
     _panic_exc: Exception | None
 
-    _if_flag: bool  # Whether in the interrupt mode
     _context_stack: Stack[InterpreterContext]
 
     _parent_interpreter: WorkflowInterpreter | None
@@ -89,19 +96,24 @@ class WorkflowInterpreter(Generic[io_T]):
     _middleware: Callable[[WorkflowInterpreter], Awaitable[Any]] | None
     _pending_stop: bool
     object_io: io_T
+
+    _lifecycles: dict[Scope, LifecycleScope]
+    _dep_store: DependencyStore
+
     __slots__ = (
         "__ava_args",
         "__ava_kwargs",
         "__outer_interpreting",
         "_context_stack",
+        "_dep_store",
         "_di_cache",
         "_exc_ignored",
+        "_flags",
         "_glob_top_mod_lock",
         "_graph",
-        "_if_flag",
         "_interpret_lock",
         "_interpreter_id",
-        "_jump_marked",
+        "_lifecycles",
         "_middleware",
         "_panic_exc",
         "_parent_interpreter",
@@ -164,15 +176,17 @@ class WorkflowInterpreter(Generic[io_T]):
             args_hash=_fingerprint_args(self.__ava_args, self.__ava_kwargs),
             hash_trustable=True,
         )
+        # Dependency lifecycle: generator providers register their teardown on one of these scopes (see `amrita_sense.di`).  The workflow scope is long-lived and closed when the interpreter stops.
+        self._lifecycles = {Scope.WORKFLOW: LifecycleScope(Scope.WORKFLOW)}
+        self._dep_store = DependencyStore()
         # Runtime attrs
         object_io = object_io or SuspendObjectStream()
         self.object_io = cast(io_T, object_io)
         self._ret_addr_stack = addr_stack or Stack()
-        self._jump_marked = False
+        self._flags = Flags.NONE
         self._interpret_lock = aiologic.Lock()
         self._middleware = middleware
 
-        self._if_flag = False
         self._context_stack = context_stack or Stack()
         # Sub-Parent interpreter relationship management
         self._parent_interpreter = parent_interpreter
@@ -318,9 +332,8 @@ class WorkflowInterpreter(Generic[io_T]):
         self._pointer.clear()
         self._pending_stop = False
         self._ret_addr_stack.clear()
-        self._jump_marked = False
+        self._flags = Flags.NONE
         self._panic_exc = None
-        self._if_flag = False
         self._context_stack.clear()
 
     def fork_interpreter(
@@ -395,8 +408,10 @@ class WorkflowInterpreter(Generic[io_T]):
     def markup(fun: fun_T) -> fun_T:  # Used to mark a pointer action
         """Decorator for marking methods that perform jump operations.
 
-        This decorator automatically sets the _jump_marked flag when a jump method
-        is called, preventing the pointer from advancing normally after the jump.
+        This decorator automatically sets the `JMP` bit when a jump method is
+        called, preventing the pointer from advancing normally after the jump.
+        It also clears `HLT`, because an explicit jump supersedes the "the
+        pointer still addresses the node we halted on" condition.
 
         All decorated methods must be instance methods which return None.
 
@@ -410,8 +425,8 @@ class WorkflowInterpreter(Generic[io_T]):
         @wraps(fun)
         def wrapper(*args, **kwargs):
             self: WorkflowInterpreter = args[0]
-            if not self._jump_marked:
-                self._jump_marked = True
+            if not self.jump_marked:
+                self._flags = (self._flags | Flags.JMP) & ~Flags.HLT
                 fun(*args, **kwargs)
 
         if not TYPE_CHECKING:
@@ -419,21 +434,29 @@ class WorkflowInterpreter(Generic[io_T]):
         return fun
 
     def unmarkup(self) -> None:
-        self._jump_marked = False
+        """Clear the `JMP` bit, so the main loop advances the pointer again."""
+        self._flags &= ~Flags.JMP
+
+    @property
+    def flags(self) -> Flags:
+        """The interpreter's status register (see `amrita_sense.runtime.types.Flags`)."""
+        return self._flags
 
     @property
     def jump_marked(self) -> bool:
-        return self._jump_marked
+        """Whether a jump has already moved the pointer for this cycle."""
+        return bool(self._flags & Flags.JMP)
 
     @property
     def if_flag(self) -> bool:
-        return self._if_flag
+        """Whether the interpreter is currently inside an interrupt handler."""
+        return bool(self._flags & Flags.IF)
 
     @if_flag.setter
     def if_flag(self, value: bool) -> None:
         if not isinstance(value, bool):
             raise TypeError("if_flag must be a boolean value")
-        self._if_flag = value
+        self._flags = (self._flags | Flags.IF) if value else (self._flags & ~Flags.IF)
 
     @property
     def context_stack(self) -> Stack[InterpreterContext]:
@@ -455,10 +478,15 @@ class WorkflowInterpreter(Generic[io_T]):
             extra={},
             stack=None if exclude_stack else self._ret_addr_stack,
             exception=self._panic_exc,
+            # HLT is stripped here, not on restore: "the loop is parked on this node" is not part of the state to come back to.
+            flags=self._flags & ~Flags.HLT,
         )
 
     def rebase_context(self, ctx: InterpreterContext) -> None:
         """Rebase the interpreter context stack to the current pointer and state.
+
+        Restores the status register together with the pointer, so a context
+        snapshot round-trips every bit it captured.
 
         Args:
             ctx: The InterpreterContext object to rebase.
@@ -471,16 +499,31 @@ class WorkflowInterpreter(Generic[io_T]):
             self._di_cache.hash_trustable = False
         self._ret_addr_stack = ctx.stack or self._ret_addr_stack
         self._panic_exc = ctx.exception
+        self._flags = ctx.flags
 
     def rebase_ptr(self, ptr: list[int] | PointerVector) -> None:
         """Rebase the pointer to a new address.
 
+        Also clears `HLT`: moving the pointer explicitly means the interpreter
+        is no longer parked on the node it halted on.
+
         Args:
             ptr: The new base address vector for the pointer.
         """
+        self._flags &= ~Flags.HLT
         self._pointer.base_addr = (
             list(ptr) if isinstance(ptr, list) else ptr.base_addr.copy()
         )
+
+    def resume_from_halt(self) -> bool:
+        """Step past the node the interpreter halted on.
+
+        While `HLT` is set the pointer still addresses the node that raised
+        `InterruptKeepContext`, so resuming means skipping it.  Returns False
+        when nothing follows, in which case the run is over.
+        """
+        self._flags &= ~Flags.HLT
+        return self.advance_pointer()
 
     @markup
     def jump_to(self, addr: list[int]) -> None:
@@ -645,7 +688,7 @@ class WorkflowInterpreter(Generic[io_T]):
         finally:
             self.__outer_interpreting = False
             ptr = self._ret_addr_stack.pop()
-            if not self._jump_marked:
+            if not self.jump_marked:
                 self.rebase_ptr(ptr)
 
     @property
@@ -667,6 +710,8 @@ class WorkflowInterpreter(Generic[io_T]):
             self._pending_stop = True
             if self._waiter_fut and not self._waiter_fut.done():
                 await self._waiter_fut
+        # Backstop for a run whose generator was abandoned before its `finally` could release workflow-scoped dependencies.  Idempotent.
+        await self._close_workflow_scope()
         if eol:
             if parent := self.parent:
                 parent.sub_interpreters.pop(self.id, None)
@@ -738,6 +783,8 @@ class WorkflowInterpreter(Generic[io_T]):
             InterruptNotice: When an external interrupt is requested.
         """
         exc_val: BaseException | None = None
+        # Set when the run stops in a way that allows resuming (a suspend interrupt or a panic), in which case workflow-scoped dependencies have to stay open across the gap.
+        resumable = False
         if self._panic_exc is not None:
             logger.debug("Recovered from panic.")
             self._panic_exc = None
@@ -788,13 +835,18 @@ class WorkflowInterpreter(Generic[io_T]):
                         if not graph:
                             break
                         self._pointer.append(0)
+                    if self._flags & Flags.HLT:
+                        # Resuming: the pointer still addresses the node that halted, so step past it instead of running it again.
+                        if not self.resume_from_halt():
+                            break
+                        continue
                     yield (
                         await self._middleware(self)
                         if self._middleware
                         else await self._call()
                     )
-                    if self._jump_marked:
-                        self._jump_marked = False
+                    if self.jump_marked:
+                        self.unmarkup()
                         continue
 
                     if not self.advance_pointer():
@@ -804,6 +856,10 @@ class WorkflowInterpreter(Generic[io_T]):
             logger.info("Cleaning up pointer stack...")
             if not isinstance(e, InterruptKeepContext):
                 self.reset()
+            else:
+                resumable = True
+                # The pointer still addresses the halting node, so mark that a later run has to step past it (see the HLT branch above).
+                self._flags |= Flags.HLT
 
         except BaseException as e:
             if isinstance(e, Exception):
@@ -816,6 +872,8 @@ class WorkflowInterpreter(Generic[io_T]):
                     )
                 )
             exc_val = e
+            # A panic may be recovered by running the interpreter again, so the workflow scope is left open.
+            resumable = True
             raise
         finally:
             if exc_val is not None and isinstance(exc_val, Exception):
@@ -830,6 +888,8 @@ class WorkflowInterpreter(Generic[io_T]):
                 else:
                     self._waiter_fut.set_result(None)
             self._waiter_fut = None
+            if not resumable:
+                await self._close_workflow_scope()
 
     def _make_traceback(self) -> str:
         """Make a traceback string for the current workflow."""
@@ -1074,6 +1134,9 @@ class WorkflowInterpreter(Generic[io_T]):
             session_args=list(ava_args),
             session_kwargs=ava_kwargs,
             exception_ignored=self._exc_ignored,
+            store=self._dep_store,
+            lifecycles=self._lifecycles,
+            default_scope=Scope.WORKFLOW,
         ):
             raise DependsInjectFailed(
                 "Runtime resolve failed for kwargs: {}".format(
@@ -1093,6 +1156,10 @@ class WorkflowInterpreter(Generic[io_T]):
             results are merged into `static_kwargs` and **will be cached**.
         *   `cacheable=False` (default) factories are returned as-is in the
             second dict for **per-call** resolution.
+        *   Generator factories always land in the second dict regardless of
+            `cacheable`: a lifecycle resource must never be cached in the LRU
+            (an eviction would orphan its teardown) and must not be opened
+            eagerly by the cache preload.
         """
         fun = node.func
         fail, static_kwargs, all_factories = MatcherFactory._resolve_dependencies(
@@ -1109,7 +1176,7 @@ class WorkflowInterpreter(Generic[io_T]):
         cacheable: dict[str, DependsFactory] = {}
         non_cacheable: dict[str, DependsFactory] = {}
         for name, factory in all_factories.items():
-            if factory.cacheable:
+            if factory.cacheable and not factory.is_lifecycle:
                 cacheable[name] = factory
             else:
                 non_cacheable[name] = factory
@@ -1122,6 +1189,9 @@ class WorkflowInterpreter(Generic[io_T]):
                 session_args=list(ava_args),
                 session_kwargs=ava_kwargs,
                 exception_ignored=self._exc_ignored,
+                store=self._dep_store,
+                lifecycles=self._lifecycles,
+                default_scope=Scope.WORKFLOW,
             ):
                 raise DependsInjectFailed(
                     "Runtime resolve failed for cacheable factories: {}".format(
@@ -1222,30 +1292,80 @@ class WorkflowInterpreter(Generic[io_T]):
                 self._di_cache.payload[cache_key] = (static_kwargs, factories)
 
         #  Per-call resolution of non-cacheable factories
-        if factories:
-            kw_rsved = static_kwargs.copy()
-            if not await MatcherFactory._do_runtime_resolve(
-                runtime_args={},
-                runtime_kwargs=factories,
-                args2update=[],
-                kwargs2update=kw_rsved,
-                session_args=list(ava_args),
-                session_kwargs=ava_kwargs,
-                exception_ignored=self._exc_ignored,
-            ):
-                raise DependsInjectFailed(
-                    "Runtime resolve failed for kwargs: {}".format(
-                        ", ".join(factories.keys())
-                    )
-                )
-        else:
-            kw_rsved = static_kwargs
-        if iscoroutinefunction(fun):
-            return await fun(**kw_rsved)
-        elif node.wrap_to_async and not __flags__.FORCE_NOT_WRAP_TO_ASYNC:
-            return await asyncio.to_thread(fun, **kw_rsved)
-        else:
+        async def _invoke(kw_rsved: dict[str, Any]) -> Any:
+            if iscoroutinefunction(fun):
+                return await fun(**kw_rsved)
+            if node.wrap_to_async and not __flags__.FORCE_NOT_WRAP_TO_ASYNC:
+                return await asyncio.to_thread(fun, **kw_rsved)
             return fun(**kw_rsved)
+
+        if not factories:
+            return await _invoke(static_kwargs)
+
+        kw_rsved = static_kwargs.copy()
+        if any(factory.is_lifecycle for factory in factories.values()):
+            # A generator dependency is torn down as soon as this node call returns, so the scope has to wrap the invocation itself.  The default stays `WORKFLOW`: `CALL` is opt-in, and only an explicit `scope="call"` declaration resolves against this fresh scope.
+            async with LifecycleScope(Scope.CALL) as call_scope:
+                await self._inject_factories(
+                    factories,
+                    ava_args,
+                    ava_kwargs,
+                    kw_rsved,
+                    self._dep_store,
+                    {**self._lifecycles, Scope.CALL: call_scope},
+                    Scope.WORKFLOW,
+                )
+                return await _invoke(kw_rsved)
+        await self._inject_factories(
+            factories,
+            ava_args,
+            ava_kwargs,
+            kw_rsved,
+            self._dep_store,
+            self._lifecycles,
+            Scope.WORKFLOW,
+        )
+        return await _invoke(kw_rsved)
+
+    async def _inject_factories(
+        self,
+        factories: dict[str, DependsFactory],
+        ava_args: tuple,
+        ava_kwargs: dict[str, Any],
+        target: dict[str, Any],
+        store: DependencyStore,
+        lifecycles: Mapping[Scope, LifecycleScope],
+        default_scope: Scope,
+    ) -> None:
+        """Resolve `factories` into `target`, raising when resolution fails."""
+        if not await MatcherFactory._do_runtime_resolve(
+            runtime_args={},
+            runtime_kwargs=factories,
+            args2update=[],
+            kwargs2update=target,
+            session_args=list(ava_args),
+            session_kwargs=ava_kwargs,
+            exception_ignored=self._exc_ignored,
+            store=store,
+            lifecycles=lifecycles,
+            default_scope=default_scope,
+        ):
+            raise DependsInjectFailed(
+                "Runtime resolve failed for kwargs: {}".format(
+                    ", ".join(factories.keys())
+                )
+            )
+
+    async def _close_workflow_scope(self) -> None:
+        """Release every workflow-scoped dependency.
+
+        Idempotent, and immediately swaps in a fresh scope so a later run of
+        the same interpreter starts from a clean slate rather than a closed
+        one.
+        """
+        await self._lifecycles[Scope.WORKFLOW].aclose()
+        self._lifecycles[Scope.WORKFLOW] = LifecycleScope(Scope.WORKFLOW)
+        self._dep_store.clear()
 
 
 __all__ = ["PC_CHECKPOINT", "WorkflowInterpreter", "fun_T", "io_T"]

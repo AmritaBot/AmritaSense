@@ -1,8 +1,8 @@
 # 原生控制流
 
-AmritaSense v0.5.1 引入的**原生控制流指令集**——`NATIVE_IF`、`NATIVE_WHILE`、`NATIVE_DO`、`BREAK_LOOP` 和 `CONTINUE`——是传统 `IF`/`WHILE`/`DO` 控制流指令的**正交扩展**。
+**原生控制流指令集**——`NATIVE_IF`、`NATIVE_WHILE`、`NATIVE_DO`、`BREAK_LOOP` 和 `CONTINUE`——是传统 `IF`/`WHILE`/`DO` 控制流指令的**正交扩展**。
 
-v0.6.0 起循环机制被重新设计：循环体统一以 `CONTINUE()`（工厂函数）结尾，`BREAK_LOOP()` 改为工厂函数，`RET_FAR` **不再参与**原生循环。
+循环体统一以 `CONTINUE()`（工厂函数）结尾，`BREAK_LOOP()` 是工厂函数，`RET` **不参与**原生循环。
 
 ## 设计理念
 
@@ -58,7 +58,7 @@ graph LR
 
 ### Bubble 分支体
 
-当 `body` 是 `NodeCompose` 时，编译器将其包裹为 **Bubble**（嵌套容器）。v0.6.0 起 Bubble **不再带 `RET_FAR`**——它通过 `advance_pointer` 自然回退到汇合点，与 Python 的 `if`/`else` 块完全一致（没有提前返回语义）：
+当 `body` 是 `NodeCompose` 时，编译器将其包裹为 **Bubble**（嵌套容器）。Bubble **不再带 `RET`**——它通过 `advance_pointer` 自然回退到汇合点，与 Python 的 `if`/`else` 块完全一致（没有提前返回语义）：
 
 ```python
 NATIVE_IF(cond, step_a >> step_b).ELSE(fallback_a >> fallback_b)
@@ -96,7 +96,7 @@ NATIVE_WHILE(check_alive).ACTION(heartbeat)  # 单节点
 NATIVE_WHILE(cond).ACTION(step_a >> step_b)  # Bubble
 ```
 
-v0.6.0 起，单节点与 Bubble 循环体走**同一代码路径**：循环体总是被包装为 `NodeCompose(body, CONTINUE())`，通过末尾的 `CONTINUE()` 完成迭代。
+单节点与 Bubble 循环体走**同一代码路径**：循环体总是被包装为 `NodeCompose(body, CONTINUE())`，通过末尾的 `CONTINUE()` 完成迭代。
 
 编译布局：
 
@@ -137,7 +137,7 @@ NATIVE_WHILE(cond).ACTION(
 )
 ```
 
-`CONTINUE()` 弹栈后 `jump_far_ptr` 到循环头（`NATIVE_WHILE` 为 `[0]`，`NATIVE_DO` 为 `[2]`）。与 `RET_FAR` 不同——后者用 `rebase_ptr` 依赖自然 `advance_pointer`——`CONTINUE` 是直接跳转，会设置跳转标记，目标节点立即执行。
+`CONTINUE()` 弹栈后 `jump_far_ptr` 到循环头（`NATIVE_WHILE` 为 `[0]`，`NATIVE_DO` 为 `[2]`）。与 `RET` 不同——后者用 `rebase_ptr` 依赖自然 `advance_pointer`——`CONTINUE` 是直接跳转，会设置跳转标记，目标节点立即执行。
 
 ## NATIVE_DO
 
@@ -172,7 +172,7 @@ graph LR
 循环重入：循环体末尾的 `CONTINUE()` 弹栈并 `jump_far_ptr` 到 `[2]`（do-while 节点）；条件真 → `NativeDoWhileNode` `jump_near(0)`，再次触发 `NativeBubbleEnterNode` PUSH + JMP 进入循环体。
 循环退出：条件假 → `jump_near(4)` 到 NOP 出口。或者 `BREAK_LOOP()` 主动跳出。
 
-> **语义对齐**：v0.6.0 重构后，DO 和 WHILE 的循环体行为完全一致——两者都统一以 `CONTINUE()` 结尾，`BREAK_LOOP()` / `CONTINUE()` 统一弹栈跳转。
+> **语义对齐**：DO 和 WHILE 的循环体行为完全一致——两者都统一以 `CONTINUE()` 结尾，`BREAK_LOOP()` / `CONTINUE()` 统一弹栈跳转。
 
 ## 选用指南
 

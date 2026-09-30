@@ -8,10 +8,10 @@ AmritaSense provides `FN` / `INTER_FN` — helpers that look like **function def
 
 | Aspect           | High-level language function               | AmritaSense `FN` / `INTER_FN`                                                     |
 | ---------------- | ------------------------------------------ | --------------------------------------------------------------------------------- |
-| Entry            | Caller evaluates arguments, pushes a frame | `PUSH_AND_GOTO` / `INTERRUPT_INTO` jump to an alias                               |
+| Entry            | Caller evaluates arguments, pushes a frame | `CALL` / `INT` jump to an alias                                                   |
 | Local variables  | Fresh frame with locals                    | ❌ none — the interpreter has a single shared state                               |
 | Arguments        | Passed by value/reference                  | ❌ none — data flows via **dependency injection** from the interpreter's arg pool |
-| Return value     | `return expr`                              | ❌ none — `RET_FAR` / `INTERRUPT_RET` only restore the pointer/context            |
+| Return value     | `return expr`                              | ❌ none — `RET` / `IRET` only restore the pointer/context                         |
 | Stack            | Dedicated call stack per function          | Shared `_ret_addr_stack` (a single jump target)                                   |
 | Recursion        | Supported                                  | ❌ meaningless — there is no frame to re-enter                                    |
 | Closures / scope | Lexical scoping, captures                  | ❌ none — the whole workflow shares one pointer space                             |
@@ -32,28 +32,31 @@ fn_block = FN(
 `FN` expands at compile time to:
 
 ```text
-[_fn_escape, ALIAS(NOP, "fn_entry"), <block>, RET_FAR()]
+[_fn_escape, ALIAS(NOP, "fn_entry"), <block>, RET()]
 ```
 
-- `_fn_escape` — a hidden node (`rebase_ptr(pointer.copy().offset(3))`). When the normal sequential flow reaches the block, it rebases the pointer **past** the block (`offset(3)` lands exactly on the trailing `RET_FAR`), so the whole block is skipped.
+- `_fn_escape` — a hidden node (`rebase_ptr(pointer.copy().offset(3))`). When the normal sequential flow reaches the block, it rebases the pointer **past** the block (`offset(3)` lands exactly on the trailing `RET`), so the whole block is skipped.
 - `ALIAS(NOP, "fn_entry")` — the named entry point. Jumps target this alias.
 - `<block>` — your body (a nested container; entered via the pointer).
-- `RET_FAR()` — appended automatically. Pops `_ret_addr_stack`, `rebase_ptr`s to the caller's saved address, and the interpreter advances onto the node after the call site.
+- `RET()` — appended automatically. Pops `_ret_addr_stack`, `rebase_ptr`s to the caller's saved address, and the interpreter advances onto the node after the call site.
 
 ### Calling an FN Block
 
 ```python
-from amrita_sense.instructions import PUSH_AND_GOTO
+from amrita_sense.instructions import CALL
 
 comp = (
     start
-    >> PUSH_AND_GOTO(None, "fn_entry")  # call: None = return after this node
-    >> after_fn  # resumed here after RET_FAR
+    >> CALL("fn_entry")  # from_adr=None -> return after this node
+    >> after_fn  # resumed here after RET
     >> fn_block  # skipped by normal flow via _fn_escape
 )
 ```
 
-`PUSH_AND_GOTO(None, entrypoint)` pushes the current pointer (main-flow semantics: `None` resolves to the current pointer when not inside a `call_sub`) and jumps to the entrypoint. `RET_FAR` restores the pointer there, and the interpreter advances onto the next node — `after_fn`.
+`CALL(entrypoint)` pushes the current pointer (main-flow semantics: `from_adr`
+defaults to `None`, which resolves to the current pointer when not inside a
+`call_sub`) and jumps to the entrypoint. `RET` restores the pointer there, and
+the interpreter advances onto the next node — `after_fn`.
 
 ## `INTER_FN(entrypoint, block)` — Interrupt Service Routine
 
@@ -66,28 +69,28 @@ isr = INTER_FN(
 )
 ```
 
-Identical shape, but the trailing instruction is `INTERRUPT_RET()` instead of `RET_FAR`:
+Identical shape, but the trailing instruction is `IRET()` instead of `RET`:
 
 ```text
-[_fn_escape, ALIAS(NOP, "isr_entry"), <block>, INTERRUPT_RET()]
+[_fn_escape, ALIAS(NOP, "isr_entry"), <block>, IRET()]
 ```
 
-`INTERRUPT_RET` pops a saved `InterpreterContext` and **restores the whole interpreter state** (pointer, exception-ignore list, dependency args, return-address stack) — not just the pointer.
+`IRET` pops a saved `InterpreterContext` and **restores the whole interpreter state** (pointer, exception-ignore list, dependency args, return-address stack) — not just the pointer.
 
 ### Calling an INTER_FN Block
 
 ```python
-from amrita_sense.instructions import INTERRUPT_INTO
+from amrita_sense.instructions import INT
 
 comp = (
     main_start
-    >> INTERRUPT_INTO("isr_entry", None)  # dispatch: None = return after this node
-    >> after_isr  # resumed here after INTERRUPT_RET
+    >> INT("isr_entry")  # dispatch; ret_to=None -> return after this node
+    >> after_isr  # resumed here after IRET
     >> isr  # skipped by normal flow via _fn_escape
 )
 ```
 
-`INTERRUPT_INTO(entrypoint, None)` snapshots the interpreter context (with the current pointer as the return address) and jumps to the handler. When the routine ends, `INTERRUPT_RET` restores the snapshot; since the restore uses `rebase_context` (no jump flag), execution advances onto the next node — `after_isr`.
+`INT(entrypoint)` snapshots the interpreter context (with the current pointer as the return address) and jumps to the handler. When the routine ends, `IRET` restores the snapshot; since the restore uses `rebase_context` (no jump flag), execution advances onto the next node — `after_isr`.
 
 ## Relationship with `ARCHIVED_SEGMENT`
 
@@ -96,13 +99,13 @@ comp = (
 ```python
 comp = (
     start
-    >> PUSH_AND_GOTO(None, "fn_entry")
+    >> CALL("fn_entry")
     >> after_fn
     >> FN("fn_entry", fn_body)  # fine — no ARCHIVED_SEGMENT needed
 )
 ```
 
-`ARCHIVED_SEGMENT` is the lower-level building block (`[JMP 2, Payload, NOP]`) used when you want to archive an arbitrary compose without the function-call semantics — e.g. a plain section reachable only via `GOTO` that performs its own return (`RET_FAR` / `INTERRUPT_RET`) manually.
+`ARCHIVED_SEGMENT` is the lower-level building block (`[JMP 2, Payload, NOP]`) used when you want to archive an arbitrary compose without the function-call semantics — e.g. a plain section reachable only via `JMP` that performs its own return (`RET` / `IRET`) manually.
 
 ## Data Exchange without Function Context
 
@@ -121,5 +124,5 @@ The interpreter resolves the body's parameters from the same `_ava_args` / `_ava
 
 - `FN` / `INTER_FN` are **named, archived jump targets** with an auto-appended return instruction.
 - They change the control flow, **not** the execution context.
-- Enter via `PUSH_AND_GOTO(None, entrypoint)` / `INTERRUPT_INTO(entrypoint, None)`; exit via the auto-appended `RET_FAR()` / `INTERRUPT_RET()`.
+- Enter via `CALL(entrypoint)` / `INT(entrypoint)`; exit via the auto-appended `RET()` / `IRET()`.
 - No locals, no arguments, no return values, no recursion — design accordingly (use DI for data, use the pointer/context restore for "return").

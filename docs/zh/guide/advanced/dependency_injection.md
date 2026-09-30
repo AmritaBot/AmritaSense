@@ -29,6 +29,8 @@ def my_node(dependency_value: ReturnType = Depends(dependency_provider_function)
     pass
 ```
 
+`Depends` 也可以写在注解里（配合 `Annotated`），详见 [4.1.10 `Annotated` 声明](#_4-1-10-annotated-声明)。
+
 ### 内置依赖工具
 
 AmritaSense 提供了几个内置的依赖工具函数，位于 `amrita_sense.runtime.deps` 模块中：
@@ -156,13 +158,13 @@ TRY(NodeType(lambda: print("This won't execute"))).CATCH(
 
 这种设计确保了依赖注入系统的健壮性和可预测性，同时为开发者提供了清晰的错误处理机制。
 
-## 4.1.7 DI 结果缓存（v0.4.2+）
+## 4.1.7 DI 结果缓存
 
-从 v0.4.2 起，`WorkflowInterpreter` 维护一个内部 DI 结果缓存（`_di_cache`），避免在相同参数类型下重复执行同一节点的依赖解析。
+`WorkflowInterpreter` 维护一个内部 DI 结果缓存（`_di_cache`），避免在相同参数类型下重复执行同一节点的依赖解析。
 
 ### 工作原理
 
-v0.6.0 起，缓存键由**节点函数标识** + 参数指纹组成（指针位置**不再**参与——同一节点函数在不同调用点共享缓存条目）：
+缓存键由**节点函数标识** + 参数指纹组成（指针位置不参与——同一节点函数在不同调用点共享缓存条目）：
 
 - **函数标识**：`id(node.func)` —— 节点底层的函数对象
 - **参数指纹**：基于 `_ava_args` 和 `_ava_kwargs` 的类型指纹
@@ -181,9 +183,11 @@ cache_key = hash((id(node.func), code))
 
 缓存载体是 `cachetools` 的 `LRUCache`，最大容量 2048 条。缓存满时按最近最少使用策略淘汰。每个条目存储 `(static_kwargs, non_cacheable_factories)`——见下方 `cacheable`。
 
-### `cacheable` 工厂（v0.6.0+）
+### `cacheable` / `use_cache` 工厂
 
-`DependsFactory(cacheable=True)` 的提供者在**写入缓存时解析一次**，结果存入缓存。`cacheable=False`（默认）的提供者按原样存储，**每次调用**重新解析——适用于有副作用或取值随时间变化的提供者。该区分与缓存有效性（`hash_trustable`）正交。
+`DependsFactory(cacheable=True)`（推荐写法为 `Depends(f, use_cache=True)`）的提供者在**写入缓存时解析一次**，结果存入缓存。`cacheable=False`（默认）的提供者按原样存储，**每次调用**重新解析——适用于有副作用或取值随时间变化的提供者。该区分与缓存有效性（`hash_trustable`）正交。
+
+对**生成器**提供者而言，共享与否由 `scope` 而非 `use_cache` 决定，参见 [4.1.11 生成器依赖与生命周期](#_4-1-11-生成器依赖与生命周期)。
 
 ### 缓存生命周期
 
@@ -209,7 +213,7 @@ pc2 = WorkflowInterpreter(rendered)
 await pc2.run()  # 每个节点从头重新解析依赖
 ```
 
-## 4.1.8 DI 预加载缓存（v0.4.2+）
+## 4.1.8 DI 预加载缓存
 
 启用 `__flags__.WORKFLOW_DI_PRELOAD_CACHE` 后，解释器在 `run()` 初始化阶段为**每个节点**预解析依赖注入——在第一个节点执行之前完成。
 
@@ -256,3 +260,86 @@ await pc.run()  # 第一个节点运行前，所有节点的 DI 已预解析完�
 ### `hash_trustable` 守卫
 
 调用 `_refresh_di_cache_full()` 时若 `hash_trustable` 为 `False`，将抛出 `DependsResolveFailed`。修改 DI 参数后务必调用 `rehash_args()` 以确保缓存完整性。
+
+## 4.1.10 `Annotated` 声明
+
+`Depends` 既可以写在默认值里，也可以写在注解里。两种写法等价，但同一个参数不得同时使用：
+
+```python
+from typing import Annotated
+
+from amrita_sense.hook.matcher import Depends
+
+
+@Node()
+def my_node(
+    by_default: ReturnType = Depends(provider),
+    by_annotation: Annotated[ReturnType, Depends(provider)] = ...,
+): ...
+```
+
+参与类型匹配的只有 `Annotated` 里的那个类型，其余元数据一律忽略。若出现多个 `Depends` 标记，**最后一个**生效。该行为对齐 FastAPI 的 `analyze_param`。
+
+| 声明                                       | 结果                               |
+| ------------------------------------------ | ---------------------------------- |
+| `x: T`                                     | 必需——先按关键字匹配，再按类型遍历 |
+| `x: T = value`                             | 可选，关键字未命中时保留 `value`   |
+| `x: T = Depends(f)`                        | 由 `f` 注入                        |
+| `x: Annotated[T, Depends(f)]`              | 由 `f` 注入                        |
+| `x: Annotated[T, Depends(f)] = value`      | 由 `f` 注入，`value` 被忽略        |
+| `x: Annotated[T, Depends(f)] = Depends(g)` | `DependsDeclarationError`          |
+| `x: Annotated[T, "其他元数据"]`            | 等价于 `x: T`                      |
+
+声明有误时会在**构造**节点/处理器阶段就抛出 `DependsDeclarationError`，而不是等到运行时。
+
+## 4.1.11 生成器依赖与生命周期
+
+提供者可以是生成器：`yield` 之前的值被注入，之后的部分作为清理逻辑执行：
+
+```python
+from collections.abc import AsyncIterator
+
+
+async def get_session() -> AsyncIterator[Session]:
+    session = Session()
+    try:
+        yield session
+    finally:
+        await session.close()
+
+
+@Node()
+async def handler(session: Session = Depends(get_session, scope="workflow")): ...
+```
+
+裸生成器函数（`def ... yield`、`async def ... yield`）与已经用 `@contextmanager` / `@asynccontextmanager` 装饰过的提供者都支持。
+
+### 作用域
+
+| 作用域       | 何时关闭                       |
+| ------------ | ------------------------------ |
+| `"call"`     | 请求该依赖的那次节点调用返回后 |
+| `"dispatch"` | 当前事件派发的所有处理器跑完后 |
+| `"workflow"` | 解释器停止时                   |
+
+`"call"` 在节点内可用，`"dispatch"` 在事件处理器内可用，`"workflow"` 两者都可用。不写 `scope` 时取该解析点可用的最宽作用域——节点为 `"workflow"`，事件处理器为 `"dispatch"`。
+
+给非生成器提供者声明 `scope` 会抛出 `DependsDeclarationError`；声明的 scope 在当前解析点不可用则抛出 `DependsInjectFailed`。
+
+清理顺序与声明顺序相反，且即使节点抛异常也会执行。生成器 `yield None` 与普通提供者返回 `None` 一样视为解析失败，但清理逻辑仍会执行。
+
+当一轮运行以 panic 或挂起结束时，`"workflow"` 作用域**不会**关闭：这两种情况都可以恢复，因此资源会保留到解释器被终止。`await interpreter.terminate()` 会释放它们，且可重复调用。
+
+### 共享与去重
+
+资源以「提供者 + 实参指纹 + 作用域」为键。两个节点依赖同一个 `"workflow"` 作用域的提供者时会拿到**同一个实例**；两个解析者同时争用同一个键时只会执行一次计算，而不会把资源开两次。
+
+生成器提供者不进入 DI 结果缓存——LRU 淘汰会让它的清理逻辑变成孤儿——因此预加载也会跳过它们。
+
+### 嵌套依赖
+
+提供者自身也可以声明 `Depends` 参数。子依赖走同一条带生命周期的解析路径，因此嵌套的生成器会注册到调用方的作用域上，与它一起清理。
+
+### 数据库会话
+
+ORM 会话建议使用 `scope="call"`——会话在一次节点调用内开、关，这是最安全的默认。只有确实需要跨整个运行共享时才放宽到 `"workflow"`。
