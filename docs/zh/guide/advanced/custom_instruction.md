@@ -1,8 +1,8 @@
-# 4.7 自定义指令集
+# 自定义指令集
 
 AmritaSense 的内置指令集已经覆盖了条件分支、循环、异常处理等核心控制流。但当这些基本指令的组合反复出现、形成固定模式时，就可以通过 `SelfCompileInstruction` 将其封装为**新的指令**。这种扩展不侵入解释器，只在编译期展开为标准节点组合，运行时与内置指令完全等效。
 
-## 4.7.1 自编译指令接口：SelfCompileInstruction
+## 自编译指令接口：SelfCompileInstruction
 
 `SelfCompileInstruction` 是一个抽象基类，定义了所有自编译指令的统一入口：
 
@@ -33,7 +33,7 @@ class SelfCompileInstruction(ABC):
 3. 如果展开后的结构包含跳转，地址计算必须在 `extract()` 内完成
 4. 返回的 `NodeCompose` 会被自动递归渲染，无需手动调用 `render()`
 
-## 4.7.2 实现模式：extract() 与地址计算
+## 实现模式：extract() 与地址计算
 
 实现自定义指令的核心工作，是将一个“意图”映射为一个“节点数组”。这个映射包括三个步骤：
 
@@ -81,7 +81,7 @@ workflow = start >> LoggedNode(process_data, "数据处理") >> end
 workflow = start >> log_start >> process_data >> log_end >> end
 ```
 
-## 4.7.3 案例一：重试器
+## 案例一：重试器
 
 将一个可能失败的节点包装为支持重试的逻辑，是自编译指令的典型应用场景。
 
@@ -150,7 +150,7 @@ WHILE(condition).ACTION(TRY(call_api).CATCH(Exception, on_error)) >> use_cache
 - 跳转地址由内置指令自动计算，`RetryClause` 无需手动管理偏移量
 - 用户看到的只是 `RetryClause(...)`，底层展开细节完全透明
 
-## 4.7.4 案例二：条件执行包装器
+## 案例二：条件执行包装器
 
 将“条件满足时执行某节点，否则跳过”这个常见模式封装为单一指令。
 
@@ -188,7 +188,7 @@ class ExecuteWhenElse(SelfCompileInstruction):
         return NodeCompose(IF(self._cond, self._action).ELSE(self._other))
 ```
 
-## 4.7.5 反汇编标注：`__sdb_dis__` / `__sdb_cmt__`
+## 反汇编标注：`__sdb_dis__` / `__sdb_cmt__`
 
 自定义指令会展开成用户从未写过的节点，因此调试器清单默认显示的是框架内部节点。节点可以用两个**软约束魔术属性**描述自己所在的那一行，由 REPL 调试器的反汇编器读取：
 

@@ -27,7 +27,7 @@ class SelfCompileInstruction(ABC):
 
 ## 内置自编译指令
 
-AmritaSense 的内置指令集全部是 `SelfCompileInstruction` 的子类。以下仅列出它们在编译期展开的空间结构，详细语法和运行时行为请参见 `第 4.5 节：内置指令集`。
+AmritaSense 的内置指令集全部是 `SelfCompileInstruction` 的子类。以下仅列出它们在编译期展开的空间结构，详细语法和运行时行为请参见[内置指令集](/zh/guide/advanced/built-in_instruction_set/if_clause)。
 
 ### 条件分支指令
 

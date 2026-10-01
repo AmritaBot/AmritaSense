@@ -27,7 +27,7 @@ Self-compile instructions are the cornerstone of AmritaSense's extensibility. Bu
 
 ## Built-in Self-Compile Instructions
 
-All of AmritaSense's built-in instructions are subclasses of `SelfCompileInstruction`. The following lists only their compile-time expansion structure; for detailed syntax and runtime behavior, see Section 4.5: Built-in Instruction Set.
+All of AmritaSense's built-in instructions are subclasses of `SelfCompileInstruction`. The following lists only their compile-time expansion structure; for detailed syntax and runtime behavior, see the [built-in instruction set](/guide/advanced/built-in_instruction_set/if_clause).
 
 ### Conditional branching instructions
 

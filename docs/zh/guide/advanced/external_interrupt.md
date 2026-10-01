@@ -1,11 +1,11 @@
-# 4.4 外部中断调用
+# 外部中断调用
 
 AmritaSense 提供了一套安全的外部调用机制，允许**外部系统在节点边界注入子程序**，从而实现灵活的调试、监控与动态控制。这套机制的核心是解释锁与 `call_sub(interrupt=True)`，它让“中断”不再是硬件级的抢占，而是可控的、可编程的“安全外部调用”。
 
 > **区分：流程挂起 vs. 外部调用**
-> 第 3.4 节介绍的流程挂起（Suspend）是通过 `SuspendObjectStream` 暂停执行流，等待外部 `resume()` 后继续。而本节讨论的是在挂起窗口或节点边界，**由外部主动注入一个完整的子程序**，执行完毕后自动返回。两者可以组合使用，但属于不同维度的能力。
+> [执行与中断](/zh/guide/concepts/exec_and_interrupt)一章介绍的流程挂起（Suspend）是通过 `SuspendObjectStream` 暂停执行流，等待外部 `resume()` 后继续。而本节讨论的是在挂起窗口或节点边界，**由外部主动注入一个完整的子程序**，执行完毕后自动返回。两者可以组合使用，但属于不同维度的能力。
 
-## 4.4.1 解释锁与安全外部调用原理
+## 解释锁与安全外部调用原理
 
 外部注入操作的核心是 `aiologic.Lock`（解释锁），它确保了注入的原子性，避免与正常执行流产生竞态。
 
@@ -39,7 +39,7 @@ await interpreter.call_sub(
 
 这种设计让同一套 `call_sub` API 同时服务于内部复用和外部注入，仅通过一个布尔参数区分。
 
-## 4.4.2 中断程序的存储结构
+## 中断程序的存储结构
 
 为了便于外部调用，我们需要在工作流中预置一些专门用于响应的节点序列，这些序列被打包成“中断程序”并存储在工作流中，正常流程会跳过它们。AmritaSense 提供了 `ARCHIVED_NODES` 来构建这种存储区。
 
@@ -81,7 +81,7 @@ interrupt_handlers = ARCHIVED_NODES(
 
 > **ARCHIVED_NODES 与 ARCHIVED_SEGMENT 的区别**：`ARCHIVED_NODES` 归档一组扁平的独立节点（每个节点都可按别名寻址，适合构建处理器库）。`ARCHIVED_SEGMENT` 将整个 `NodeCompose` 归档为一个整体（`[JMP 2, Payload, NOP]`）——它是 `FN` / `INTER_FN` 函数块的构建基础。前者用于处理器库，后者用于完整例程。
 
-## 4.4.3 SubprogramJumpNode 的执行逻辑
+## SubprogramJumpNode 的执行逻辑
 
 `SubprogramJumpNode` 是一个轻量级节点，专门用于跳过后续的存储区。其实现非常简单：
 
@@ -94,7 +94,7 @@ interrupt_handlers = ARCHIVED_NODES(
 
 `SubprogramJumpNode` 是专门为跳过存储区设计的，语义更明确。而 `JMP` 是通用跳转指令，可能会被误用。使用专用的跳转节点可以降低开发者混淆的风险。
 
-## 4.4.4 构建安全的可注入节点库
+## 构建安全的可注入节点库
 
 利用上述机制，开发者可以构建一套“可注入节点库”，用于调试、健康检查、错误恢复等。这些库节点必须遵循一定的安全约束。
 
@@ -138,7 +138,7 @@ pc.object_io.resume()
 
 通过这套机制，AmritaSense 将外部干预从“破坏性中断”变为“安全的功能调用”，为构建全功能调试器、监控系统和动态流控提供了坚实的基础。
 
-## 4.4.5 Trap：从外部进入 `CALL` / `INT`
+## Trap：从外部进入 `CALL` / `INT`
 
 **Trap**（陷阱）指的是：外部 `call_sub(interrupt=True)` 的目标不是普通处理节点，而是 `CALL` 或 `INT` 节点本身。
 
@@ -245,7 +245,7 @@ asyncio.run(main())
 
 `call_sub` 的 `pop` 是无条件的，不会检查弹出的是谁压的。因此 trap 目标必须让返回地址栈保持平衡：`CALL` 与 `INT` 恰好满足这一点，而自行压栈/弹栈的节点会让地址栈失衡。请把 trap 目标限定为 `CALL` / `INT` 节点。
 
-## 4.4.6 中断例程与上下文快照
+## 中断例程与上下文快照
 
 AmritaSense 提供了用于工作流**内部**中断式控制转移的内置指令：`INT` / `IRET`。与从解释器**外部**注入代码的 `call_sub(interrupt=True)` 不同，这些指令直接放置在 `>>` 链中，执行：
 

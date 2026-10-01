@@ -1,11 +1,11 @@
-# 4.4 External Interrupt Calls
+# External Interrupt Calls
 
 AmritaSense provides a safe external invocation mechanism that allows **external systems to inject subroutines at node boundaries**, enabling flexible debugging, monitoring, and dynamic control. The core of this mechanism is the interpreter lock and `call_sub(interrupt=True)`, which turns "interrupts" from hardware-level preemption into controllable, programmable "safe external calls."
 
 > **Distinction: Flow Suspend vs. External Call**
-> The flow suspension (Suspend) introduced in Section 3.4 pauses the execution flow via `SuspendObjectStream`, waiting for external `resume()` before continuing. This section discusses **actively injecting a complete subroutine from the outside** during the suspend window or at node boundaries, which automatically returns after execution. The two can be combined, but they belong to different capability dimensions.
+> The flow suspension (Suspend) introduced in [Execution & Interrupt](/guide/concepts/exec_and_interrupt) pauses the execution flow via `SuspendObjectStream`, waiting for external `resume()` before continuing. This section discusses **actively injecting a complete subroutine from the outside** during the suspend window or at node boundaries, which automatically returns after execution. The two can be combined, but they belong to different capability dimensions.
 
-## 4.4.1 Interpreter Lock and Safe External Call Principles
+## Interpreter Lock and Safe External Call Principles
 
 The core of external injection operations is `aiologic.Lock` (the interpreter lock), which ensures atomicity of the injection and avoids race conditions with the normal execution flow.
 
@@ -39,7 +39,7 @@ The key is `interrupt=True`, which tells the interpreter to acquire the interpre
 
 This design allows the same `call_sub` API to serve both internal reuse and external injection, distinguished by a single boolean parameter.
 
-## 4.4.2 Interrupt Program Storage Structure
+## Interrupt Program Storage Structure
 
 To facilitate external calls, we need to pre-place dedicated node sequences in the workflow that respond to interrupts. These sequences are packaged as "interrupt programs" and stored in the workflow — normal flow skips them. AmritaSense provides `ARCHIVED_NODES` to construct such storage areas.
 
@@ -81,7 +81,7 @@ Place `interrupt_handlers` at the end or in a suitable position within the workf
 
 > **ARCHIVED_NODES vs ARCHIVED_SEGMENT**: `ARCHIVED_NODES` archives a flat list of individual nodes (each alias-addressable, ideal for handler libraries). `ARCHIVED_SEGMENT` archives a whole `NodeCompose` (`[JMP 2, Payload, NOP]`) as one unit — the building block for `FN` / `INTER_FN` function blocks. Use the former for handler libraries, the latter for full routines.
 
-## 4.4.3 SubprogramJumpNode Execution Logic
+## SubprogramJumpNode Execution Logic
 
 `SubprogramJumpNode` is a lightweight node specifically designed to skip the subsequent storage area. Its implementation is very simple:
 
@@ -94,7 +94,7 @@ It has `address_able=True` and can be aliased (though usually not needed). This 
 
 `SubprogramJumpNode` is specifically designed for skipping storage areas, with clearer semantics. `JMP` is a general-purpose jump instruction that could be misused. Using a dedicated jump node reduces the risk of developer confusion.
 
-## 4.4.4 Building a Safe Injectable Node Library
+## Building a Safe Injectable Node Library
 
 Using the mechanisms described above, developers can build an "injectable node library" for debugging, health checks, error recovery, and more. These library nodes must follow certain safety constraints.
 
@@ -138,7 +138,7 @@ Or, while the workflow is running, call `call_sub(interrupt=True)` from another 
 
 Through this mechanism, AmritaSense transforms external intervention from "disruptive interrupts" into "safe function calls," providing a solid foundation for building full-featured debuggers, monitoring systems, and dynamic flow control.
 
-## 4.4.5 Trap: Entering `CALL` / `INT` from Outside
+## Trap: Entering `CALL` / `INT` from Outside
 
 A **trap** is what happens when an external `call_sub(interrupt=True)` lands on a `CALL` or `INT` node instead of on an ordinary handler node.
 
@@ -245,7 +245,7 @@ The runnable version is `demos/d10_call_trap.py`; its output is:
 
 `call_sub` pops unconditionally, without checking what it popped. A trap target therefore has to leave the return-address stack balanced: `CALL` and `INT` do exactly that, but a node that pushes or pops on its own would desynchronize the stack. Keep trap targets to `CALL` / `INT` nodes.
 
-## 4.4.6 Interrupt Routines & Context Snapshots
+## Interrupt Routines & Context Snapshots
 
 AmritaSense provides built-in instructions for interrupt-style control transfer **within** a workflow: `INT` / `IRET`. Unlike `call_sub(interrupt=True)` which injects code from **outside** the interpreter, these instructions are placed directly in the `>>` chain and perform:
 

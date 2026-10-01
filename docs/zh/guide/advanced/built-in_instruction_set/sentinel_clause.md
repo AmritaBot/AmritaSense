@@ -1,4 +1,4 @@
-# 4.5.4 NOP 哨兵指令与 RESET 强制终止指令
+# NOP 哨兵指令与 RESET 强制终止指令
 
 `NOP` 和 `RESET` 是 AmritaSense 指令集中两个特殊的“原子”指令。它们不是 `SelfCompileInstruction`，没有编译期展开的空间结构，而是直接作为单个节点存在于工作流中，其功能完全体现在运行时的行为上。
 

@@ -2,7 +2,7 @@
 
 In complex workflow scenarios, execution alone is not enough. We need the ability to pause the execution flow when necessary, allow external inspection or intervention, and then continue running. AmritaSense builds this capability into the core of the interpreter.
 
-## 3.4.1 Interrupt mechanism overview
+## Interrupt mechanism overview
 
 AmritaSense's interpreter interrupt system is divided into two fundamentally different modes:
 
@@ -47,7 +47,7 @@ Both interrupt modes are coordinated through a single interpreter lock (`_interp
 - **Internal Interrupt**: The interpreter main loop acquires `_interpret_lock` before executing a node; exceptions are thrown inside the lock and propagate through the normal exception path.
 - **External Interrupt**: `call_sub(interrupt=True)` acquires `_interpret_lock` to serialize with the main loop; `interrupt=False` bypasses the lock and runs outside the interrupt-safe zone.
 
-## 3.4.2 Internal Interrupt — Node exception system
+## Internal Interrupt — Node exception system
 
 Internal interrupts originate from **inside the workflow**. Any exception thrown during node execution falls under the internal interrupt category. Based on the exception type, internal interrupts split into two paths.
 
@@ -185,7 +185,7 @@ The bit is cleared as soon as the pointer is moved deliberately — by any `@mar
 | Unsuppressible | `InterruptNotice` (`BaseException`) | ❌           | Clear stack & pointer, terminate | ❌                      |
 | Keep-context   | `InterruptKeepContext`              | ❌           | Preserve state, wait for resume  | ✅ `run()` again        |
 
-## 3.4.3 External Interrupt — `call_sub(interrupt=True)`
+## External Interrupt — `call_sub(interrupt=True)`
 
 External interrupts are fundamentally different from exceptions. Through `call_sub(interrupt=True)`, external code injects protected sub-calls **mid-cycle** into the interpreter.
 
@@ -249,7 +249,7 @@ Unlike `InterruptNotice` (which is still an exception thrown from within), `call
 
 During **any** `call_sub` execution (regardless of `interrupt`), the read-only property `outer_interpreting` is `True`; it is cleared when the call returns. `INT` consults it when `ret_to` is `None`: inside a call it reuses the top of `_ret_addr_stack` (the parent's return address), otherwise it uses the current pointer. `CALL` does **not** consult it — its `from_adr=None` default always resolves to the current pointer (the `CALL` node itself), so the return address it pushes is identical in the main flow and inside a subroutine.
 
-## 3.4.4 Interaction model for suspension (cooperative suspend points)
+## Interaction model for suspension (cooperative suspend points)
 
 The suspension model divides the participants into two roles.
 
@@ -318,7 +318,7 @@ sequenceDiagram
 >
 > Thus, **the suspend signal is persistent state, while the interrupt check is an instantaneous action**.
 
-## 3.4.5 Between-node breakpoint
+## Between-node breakpoint
 
 **Trigger timing:** after each node completes, as the interpreter enters the next loop iteration, after advancing the pointer and resolving the next location, but before executing the next node.
 
@@ -333,7 +333,7 @@ This is the most general, global suspension point. When suspended here, develope
 If you redirect the target at this point, you must **operate directly on the pointer**. Do not use standard jump APIs, or you may corrupt interpreter state.
 :::
 
-## 3.4.6 Pre-execution breakpoint
+## Pre-execution breakpoint
 
 **Trigger timing:** after a specific node is loaded by the address resolver, but before its function body executes.
 
@@ -349,13 +349,13 @@ When suspended here:
 Any jump or modification at this breakpoint must use official interpreter APIs (`jump_to`, `jump_near`, etc.).
 :::
 
-## 3.4.7 Event system and custom hooks
+## Event system and custom hooks
 
 AmritaSense also provides a runtime event/hook system. Custom events are defined by subclassing `BaseEvent`, handlers are registered with `on_event(event_type)`, and events are dispatched through `MatcherFactory.trigger_event(...)`.
 
 For a full description, see: `Advanced > Event System`.
 
-## 3.4.8 Summary
+## Summary
 
 AmritaSense's interruption system covers the full spectrum from node-level exceptions to externally injected sub-calls:
 

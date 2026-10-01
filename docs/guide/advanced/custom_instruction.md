@@ -2,7 +2,7 @@
 
 AmritaSense’s built-in instruction set already covers core control flow such as conditionals, loops, and exception handling. But when those basic instructions repeatedly appear in fixed patterns, you can encapsulate them as **new instructions** with `SelfCompileInstruction`. This extension does not modify the interpreter; it only expands into standard node compositions at compile time, and at runtime it behaves exactly like built-in instructions.
 
-## 4.7.1 Selfcompiled instruction interface: `SelfCompileInstruction`
+## Selfcompiled instruction interface: `SelfCompileInstruction`
 
 `SelfCompileInstruction` is an abstract base class that defines the unified entry for all self-compiled instructions:
 
@@ -33,7 +33,7 @@ The contract only says "return _some_ source composition" (`AbstractComposeOrigi
 3. If the expanded structure includes jumps, address calculation must be handled inside `extract()`.
 4. The returned `NodeCompose` is automatically rendered; you do not need to call `render()` manually.
 
-## 4.7.2 Implementation pattern: `extract()` and address calculation
+## Implementation pattern: `extract()` and address calculation
 
 The core task in implementing a custom instruction is mapping an “intention” to a concrete sequence of nodes. This mapping involves three steps:
 
@@ -81,7 +81,7 @@ This is equivalent to writing:
 workflow = start >> log_start >> process_data >> log_end >> end
 ```
 
-## 4.7.3 Example 1: retry wrapper
+## Example 1: retry wrapper
 
 Wrapping a potentially failing node with retry logic is a typical use case for self-compiled instructions.
 
@@ -153,7 +153,7 @@ This expands into:
 - Jump addresses are handled by the built-in instructions, so `RetryClause` does not need to manage offsets manually.
 - Users see only `RetryClause(...)`, while the expansion remains transparent.
 
-## 4.7.4 Example 2: conditional execution wrapper
+## Example 2: conditional execution wrapper
 
 Encapsulate the common pattern “execute a node when a condition is true, otherwise skip it” as a single instruction.
 
@@ -191,7 +191,7 @@ class ExecuteWhenElse(SelfCompileInstruction):
         return NodeCompose(IF(self._cond, self._action).ELSE(self._other))
 ```
 
-## 4.7.5 Disassembly annotation: `__sdb_dis__` / `__sdb_cmt__`
+## Disassembly annotation: `__sdb_dis__` / `__sdb_cmt__`
 
 A custom instruction expands into nodes the user never wrote, so a debugger listing shows framework internals by default. A node can describe its own line with two **soft-constraint magic attributes** read by the REPL debugger's disassembler:
 

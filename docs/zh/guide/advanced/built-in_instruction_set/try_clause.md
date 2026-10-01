@@ -1,4 +1,4 @@
-# 4.5.5 Try / CATCH / THEN / FIN 异常处理
+# Try / CATCH / THEN / FIN 异常处理
 
 AmritaSense 提供了完整的异常处理指令体系，与 Python 的 `try-except-else-finally` 高度对齐。但在使用之前，需要先回答一个问题：**什么时候应该用指令编排异常处理，什么时候应该在节点内部写 try-catch？**
 

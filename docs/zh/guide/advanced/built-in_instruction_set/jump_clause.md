@@ -1,4 +1,4 @@
-# 4.5.3 JMP 与 INVOKE 跳转指令
+# JMP 与 INVOKE 跳转指令
 
 `JMP` 与 `INVOKE` 是 AmritaSense 中两种核心的控制流跳转指令。它们共享同一套基于 `ALIAS` 的地址解析基础设施，但服务于截然不同的场景：`JMP` 是无条件单向跳转，`INVOKE` 是带返回的子程序调用。
 

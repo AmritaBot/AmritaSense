@@ -1,8 +1,8 @@
-# 4.6 自定义节点
+# 自定义节点
 
 在 AmritaSense 中，节点是执行流的基本单元。内置指令最终都会被展开为节点组合，而自定义节点则是开发者封装自身业务逻辑的直接方式。本章将解析节点的本质、生命周期，以及如何借助 `POINTER_DEPENDS` 在必要时获得对解释器的完全控制。
 
-## 4.6.1 @Node 装饰器与节点本质
+## @Node 装饰器与节点本质
 
 `@Node()` 装饰器将一个普通的 Python 函数或协程转换为工作流节点。它不做任何复杂的事情——只是把函数对象、签名信息和几个元数据字段打包进一个 `Node` 实例。
 
@@ -41,7 +41,7 @@ def my_function():
 
 **一切皆是节点**——这是 AmritaSense 的核心哲学。条件、循环体、异常处理器、JMP 的目标——它们都是 `Node` 或 `BaseNode` 的实例。自定义节点也不例外。
 
-## 4.6.2 同步与异步节点的处理
+## 同步与异步节点的处理
 
 AmritaSense 统一处理同步和异步节点，在 `_call()` 中根据 `iscoroutinefunction` 和 `wrap_to_async` 两个条件决定执行方式。
 
@@ -89,7 +89,7 @@ def quick_check():
 
 节点的内存占用也经过了优化——`Node` 类使用了 `__slots__`，避免了默认的 `__dict__` 开销，让每个节点尽可能轻量。
 
-## 4.6.3 节点的生命周期与原子性
+## 节点的生命周期与原子性
 
 ### 生命周期
 
@@ -114,7 +114,7 @@ def quick_check():
 - `_post_compile(compose: NodeComposeRendered)` — 在工作流图完整编译后被调用。`InvokeNode` 和 `JumpNode` 借此在编译期完成别名到地址的解析，避免运行时开销。
 - `_pre_check(pointer: WorkflowInterpreter)` — 每次节点执行前被调用。用于依赖解释器状态的运行时检查（如 `BatchRun` 在此创建子解释器）。
 
-## 4.6.4 POINTER_DEPENDS：获得对解释器的访问
+## POINTER_DEPENDS：获得对解释器的访问
 
 `POINTER_DEPENDS` 是一个特殊的依赖注入工厂，允许节点获取当前 `WorkflowInterpreter` 实例。
 
@@ -145,7 +145,7 @@ def my_node(pc: WorkflowInterpreter = Depends(POINTER_DEPENDS)):
 
 因此，**只在必要时注入 `POINTER_DEPENDS`**。大多数节点应优先通过节点内部的 Python 逻辑和编排层面的指令（IF、WHILE、INVOKE）来完成控制流，只在指令无法表达时才直接操作解释器。
 
-## 4.6.5 安全的运行时集成
+## 安全的运行时集成
 
 需要运行时上下文的自定义节点应使用 `POINTER_DEPENDS` 获取 `WorkflowInterpreter`，而非直接操作解释器内部状态。解释器暴露了以下安全 API：
 

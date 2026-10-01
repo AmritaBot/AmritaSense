@@ -1,40 +1,40 @@
 # 附录和资源
 
-## 9.1 术语表和术语
+## 术语表和术语
 
-### 9.1.1 Workflow（工作流）
+### Workflow（工作流）
 
 在 AmritaSense 中，工作流是由节点（Node）按特定顺序编排而成的异步执行流。它不是一个静态的图结构，而是一个可被解释器步进执行、支持中断与跳转的指令序列。
 
-### 9.1.2 Node（节点）
+### Node（节点）
 
 工作流的最小执行单元。任何被 `@Node()` 装饰的 Python 函数或协程都是一个节点。节点是原子的——它要么完全执行，要么完全不执行。条件判断、循环体、异常处理器，一切都是节点。
 
-### 9.1.3 PointerVector（指针向量）
+### PointerVector（指针向量）
 
 AmritaSense 的核心寻址数据结构。它是一个变长整数数组，每个维度对应一个嵌套层级，该维度上的数值表示当前层级内的偏移索引。在解释器主循环中，`PointerVector` 扮演程序计数器（PC）的角色，始终指向当前正在执行的节点。
 
-### 9.1.4 Bubble（气泡作用域）
+### Bubble（气泡作用域）
 
 由括号 `()` 包裹的节点组在编译后形成的独立地址空间。每个 Bubble 拥有独立的 `near` 地址空间，内部的跳转操作不会影响外层。Bubble 是 AmritaSense 实现作用域隔离和数据封装的底层机制。
 
-### 9.1.5 Instruction Set（指令集）
+### Instruction Set（指令集）
 
 AmritaSense 提供的一套完备的控制流原语，包括 `IF/ELIF/ELSE`（条件分支）、`WHILE/DO-WHILE`（循环）、`JMP`（无条件跳转）、`INVOKE`（子程序调用）、`CALL` / `RET`（函数块调用与返回）、`INT` / `IRET`（中断转移）、`PUSH_CONTEXT` / `POP_CONTEXT`（上下文快照）、`TRY/CATCH/THEN/FIN`（异常处理）、`NOP`（哨兵）和 `RESET`（强制终止）。所有指令在编译期展开为底层节点组合，运行时通过指针跳转完成。
 
-### 9.1.6 Self-Compile Instruction（自编译指令）
+### Self-Compile Instruction（自编译指令）
 
 实现 `SelfCompileInstruction` 接口的指令类。它们在 `render()` 阶段通过 `extract()` 方法自动展开为标准的 `NodeCompose` 结构。内置指令和开发者自定义指令都基于这一机制，实现了编译期优化和运行时的零开销。
 
-### 9.1.7 Compose Contract（组合契约）
+### Compose Contract（组合契约）
 
 AmritaSense 中的“组合”由 `amrita_sense.node.abc_base` 中的两个抽象契约描述：`AbstractComposeOriginal`（源组合——可迭代、可链式追加、可渲染）与 `AbstractCompose[AddressCalculator]`（渲染图——只读、可索引、绑定 `calc`）。日常代码中使用的具体类 `NodeCompose` 与 `NodeComposeRendered` 是这两个契约的**默认实现**，功能完备。抽象契约只为 Mock 与扩展而设：任何满足契约的对象都可被渲染器或 `WorkflowInterpreter` 消费。参见 [Compose 契约](/zh/guide/advanced/compose-contracts)。
 
-### 9.1.8 Interrupt（流程中断）
+### Interrupt（流程中断）
 
 AmritaSense 提供的协作式中断机制。工作流在指定标记点主动挂起，将控制权交还给外部系统。外部系统可以在此窗口期内检查状态、修改变量，然后通过 `resume()` 恢复执行。这是构建调试器和外部监控系统的基础能力。用于控制转移的那一类——外部调用落在 `CALL` / `INT` 节点上——见下方的 Trap 词条。
 
-### 9.1.9 Trap（陷阱）
+### Trap（陷阱）
 
 **目标为 `CALL` 或 `INT` 节点的外中断**，而非普通处理节点。当外部调用方对运行中的解释器触发 `call_sub(interrupt=True)` 时，`call_sub` 压入停驻地址 `C` 并进入目标。若目标是 `CALL`，`CALL` 会压入**自身地址** `P` 再跳走，于是地址栈上变成 `[C, P]`；`call_sub` 的 `finally` 块再把 `P` 弹走（它是被进入的节点压的），随后例程末尾的 `RET` 弹出 `C`。因为 `RET` 恢复到保存地址**再加一**，净效果是：trap 消耗掉解释器停驻的那一轮，执行从**停驻地址 + 1** 继续。
 
@@ -42,19 +42,19 @@ AmritaSense 提供的协作式中断机制。工作流在指定标记点主动�
 
 trap 目标不得自行压/弹 `_ret_addr_stack`：`call_sub` 的 `pop` 是无条件的，不会校验弹出的是谁压的。`CALL` 与 `INT` 恰好满足这一契约。完整的地址栈推演见[外部中断调用](/zh/guide/advanced/external_interrupt)，可运行版本见 `demos/d10_call_trap.py`。
 
-### 9.1.10 Depends（依赖注入）
+### Depends（依赖注入）
 
 借鉴 FastAPI 的依赖注入模式。节点通过在函数签名中声明 `Depends(factory)` 来声明自己需要的资源。AmritaSense 的依赖解析系统支持并发解析、运行时注入和类型匹配。若工厂函数返回 `None`，工作流将直接终止。
 
-### 9.1.11 Alias（别名）
+### Alias（别名）
 
 通过 `ALIAS` 指令为节点绑定的全局唯一符号名。编译期注册到 `alias2vector_map`，供 `JMP` 和 `INVOKE` 在运行时查表解析。这是 AmritaSense 符号寻址体系的基础。
 
-### 9.1.12 Subprogram（子程序）
+### Subprogram（子程序）
 
 通过 `ARCHIVED_NODES` 指令定义的、被 `SubprogramJumpNode` 跳过、仅通过 `INVOKE` 或外部注入访问的节点序列。子程序可以存储中断处理逻辑、调试工具或可复用的功能模块，正常执行流不受其存在的影响。若要归档完整节点组合（如函数体），改用 `ARCHIVED_SEGMENT`；`FN` / `INTER_FN` 在其上构建命名函数块（参见[函数块调用](/zh/guide/advanced/function-block-call)）。
 
-### 9.1.13 其他核心术语
+### 其他核心术语
 
 - **解释锁（Interpret Lock）**：`aiologic.Lock` 实例，保证每次只有一个节点在执行，是外部安全调用的互斥基础
 - **跳转标记（Jump Mark）**：状态寄存器的 `JMP` 位，置起时解释器跳过常规的指针推进步骤，下一轮从跳转目标开始
@@ -65,7 +65,7 @@ trap 目标不得自行压/弹 `_ret_addr_stack`：`call_sub` 的 `pop` 是无�
 - **Debugger（调试器）**：`amrita_sense.debugger` 模块提供的一套 REPL 优先的纯函数式调试工具包。包含状态检查（`inspect`、`where`、`backtrace`、`list_nodes`、`list_sub_intp`）、步进执行（`step`、`step_over`、`step_out`、`cont`）和断点管理（`break_at_tag`、`break_at_addr`、`clear_break_*`、`list_breaks`）。通过组合式中间件（middleware）注入实现，不修改核心运行时。同步函数可直接在 REPL 中调用而无需 `await`。
 - **Breakpoint（断点）**：标记在特定节点标签或地址上的执行暂停点。通过 `amrita_sense.debugger` 的 `break_at_tag()` 和 `break_at_addr()` 设置，支持条件表达式（`condition` 参数）。命中断点时抛出 `BreakpointHit`（继承 `BaseException` 而非 `Exception`，避免触发 panic 机制），由 `cont()` 捕获后暂停执行。
 
-### 9.1.14 缩写词
+### 缩写词
 
 - **API**：Application Programming Interface（应用程序编程接口）
 - **DI**：Dependency Injection（依赖注入）
@@ -74,7 +74,7 @@ trap 目标不得自行压/弹 `_ret_addr_stack`：`call_sub` 的 `pop` 是无�
 - **HTTP**：Hypertext Transfer Protocol（超文本传输协议）
 - **ISA**：Instruction Set Architecture（指令集架构）
 
-### 9.1.15 原语（Primitive）
+### 原语（Primitive）
 
 **原语**是计算机体系结构中的核心概念，指处理器指令集架构（ISA）中定义的**不可再分的最小操作单元**。在 ISA 中，原语指示了处理器能够执行的最基本能力——如加法、数据加载、条件跳转——所有复杂的程序最终都由这些原语组合而成。原语决定了"硬件能做什么"，软件则通过原语的组合实现任意复杂的逻辑。
 
@@ -86,20 +86,20 @@ trap 目标不得自行压/弹 `_ret_addr_stack`：`call_sub` 的 `pop` 是无�
 
 原语的核心价值在于**简单与完备的统一**：每个原语只做一件事，但一组原语的组合可以表达任意复杂的逻辑。这正是 AmritaSense "极简即真理"设计哲学的理论根源。
 
-## 9.2 项目资源
+## 项目资源
 
-### 9.2.1 GitHub 仓库
+### GitHub 仓库
 
 - **AmritaSense 仓库**：[https://github.com/AmritaBot/AmritaSense](https://github.com/AmritaBot/AmritaSense)
 - **问题报告**：在仓库中提交错误报告和功能请求
 - **拉取请求**：欢迎通过 PR 贡献代码
 
-### 9.2.2 官方网站
+### 官方网站
 
 - **AmritaSense 文档**：[https://sense.amritabot.com](https://sense.amritabot.com)（即此页面）
 - **综合指南与教程**：此文档站提供完整的指南和 API 参考
 
-### 9.2.3 贡献指南
+### 贡献指南
 
 欢迎对 AmritaSense 做出贡献。以下是贡献流程：
 
@@ -119,21 +119,21 @@ trap 目标不得自行压/弹 `_ret_addr_stack`：`call_sub` 的 `pop` 是无�
 
 更多信息请参考各项目仓库中的 `CONTRIBUTING.md` 文件。
 
-### 9.2.4 许可证
+### 许可证
 
 - **AmritaSense**：根据 **Apache 2.0** 许可证发布
 
 有关完整许可证文本，请参阅仓库中的 `LICENSE` 文件。
 
-## 9.3 社区和支持
+## 社区和支持
 
-### 9.3.1 讨论与反馈
+### 讨论与反馈
 
 - **Discord 服务器**：[https://discord.gg/byAD3sbjjj](https://discord.gg/byAD3sbjjj)
 - **QQ 群**：1006893368
 - **GitHub Discussions**：在仓库的讨论板块中参与技术讨论
 
-### 9.3.2 问题提交
+### 问题提交
 
 报告问题时请遵循以下步骤：
 
@@ -142,7 +142,7 @@ trap 目标不得自行压/弹 `_ret_addr_stack`：`call_sub` 的 `pop` 是无�
 3. 包含完整的重现步骤和代码片段
 4. 指定运行环境（操作系统、Python 版本、库版本）
 
-### 9.3.3 行为准则
+### 行为准则
 
 Amrita 社区遵循贡献者盟约行为准则：
 
@@ -151,31 +151,31 @@ Amrita 社区遵循贡献者盟约行为准则：
 - **包容**：欢迎来自各种背景的人
 - **关注质量**：努力提高项目质量
 
-## 9.4 设计哲学与相关资源
+## 设计哲学与相关资源
 
-### 9.4.1 设计哲学
+### 设计哲学
 
 - **"一切皆是节点"**：条件判断、循环体、异常处理器——它们都是 `Node` 的实例
 - **"指令替代图"**：工作流是线性节点数组上的非线性执行流，跳转即指针改写
 - **"极简即真理"**：用最少的代码实现完备的控制流
 
-### 9.4.2 相关技术资源
+### 相关技术资源
 
 - **Python 官方文档**：[https://docs.python.org/3/](https://docs.python.org/3/)
 - **Python asyncio 文档**：[https://docs.python.org/3/library/asyncio.html](https://docs.python.org/3/library/asyncio.html)
 - **VitePress 文档**：[https://vitepress.dev/](https://vitepress.dev/)（本站构建工具）
 
-### 9.4.3 推荐阅读
+### 推荐阅读
 
 - **"流程图何必是图"**——理解 AmritaSense 设计理念的核心文章
 - **"KISS 原则"**：Keep It Simple, Stupid——AmritaSense 遵循的设计哲学
 - **"Unix 哲学"**：小、专注、可组合——AmritaSense 的模块化设计基础
 
-## 9.5 已弃用的指令名（1.0.0）
+## 已弃用的指令名（1.0.0）
 
 渲染后的工作流图**本身**就是一段带地址映射的指令序列，因此 `amrita_sense.debugger` 的反汇编视图一直打印 CPU 风格的助记符。AmritaSense 1.0.0 把公开指令改名，让 API 与反汇编终于用同一套词汇。
 
-### 9.5.1 新旧对照表
+### 新旧对照表
 
 | 旧名（≤ 0.8）                     | 新名（1.0+）                     | 类型 | 旧名仍可导入 | 说明                             |
 | --------------------------------- | -------------------------------- | ---- | ------------ | -------------------------------- |
@@ -192,7 +192,7 @@ Amrita 社区遵循贡献者盟约行为准则：
 
 `ALIAS` 有意保留原名：运行时的词汇体系全是 alias（`alias2vector_map`、`AddressCalculator.resolve_alias`、`AliasNotFoundError`），而 `AliasNode` 是**占据真实地址槽的可寻址节点**——叫 `LABEL` 既不一致也不准确，因为汇编里的 `LABEL` 是零宽的。
 
-### 9.5.2 ⚠️ `CALL` 会静默改变语义
+### ⚠️ `CALL` 会静默改变语义
 
 这是唯一没有兼容别名的改名，也是最需要多看两眼的一处。
 
@@ -206,7 +206,7 @@ grep -rn '\bCALL(' --include='*.py'
 
 把每一处旧的 `CALL(x)` 改为 `INVOKE(x)`。
 
-### 9.5.3 ⚠️ 常量没有静态弃用告警
+### ⚠️ 常量没有静态弃用告警
 
 `INTERRUPT` 与 `INTERRUPT_KEEP_CTX` 是模块级**常量**，不是函数。PEP 702（`@deprecated`）没有针对变量的装饰器形式，因此类型检查器无法标记它们：它们是静默别名。若你在用它们，请手工检索：
 
@@ -221,7 +221,7 @@ grep -rn '\bINTERRUPT\b' --include='*.py'
 reportDeprecated = "warning"   # 默认为关闭
 ```
 
-### 9.5.4 ⚠️ `BuiltinTags` 的字符串值已变
+### ⚠️ `BuiltinTags` 的字符串值已变
 
 与改名指令对应的 `BuiltinTags` 成员现在持有新值，旧成员名以**同值别名**保留（`BuiltinTags.RET_FAR is BuiltinTags.RET`）。别名会出现在 `__members__` 中，但不出现在 `list(BuiltinTags)` 里。
 
@@ -235,7 +235,7 @@ reportDeprecated = "warning"   # 默认为关闭
 
 用枚举成员做比较依然有效；硬编码旧的 tag **字符串**则不行。
 
-### 9.5.5 反汇编助记符
+### 反汇编助记符
 
 `dis()` 的输出随名字一同变化：
 
@@ -253,6 +253,6 @@ reportDeprecated = "warning"   # 默认为关闭
 | `PUSH_CONTEXT` | `PUSHCTX`             | `PUSHCTX`（不变）   |
 | `ALIAS`        | `ALIAS sym`           | `ALIAS sym`（不变） |
 
-### 9.5.6 移除计划
+### 移除计划
 
 本节所有别名均已弃用，将在 **2.0 移除**。深层导入路径（如 `from amrita_sense.instructions.ret2 import PUSH_STACK`）通过各替换位置旁的纯别名继续可用，但这些别名不带静态标记——建议改用顶层 `amrita_sense` 或 `amrita_sense.instructions` 导入。

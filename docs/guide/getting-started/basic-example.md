@@ -2,7 +2,7 @@
 
 After reviewing the minimal example, let’s look at a more complete basic usage.
 
-## 2.2.2 Example
+## Example
 
 ### Code
 

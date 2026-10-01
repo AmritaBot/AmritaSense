@@ -1,4 +1,4 @@
-# 4.5.2 WHILE 与 DO-WHILE 循环
+# WHILE 与 DO-WHILE 循环
 
 AmritaSense 提供了两种标准循环范式：`WHILE`（先判断后执行）和 `DO-WHILE`（先执行后判断）。两者都是 `SelfCompileInstruction`，在编译期展开为包含跳转节点的固定结构，运行时完全通过指针偏移和 `jump_near` 完成循环逻辑，无需任何外部状态标志。
 

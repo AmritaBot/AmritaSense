@@ -1,8 +1,8 @@
 # Introduction
 
-## 1.1 Project Overview
+## Project Overview
 
-### 1.1.1 What is AmritaSense?
+### What is AmritaSense?
 
 **AmritaSense is a next-generation, general-purpose workflow and event stream engine.** It abandons traditional graph-based design and instead adopts the **execution model of a low-level computer**—an instruction set, a pointer vector, and a program counter—to orchestrate and control workflows.
 
@@ -10,7 +10,7 @@ Unlike systems that require you to explicitly define nodes and edges and then re
 
 Furthermore, AmritaSense includes a complete **event and dependency injection subsystem** with no external dependencies. Workflow nodes can trigger custom events, and event handlers share the same dependency injection mechanism as nodes, unifying orchestration and reaction inside a single runtime.
 
-### 1.1.2 Why AmritaSense?
+### Why AmritaSense?
 
 We believe that **workflows should be designed for the work, not limited by the flow**. “Flow” is merely a presentation; it should never become a shackle when you design logic.
 
@@ -18,7 +18,7 @@ We believe that **workflows should be designed for the work, not limited by the 
 - **Virtual-machine addressing model** – AmritaSense uses a classic computer-style **addressing and execution model** (`PointerVector` + call stack). All high-level control flow is expanded into uniform pointer instructions at compile time. Only integer operations and function calls remain at runtime; scheduling overhead is nearly zero.
 - **Built for AI agents and complex business logic** – Whether it is tool-calling loops, nested sub‑workflows, pausing for user input, or exception recovery and rollback, AmritaSense can express it directly and execute it with extreme efficiency.
 
-### 1.1.3 Core Value Proposition
+### Core Value Proposition
 
 - **Low-level computer execution model** – Replaces topological graphs with a pointer vector and call stack; minimal runtime, far outperforming traditional graph engines.
 - **Natively Turing-complete** – `IF`, `WHILE`, `DO‑WHILE`, `JMP`, `INVOKE`, `TRY`, `RESET` and more are all natively supported—no simulation.

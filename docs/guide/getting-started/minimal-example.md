@@ -1,6 +1,6 @@
 # Minimal Example
 
-## 2.2.1 Example
+## Example
 
 ### Code example
 

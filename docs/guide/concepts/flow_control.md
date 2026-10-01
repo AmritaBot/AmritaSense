@@ -2,7 +2,7 @@
 
 After understanding the address space, pointer vectors, and node jumps, we can dive into AmritaSense’s **flow control** capabilities. This is the core competitive advantage of AmritaSense as a general-purpose workflow orchestration engine. It provides a complete, Turing-complete set of control flow primitives, so you can orchestrate arbitrarily complex asynchronous tasks with an intuition close to that of a programming language.
 
-## 3.3.1 Conditional branching
+## Conditional branching
 
 AmritaSense is natively Turing-complete, and it includes a first-class conditional branching syntax. Unlike graph-based workflow engines that simulate branching with “routing functions + string maps,” AmritaSense makes conditional branches a built-in primitive.
 
@@ -25,7 +25,7 @@ It fully reproduces Python-style `elif` chain syntax. The number of `ELIF` entri
 - **Seamless sync/async mixing**: whether the condition returns `bool` synchronously or returns an awaitable `bool` asynchronously, the engine normalizes it to a unified execution interface automatically.
 - **Static address calculation at compile time**: all branch jump offsets are computed during `render()`, so runtime execution only involves pointer vector arithmetic. There is no graph traversal or string hashing overhead.
 
-## 3.3.2 Loops
+## Loops
 
 AmritaSense natively includes node-level loop primitives and supports two standard loop paradigms: `WHILE` and `DO-WHILE`. Both align with classic programming language semantics and treat the loop condition itself as a composable node.
 
@@ -67,7 +67,7 @@ Traditional Sense loops (`WHILE` / `DO`) do not provide a native `continue` keyw
 
 > Native loops (`NATIVE_WHILE` / `NATIVE_DO`) provide an explicit `CONTINUE()` instruction that pops the stack and jumps straight to the loop head — see [Native Control Flow](../advanced/native_control_flow.md).
 
-## 3.3.3 Exception handling
+## Exception handling
 
 AmritaSense natively provides a **node-domain TRY/CATCH exception handling system**. This is a capability that traditional workflow engines often lack. In AmritaSense, exception handling is a first-class citizen alongside conditionals and loops.
 

@@ -4,7 +4,7 @@ AmritaSense provides a complete subroutine call mechanism. Unlike `JMP`’s one-
 
 This chapter starts from the interpreter’s low-level API and explains call stack management, argument passing, and how to invoke subroutines in node code.
 
-## 4.3.1 `call_sub`: the interpreter’s low-level call primitive
+## `call_sub`: the interpreter’s low-level call primitive
 
 `call_sub` is a low-level call primitive provided by `WorkflowInterpreter`. Both the composition-level `INVOKE` instruction and node-internal subroutine calls ultimately use it. Its core workflow is:
 
@@ -28,7 +28,7 @@ This design lets the same call primitive serve both internal reuse and external 
 
 After the subroutine completes, `call_sub` checks the `JMP` bit. If the subroutine executed a jump operation such as `JMP`, that bit is set. In that case, the `finally` block **does not restore the original execution pointer** — the new jump target is preserved, and the interpreter continues from there. This ensures subroutine-internal jumps can correctly affect the main workflow control flow.
 
-## 4.3.2 Passing arguments to subroutines
+## Passing arguments to subroutines
 
 `call_sub` supports passing extra positional and keyword arguments directly. These arguments are merged into the available parameter pool for the subroutine’s entry node during dependency resolution.
 
@@ -99,7 +99,7 @@ Subroutine nodes can use both operands passed via `call_sub` and dependencies de
 If a subroutine entry node declares a dependency via `Depends` and that provider returns `None`, the workflow raises an exception and terminates. This is different from an event system where a `None` return might be treated as a “skip.” Node execution is atomic, and failed dependency resolution means the node cannot run.
 :::
 
-## 4.3.3 Call stack and return address restoration
+## Call stack and return address restoration
 
 The call stack is the core data structure of AmritaSense’s subroutine mechanism, ensuring correct return behavior for nested calls.
 
