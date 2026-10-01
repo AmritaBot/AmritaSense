@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import threading
 from collections.abc import (
     AsyncGenerator,
     Awaitable,
@@ -26,6 +27,8 @@ from typing import (
 from uuid import uuid4
 
 import aiologic
+import sniffio
+from aiologic.lowlevel import current_async_library
 from typing_extensions import LiteralString
 
 from amrita_sense._unsafe import __flags__
@@ -55,6 +58,54 @@ NULL_CTX = nullcontext()
 io_T = TypeVar("io_T", bound=SuspendObjectStream, covariant=True)
 fun_T = TypeVar("fun_T", bound=Callable[..., Any], covariant=True)
 UNSET = object()
+
+
+_pin_state = threading.local()
+
+
+def _pin_async_library() -> None:
+    """Cache aiologic's async-library detection for the duration of a run.
+
+    `aiologic.Lock` re-detects the running async library on every operation,
+    because one lock has to serve asyncio, trio and curio.  The interpreter
+    takes a lock on every step, so that detection lands in the hot path.
+
+    `aiologic.lowlevel.current_async_library()` already consults
+    `sniffio.thread_local` first and only falls through to probing when it is
+    empty.  Nothing in aiologic or sniffio ever fills it -- the slot exists for
+    trio-asyncio style bridges -- so writing the library that is *actually*
+    running only caches an answer that was being recomputed anyway.
+
+    aiologic re-exports the same object under a `current_async_library_tlocal`
+    alias, but that spelling is deprecated in 0.18.0 and removed in 0.19.0, so
+    the sniffio name is used here.
+
+    The slot is thread-local rather than task-local, so concurrent runs on one
+    event loop would otherwise clobber each other's saved value and restore out
+    of order.  A per-thread nesting depth keeps the write and the restore
+    paired: only the outermost run touches the slot, and only the outermost
+    exit clears it.
+    """
+    depth = getattr(_pin_state, "depth", 0)
+    if depth == 0:
+        tlocal = sniffio.thread_local
+        _pin_state.previous = tlocal.name
+        if tlocal.name is None:
+            try:
+                tlocal.name = current_async_library()
+            except sniffio.AsyncLibraryNotFoundError:  # pragma: no cover
+                pass
+    _pin_state.depth = depth + 1
+
+
+def _restore_async_library() -> None:
+    """Undo `_pin_async_library()`; the outermost run performs the restore."""
+    depth = getattr(_pin_state, "depth", 0)
+    if depth > 1:
+        _pin_state.depth = depth - 1
+        return
+    _pin_state.depth = 0
+    sniffio.thread_local.name = getattr(_pin_state, "previous", None)
 
 
 class WorkflowInterpreter(Generic[io_T]):
@@ -792,6 +843,7 @@ class WorkflowInterpreter(Generic[io_T]):
             raise IllegalState(
                 "Cannot start a new workflow while one is already running"
             )
+        _pin_async_library()
         try:
             self._waiter_fut = asyncio.Future()
             if any(isinstance(v, DependsFactory) for v in self.__ava_args) or any(
@@ -888,8 +940,13 @@ class WorkflowInterpreter(Generic[io_T]):
                 else:
                     self._waiter_fut.set_result(None)
             self._waiter_fut = None
-            if not resumable:
-                await self._close_workflow_scope()
+            try:
+                if not resumable:
+                    await self._close_workflow_scope()
+            finally:
+                # Scope teardown can raise or be cancelled; the pin has to come
+                # off either way.
+                _restore_async_library()
 
     def _make_traceback(self) -> str:
         """Make a traceback string for the current workflow."""
