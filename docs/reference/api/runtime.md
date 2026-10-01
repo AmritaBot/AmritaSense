@@ -84,7 +84,7 @@ Interpreters form a tree: a top-level interpreter may have child interpreters cr
 
 `pending_stop: bool` — `True` if `terminate()` has been called on this interpreter.
 
-`outer_interpreting: bool` (read-only) — `True` while a subroutine call (`call_sub`) is executing. Set unconditionally at subroutine entry and restored to `False` in the `finally` block when the call returns. `CALL` / `INT` consult this flag to decide the default return address when their `from_adr` / `ret_to` argument is `None`: inside a call (flag `True`) they reuse the top of `_ret_addr_stack` (pushed by the parent), otherwise they use the current pointer.
+`outer_interpreting: bool` (read-only) — `True` while a subroutine call (`call_sub`) is executing. Set unconditionally at subroutine entry and restored to `False` in the `finally` block when the call returns. `INT` consults this flag to decide the default return address when `ret_to` is `None`: inside a call (flag `True`) it reuses the top of `_ret_addr_stack` (pushed by the parent), otherwise it uses the current pointer. `CALL` does not consult it: `from_adr=None` always resolves to the current pointer, so the pushed return address is the `CALL` node itself either way.
 
 `wait: asyncio.Future[None]` — A future that resolves when the interpreter finishes execution. Raises `IllegalState` if the interpreter is not running.
 
@@ -156,7 +156,7 @@ Call a subroutine at the specified address. It pushes the current pointer onto t
 - `interrupt=True` acquires the interpreter lock during the call, making it safe for external injection.
 - `interrupt=False` is the normal internal call path.
 
-While the subroutine executes, `outer_interpreting` is `True` — the flag is set unconditionally on entry and cleared in the `finally` block. It lets `CALL` / `INT` (with `from_adr` / `ret_to = None`) resolve the default return address from the parent's stack entry.
+While the subroutine executes, `outer_interpreting` is `True` — the flag is set unconditionally on entry and cleared in the `finally` block. It lets `INT` (with `ret_to = None`) resolve the default return address from the parent's stack entry; `CALL` (with `from_adr = None`) always resolves to the current pointer instead.
 
 #### `async call_near(addr: int, *ag, interrupt: bool = False, **kw)`
 

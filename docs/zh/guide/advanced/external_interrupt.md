@@ -138,7 +138,114 @@ pc.object_io.resume()
 
 通过这套机制，AmritaSense 将外部干预从“破坏性中断”变为“安全的功能调用”，为构建全功能调试器、监控系统和动态流控提供了坚实的基础。
 
-## 4.4.5 中断例程与上下文快照
+## 4.4.5 Trap：从外部进入 `CALL` / `INT`
+
+**Trap**（陷阱）指的是：外部 `call_sub(interrupt=True)` 的目标不是普通处理节点，而是 `CALL` 或 `INT` 节点本身。
+
+`call_sub` 压入停驻地址 `C` 并进入目标节点。若该目标是 `CALL`，`CALL` 会压入**自身地址** `P` 再跳走——于是地址栈上变成 `[C, P]`。`call_sub` 的 `finally` 块再把 `P` 弹走（它是被进入的节点压的），剩回 `[C]`。随后 `FN` 块执行到末尾的 `RET`，`RET` 弹出 `C`，主流程从 `C + 1` 继续。
+
+净效果：**trap 消耗掉解释器停驻的那一轮，执行从「停驻地址 + 1」继续。**
+
+```mermaid
+sequenceDiagram
+    participant Ext as 外部调用方
+    participant CS as call_sub
+    participant S as _ret_addr_stack
+    participant T as CALL (trap_entry)
+    participant W as FN 函数体
+    participant R as RET
+
+    Ext->>CS: call_sub(interrupt=True)
+    CS->>S: push(C) —— 停驻地址
+    CS->>T: 进入 trap 节点
+    T->>S: push(P) —— CALL 自身地址
+    T->>W: jump_to("worker_entry")
+    CS->>S: pop() -> P（finally 块）
+    W-->>W: worker_a, worker_b
+    R->>S: pop() -> C
+    R->>R: rebase_ptr(C) -> advance -> C + 1
+```
+
+### 为什么别名必须包在 `CALL` 上
+
+trap 的目标必须是真正执行陷阱的那个节点。`ALIAS` 是透明的：它同时转发 `__call__` 与 `_post_compile` 给被包裹的节点，因此 `ALIAS(CALL("worker_entry"), "trap_entry")` 的行为与裸 `CALL` 完全一致，只是额外获得了外部调用方可解析的名字。
+
+### 完整示例
+
+```python
+import asyncio
+
+from amrita_sense import ALIAS, Node, WorkflowInterpreter
+from amrita_sense.instructions import CALL, FN
+from amrita_sense.instructions.subprogram import ARCHIVED_NODES
+from amrita_sense.runtime.workflow import PC_CHECKPOINT
+
+
+@Node()
+async def trap_point() -> None:
+    print("[main] trap_point  <- 停驻在此；trap 会消耗掉这一轮")
+
+
+@Node()
+async def main_step() -> None:
+    print("[main] main_step")
+
+
+@Node()
+async def worker_a() -> None:
+    print("  [worker] a")
+
+
+async def main() -> None:
+    # FN 块渲染为：[_fn_escape, ALIAS(NOP, "worker_entry"), worker_a, RET()]
+    worker = FN("worker_entry", worker_a)
+
+    # trap 库：正常流会跳过，只有 call_sub(interrupt=True) 才会进入
+    traps = ARCHIVED_NODES(ALIAS(CALL("worker_entry"), "trap_entry"))
+
+    comp = trap_point >> main_step >> traps >> worker
+    pc = WorkflowInterpreter(comp.render())
+
+    task = asyncio.create_task(pc.run())
+    await pc.object_io.wait_to_suspend(PC_CHECKPOINT)  # 停驻，锁此时空闲
+    await pc.call_sub(
+        pc.get_graph().calc.resolve_alias("trap_entry"), interrupt=True
+    )
+    pc.object_io.resume()
+    await task
+
+
+asyncio.run(main())
+```
+
+可直接运行的版本是 `demos/25_call_trap.py`，输出为：
+
+```text
+=== external trap: CALL -> FN -> RET ===
+
+[ext]  parked at PointerVector([0]), is_running = True
+  [worker] a
+  [worker] b
+[main] main_step
+[main] main_tail
+
+[ext]  done — the parked node was consumed, flow resumed at parked + 1
+```
+
+`INT` 同理：`ALIAS(INT("isr_entry"), "trap_entry")` 以停驻地址作为返回地址拍摄上下文快照，并派发进 `INTER_FN` 块；`IRET` 恢复快照后从 `C + 1` 继续。唯一区别在通道——`INT` / `IRET` 走上下文栈，`CALL` / `RET` 走返回地址栈。
+
+### Trap 与普通注入的对比
+
+| 注入目标                 | 返回地址栈                                                   | 恢复位置                          |
+| ------------------------ | ------------------------------------------------------------ | --------------------------------- |
+| 普通处理节点             | `[C]`，由 `call_sub` 的 `finally` 弹走                       | `C` —— 注入结束后停驻节点照常执行 |
+| `CALL` / `INT` trap 节点 | `[C, P]`；`P` 由 `call_sub` 弹走，`C` 由 `RET` / `IRET` 弹走 | `C + 1` —— 停驻节点被 trap 消耗掉 |
+
+### trap 目标不得自行操作地址栈
+
+`call_sub` 的 `pop` 是无条件的，不会检查弹出的是谁压的。因此 trap 目标必须让返回地址栈保持平衡：`CALL` 与 `INT` 恰好满足这一点，而自行压栈/弹栈的节点会让地址栈失衡。请把 trap 目标限定为 `CALL` / `INT` 节点。
+
+## 4.4.6 中断例程与上下文快照
 
 AmritaSense 提供了用于工作流**内部**中断式控制转移的内置指令：`INT` / `IRET`。与从解释器**外部**注入代码的 `call_sub(interrupt=True)` 不同，这些指令直接放置在 `>>` 链中，执行：
 

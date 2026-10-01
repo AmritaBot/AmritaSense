@@ -34,6 +34,19 @@ sequenceDiagram
 
 Neither instruction should be `return`-ed from inside a `@Node()` function — place them directly in the `>>` chain.
 
+### Closed-interval jumps vs. open-interval returns
+
+The two families of pointer rewrite differ in whether the target itself is included:
+
+| Instruction          | Address written to `_pointer` | Execution begins at                                      | Interval                          |
+| -------------------- | ----------------------------- | -------------------------------------------------------- | --------------------------------- |
+| `JMP` / `jump_to`    | the target address            | the target address                                       | **closed** — target included      |
+| `RET` / `rebase_ptr` | the saved address             | the saved address **+ 1** (added by `advance_pointer()`) | **open** — saved address excluded |
+
+`JMP` needs a jump _target_, so it lands exactly there. `RET` needs a _resume point_, and a resume point is the node **after** the call site — so the address it stores is the one the main loop advances from. The main loop guarantees the `+ 1` itself, which is why `RET` must never set the jump flag: doing so would suppress the advance and re-run the saved address.
+
+That is why the `None` default of `CALL` pushes the `CALL` node's own address: `RET` rebases there and the advance lands on the node right after it.
+
 ## Example: PUSH_RET + JMP + RET
 
 ```python
@@ -83,14 +96,20 @@ await WorkflowInterpreter(comp.render()).run()
 `CALL(to_adr, *, from_adr=None)` is a convenience instruction that combines
 `PUSH_RET` + `JMP` into a single node. Internally it:
 
-1. Pushes `from_adr` onto `_ret_addr_stack` (just like `PUSH_RET`)
+1. Pushes the resolved return address onto `_ret_addr_stack` (just like `PUSH_RET`)
 2. Jumps to `to_adr` (just like `JMP`)
 
 `from_adr` is keyword-only and defaults to `None`, which means "return to the
-current position". When it is `None`:
+node right after this `CALL`". When it is `None`, `CALL` always pushes **its own
+address** — the address of the `CALL` node itself — no matter whether it runs in
+the main `run()` flow or inside a `call_sub`. `RET` rebases the pointer to that
+address, and the interpreter then advances onto the node right after `CALL`.
 
-- Inside a subroutine call (`pc.outer_interpreting` is `True` — i.e. execution was entered via `call_sub`), it reuses the top of `_ret_addr_stack` (the return address pushed by the parent).
-- Otherwise (main `run()` flow), it uses the current pointer — `RET` will then advance onto the node right after `CALL`.
+Keeping the default independent of the nesting level is what makes the pushed
+address meaningful: every entry on `_ret_addr_stack` is the address of the
+instruction that pushed it, so a stack dump tells you who is waiting to resume,
+and where. A `CALL` nested inside a subroutine therefore returns to its own
+successor instead of escaping to the parent's return address.
 
 Because `None` is the default, the common case is simply `CALL("target")`.
 

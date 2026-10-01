@@ -95,7 +95,7 @@ def __init__(
 
 `pending_stop: bool` — 是否已对该解释器调用 `terminate()`。
 
-`outer_interpreting: bool`（只读）— 子程序调用（`call_sub`）执行期间为 `True`。进入子程序时无条件置位，返回时在 `finally` 块中恢复为 `False`。`CALL` / `INT` 在 `from_adr` / `ret_to` 为 `None` 时据此选择默认返回地址：调用期间（标志为 `True`）复用 `_ret_addr_stack` 栈顶（父级压入的返回地址），否则使用当前指针。
+`outer_interpreting: bool`（只读）— 子程序调用（`call_sub`）执行期间为 `True`。进入子程序时无条件置位，返回时在 `finally` 块中恢复为 `False`。`INT` 在 `ret_to` 为 `None` 时据此选择默认返回地址：调用期间（标志为 `True`）复用 `_ret_addr_stack` 栈顶（父级压入的返回地址），否则使用当前指针。`CALL` 不再参考它：`from_adr=None` 始终解析为当前指针，两种情况压入的返回地址都是 `CALL` 节点自身。
 
 `wait: asyncio.Future[None]` — 一个在解释器执行完成时 resolve 的 future。若解释器未运行则抛出 `IllegalState`。
 
@@ -261,7 +261,7 @@ def __init__(
 5. `finally` 块弹栈恢复 `_pointer`（除非 `JMP` 位已置起）
 
 `interrupt=True` 用于外部系统在节点边界注入子程序。内部节点调用子程序时**必须**使用 `interrupt=False`，否则触发 `aiologic` 死锁检测。
-子程序执行期间 `outer_interpreting` 为 `True`——进入时无条件置位，返回时在 `finally` 块中清除。它让 `CALL` / `INT`（`from_adr` / `ret_to` 为 `None` 时）能从父级的栈条目解析默认返回地址。
+子程序执行期间 `outer_interpreting` 为 `True`——进入时无条件置位，返回时在 `finally` 块中清除。它让 `INT`（`ret_to` 为 `None` 时）能从父级的栈条目解析默认返回地址；`CALL`（`from_adr` 为 `None` 时）则始终解析为当前指针。
 **`call_near(addr: int, \*ag, interrupt=False, **kw) -> Any`\*\*
 
 在当前层级内以近距地址调用子程序。通过 `near_to(addr)` 计算目标地址。

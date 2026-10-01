@@ -50,6 +50,48 @@ async def caller_node(pc: WorkflowInterpreter):
 
 被调用的子程序节点可以声明对应的参数签名来接收这些操作数。参数的匹配由解释器内部的依赖解析系统完成——位置参数按索引匹配，关键字参数按名称匹配。
 
+### 从外部触发 trap
+
+当 `call_sub(interrupt=True)` 作用在运行中的解释器上时，目标不一定是例程本体——它可以直接是一个 `CALL` 节点，由该 `CALL` 代你进入例程：
+
+```python
+import asyncio
+
+from amrita_sense import ALIAS, Node, WorkflowInterpreter
+from amrita_sense.instructions import CALL, FN
+from amrita_sense.instructions.subprogram import ARCHIVED_NODES
+from amrita_sense.runtime.workflow import PC_CHECKPOINT
+
+
+@Node()
+async def trap_point() -> None: ...
+
+
+@Node()
+async def worker_a() -> None: ...
+
+
+async def main() -> None:
+    worker = FN("worker_entry", worker_a)
+    traps = ARCHIVED_NODES(ALIAS(CALL("worker_entry"), "trap_entry"))
+
+    comp = trap_point >> traps >> worker
+    pc = WorkflowInterpreter(comp.render())
+
+    task = asyncio.create_task(pc.run())
+    await pc.object_io.wait_to_suspend(PC_CHECKPOINT)
+    await pc.call_sub(
+        pc.get_graph().calc.resolve_alias("trap_entry"), interrupt=True
+    )
+    pc.object_io.resume()
+    await task
+
+
+asyncio.run(main())
+```
+
+这就是一次 **trap**：停驻节点被 trap 那一轮消耗掉，执行从**停驻地址 + 1** 继续——因为 `RET` 恢复到保存地址**再加一**。完整的地址栈推演与可运行版本（`demos/25_call_trap.py`）见[外部中断调用](/zh/guide/advanced/external_interrupt)。
+
 ### 与 Depends 的协同
 
 子程序节点可以同时使用 `call_sub` 传入的操作数和 `Depends` 声明的依赖。两者来自不同的注入源，在依赖解析阶段统一处理。如果操作数和依赖之间存在名称冲突，操作数具有更高的匹配优先级。
@@ -92,7 +134,7 @@ level1 返回: []
 
 ### 跳转覆盖与返回抑制
 
-如果子程序内部执行了 `JMP` 或其他跳转操作，`JMP` 位会被置起。此时 `call_sub` 的 `finally` 块会跳过弹栈恢复，返回地址被留在栈上。这意味着子程序通过跳转“覆盖”了正常的返回行为——开发者在子程序中使用 JMP 时，需要意识到调用栈不会自动清理，可能需要手动管理栈状态。
+如果子程序内部执行了 `JMP` 或其他跳转操作，`JMP` 位会被置起。此时 `call_sub` 的 `finally` 块依然会弹出保存的地址，但会**跳过指针恢复**——跳转目标被保留，解释器从那里继续。这意味着子程序通过跳转“覆盖”了正常的返回行为：`call_sub` 压入的那个地址会被丢弃，而不是被恢复。开发者需要意识到，子程序内的 `JMP` 会取消该次调用的自动返回。
 
 ### 小结
 

@@ -53,6 +53,7 @@ def PUSH_CONTEXT(
 | `stack`（返回地址栈） | 仅当 `exclude_stack=False` 时   |
 | `extra`               | 始终保存（空字典）              |
 | `exception`           | 始终保存（panic 异常或 `None`） |
+| `flags`               | 始终保存（剥掉 `HLT`）          |
 
 ### 执行流程
 
@@ -133,7 +134,7 @@ def IRET() -> NodeType[None]
 ### 执行流程
 
 1. 弹出 `pc.context_stack` 顶部的 `InterpreterContext`。
-2. 调用 `pc.rebase_context(ctx)`——恢复指针、异常忽略列表、依赖注入参数、返回地址栈。
+2. 调用 `pc.rebase_context(ctx)`——恢复指针、异常忽略列表、依赖注入参数、返回地址栈、panic 异常和状态寄存器。
 3. 设置 `pc.if_flag = False`。
 
 ---

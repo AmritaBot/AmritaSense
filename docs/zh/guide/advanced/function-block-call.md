@@ -53,7 +53,7 @@ comp = (
 )
 ```
 
-`CALL(entrypoint)` 压入当前指针（主流程语义：不在 `call_sub` 内时 `None` 解析为当前指针）并跳到入口。`RET` 把指针恢复到那里，解释器推进到下一节点——即 `after_fn`。
+`CALL(entrypoint)` 压入自身地址（`from_adr` 默认为 `None`，始终解析为当前指针——即 `CALL` 节点本身）并跳到入口。`RET` 把指针恢复到那里，解释器推进到下一节点——即 `after_fn`。
 
 ## `INTER_FN(entrypoint, block)` —— 中断服务例程
 
@@ -72,7 +72,7 @@ isr = INTER_FN(
 [_fn_escape, ALIAS(NOP, "isr_entry"), <block>, IRET()]
 ```
 
-`IRET` 弹出保存的 `InterpreterContext` 并**恢复整个解释器状态**（指针、异常忽略表、依赖参数、返回地址栈）——不只是指针。
+`IRET` 弹出保存的 `InterpreterContext` 并**恢复整个解释器状态**（指针、异常忽略表、依赖参数、返回地址栈、panic 异常、状态寄存器）——不只是指针。
 
 ### 调用 INTER_FN 函数块
 

@@ -256,7 +256,7 @@ flowchart TB
 
 ### `outer_interpreting`
 
-**任何** `call_sub` 执行期间（无论 `interrupt` 取值），只读属性 `outer_interpreting` 为 `True`；调用返回时清除。`CALL` / `INT` 在 `from_adr` / `ret_to` 为 `None` 时据此选择默认返回地址：调用期间复用 `_ret_addr_stack` 栈顶（父级的返回地址），否则使用当前指针。这保证了周期中途注入的子调用返回语义正确。
+**任何** `call_sub` 执行期间（无论 `interrupt` 取值），只读属性 `outer_interpreting` 为 `True`；调用返回时清除。`INT` 在 `ret_to` 为 `None` 时据此选择默认返回地址：调用期间复用 `_ret_addr_stack` 栈顶（父级的返回地址），否则使用当前指针。`CALL` **不**参考它——其 `from_adr=None` 默认值始终解析为当前指针（`CALL` 节点自身），因此它压入的返回地址在主流程与子程序内部完全一致。
 
 ## 3.4.4 挂起操作的交互模型（协作式挂起点）
 

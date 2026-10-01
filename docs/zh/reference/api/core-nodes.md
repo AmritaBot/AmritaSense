@@ -114,7 +114,7 @@ class NodeComposeRendered(AbstractCompose[AddressCalculator]):
 1. 展开所有 `SelfCompileInstruction`（调用其 `extract()` 方法）
 2. 递归渲染嵌套组合，通过其声明的 `get_builder()` 构造每个嵌套的 `NodeComposeRendered`
 3. 为每个节点分配 `PointerVector` 地址
-4. 收集所有 `AliasNode`，将别名与地址的映射存入 `alias2vector_map`
+4. 收集所有 `AliasNode`，将别名与地址的映射存入 `alias2vector_map`。别名在运行时是透明的（`__call__` 转发给被包裹的节点），因此它的编译期钩子同样会被转发：被 `ALIAS` 包裹的 `CALL` / `INT` / `INVOKE` 依然会在渲染期解析其操作数
 
 ### 主要属性
 

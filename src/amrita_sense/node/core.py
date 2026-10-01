@@ -530,6 +530,13 @@ class NodeComposeRendered(AbstractCompose[AddressCalculator]):
                     raise GraphBuildError(
                         f"Alias {node.alias} already exists in address `{top.alias2vector_map[node.alias]}`"
                     )
+                # An alias is transparent at run time (`__call__` forwards to the wrapped node), so its compile-time hook must be forwarded as well — otherwise an aliased `CALL` / `INT` / `INVOKE` never resolves its operands.
+                if not isabstractmethod(node.node._post_compile):
+                    if top._collected_hooks is None:
+                        raise GraphBuildError(
+                            "Top level compose's hooks collection is None!"
+                        )
+                    top._collected_hooks.append(node.node._post_compile)
                 top.alias2vector_map[node.alias] = node_path
                 self._graph.append(node)
 

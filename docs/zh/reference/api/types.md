@@ -100,6 +100,10 @@ class InterpreterContext:
 - `exception`：panic 异常的快照，无 panic 则为 `None`。
 - `flags`：状态寄存器的快照。`dump_interpreter()` 在构建快照时会剥掉 `HLT`，因为快照记录的是「要回到的状态」，而「主循环正停在这个节点上」不属于其中。因此恢复快照永远不会让挂起复活。
 
+`ptr` 和 `exception_ignored` 是必填的位置参数，其余字段都有默认值，因此也可以手动构造实例并直接压入 `pc.context_stack`。
+
+标准的生产者是 `WorkflowInterpreter.dump_interpreter()`（由 `PUSH_CONTEXT` 与 `INT` 调用），标准的消费者是 `WorkflowInterpreter.rebase_context()`（由 `IRET` 调用）。`PUSH_CONTEXT` 与 `INT` 都先构建快照，再**覆盖** `ptr` 为解析出的返回地址，因此快照中的 `ptr` 是恢复后继续执行的地址——不一定等于拍摄快照时的指针。
+
 ## Flags
 
 `Flags` 是一个 `IntFlag`，集中保存解释器的离散控制流状态。把各位放进同一个寄存器，使快照、恢复与清空都退化为一次赋值。

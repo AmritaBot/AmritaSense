@@ -49,6 +49,48 @@ async def caller_node(pc: WorkflowInterpreter):
 
 The called subroutine’s nodes can declare corresponding parameters in their function signatures. Parameter matching is handled by the interpreter’s internal dependency resolution system: positional arguments are matched by index, and keyword arguments are matched by name.
 
+### Triggering a trap from outside
+
+When `call_sub(interrupt=True)` is fired at a running interpreter, the target does not have to be the routine body — it can be a `CALL` node, and that `CALL` enters the routine for you:
+
+```python
+import asyncio
+
+from amrita_sense import ALIAS, Node, WorkflowInterpreter
+from amrita_sense.instructions import CALL, FN
+from amrita_sense.instructions.subprogram import ARCHIVED_NODES
+from amrita_sense.runtime.workflow import PC_CHECKPOINT
+
+
+@Node()
+async def trap_point() -> None: ...
+
+
+@Node()
+async def worker_a() -> None: ...
+
+
+async def main() -> None:
+    worker = FN("worker_entry", worker_a)
+    traps = ARCHIVED_NODES(ALIAS(CALL("worker_entry"), "trap_entry"))
+
+    comp = trap_point >> traps >> worker
+    pc = WorkflowInterpreter(comp.render())
+
+    task = asyncio.create_task(pc.run())
+    await pc.object_io.wait_to_suspend(PC_CHECKPOINT)
+    await pc.call_sub(
+        pc.get_graph().calc.resolve_alias("trap_entry"), interrupt=True
+    )
+    pc.object_io.resume()
+    await task
+
+
+asyncio.run(main())
+```
+
+This is a **trap**: the parked node is consumed by the trap cycle and execution resumes at _parked address + 1_, because `RET` resumes at its saved address **plus one**. See [External Interrupt Calls](/guide/advanced/external_interrupt) for the full stack trace of the trap and a runnable version (`demos/25_call_trap.py`).
+
 ### Coordination with Depends
 
 Subroutine nodes can use both operands passed via `call_sub` and dependencies declared via `Depends`. Both sources are unified during dependency resolution. If there is a name conflict between operands and dependencies, operands have higher priority.
@@ -91,7 +133,7 @@ Every `call_sub` pushes the current address, and every return pops the top addre
 
 ### Jump override and return suppression
 
-If the subroutine executes `JMP` or another jump operation, the `JMP` bit is set. In that case, `call_sub` skips restoring the saved pointer and does not pop the return address. This means the subroutine’s internal jump can “override” normal return behavior. Developers should understand that `JMP` inside a subroutine may prevent automatic return stack cleanup and may require explicit stack management.
+If the subroutine executes `JMP` or another jump operation, the `JMP` bit is set. In that case, `call_sub`'s `finally` block still pops the saved address, but **skips the pointer restore** — the jump target is preserved and the interpreter continues from there. This means the subroutine's internal jump can "override" normal return behavior: the address that `call_sub` pushed is discarded rather than resumed at. Developers should understand that `JMP` inside a subroutine cancels the automatic return for that call.
 
 ### Summary
 

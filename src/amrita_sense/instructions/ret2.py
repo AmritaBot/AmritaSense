@@ -91,9 +91,13 @@ def CALL(
         to_adr: The alias or absolute address to **jump to** now.
         from_adr: The **return address** (alias or absolute address vector) to
             push onto the return-address stack.  This is where execution should
-            resume after :func:`RET`.  If `None`, defaults to the top of
-            the **return-address stack** (i.e. the current instruction's return
-            address).
+            resume after :func:`RET`.  If `None`, defaults to the current
+            pointer — the `CALL` node's own address — regardless of whether the
+            call runs in the main flow or inside a
+            :meth:`~amrita_sense.runtime.workflow.WorkflowInterpreter.call_sub`.
+            Every pushed entry therefore names its own pusher, which keeps a
+            stack dump readable and stops a nested `CALL` from escaping to the
+            parent's return address.
 
     Returns:
         A workflow node that pushes the return address and jumps.
@@ -106,11 +110,8 @@ def CALL(
         nonlocal frm_addr, to_addr
         assert to_addr is not None
         if frm_addr is None:
-            #  None default: reuse parent's return addr (inside call_sub) or current pointer.
-            if pc.outer_interpreting:
-                frm_addr = pc._ret_addr_stack.stack[-1].base_addr.copy()
-            else:
-                frm_addr = pc._pointer.base_addr.copy()
+            # None default: always the CALL node's own address, so each stack entry names its pusher.
+            frm_addr = pc._pointer.base_addr.copy()
         pc._ret_addr_stack.push(PointerVector(frm_addr))
         pc.jump_to(to_addr)
 

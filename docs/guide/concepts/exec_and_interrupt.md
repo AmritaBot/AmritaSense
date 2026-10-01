@@ -247,7 +247,7 @@ Unlike `InterruptNotice` (which is still an exception thrown from within), `call
 
 ### `outer_interpreting`
 
-During **any** `call_sub` execution (regardless of `interrupt`), the read-only property `outer_interpreting` is `True`; it is cleared when the call returns. `CALL` / `INT` consult it when `from_adr` / `ret_to` is `None`: inside a call they reuse the top of `_ret_addr_stack` (the parent's return address), otherwise they use the current pointer. This guarantees correct return semantics for sub-calls injected mid-cycle.
+During **any** `call_sub` execution (regardless of `interrupt`), the read-only property `outer_interpreting` is `True`; it is cleared when the call returns. `INT` consults it when `ret_to` is `None`: inside a call it reuses the top of `_ret_addr_stack` (the parent's return address), otherwise it uses the current pointer. `CALL` does **not** consult it — its `from_adr=None` default always resolves to the current pointer (the `CALL` node itself), so the return address it pushes is identical in the main flow and inside a subroutine.
 
 ## 3.4.4 Interaction model for suspension (cooperative suspend points)
 

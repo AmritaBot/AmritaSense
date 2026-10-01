@@ -58,6 +58,10 @@ Fields:
 - `exception`: Snapshot of the panic exception, or `None` if no panic occurred.
 - `flags`: Snapshot of the status register. `dump_interpreter()` strips `HLT` when it builds the snapshot, because a snapshot records the state to come back to and "the loop is parked on this node" is not part of it. Restoring therefore never resurrects a halt.
 
+`ptr` and `exception_ignored` are required positional fields; every other field has a default, so an instance can also be built by hand and pushed onto `pc.context_stack` directly.
+
+The canonical producer is `WorkflowInterpreter.dump_interpreter()` (called by `PUSH_CONTEXT` and `INT`) and the canonical consumer is `WorkflowInterpreter.rebase_context()` (called by `IRET`). Both `PUSH_CONTEXT` and `INT` build the snapshot first and then **overwrite** `ptr` with their resolved return address, so the snapshot's `ptr` is the address execution resumes at — not necessarily the pointer at snapshot time.
+
 ## Flags
 
 `Flags` is an `IntFlag` holding the interpreter's discrete control-flow state. Keeping the bits in one register makes snapshotting, restoring and clearing them a single assignment.
