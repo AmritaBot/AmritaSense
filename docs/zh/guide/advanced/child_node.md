@@ -1,10 +1,10 @@
-# 4.3 子节点调用
+# 子节点调用
 
 AmritaSense 提供了完整的子程序调用机制。与 `JMP` 的单向跳转不同，子程序调用会保存当前执行位置，跳转到目标节点序列执行，完毕后自动返回调用点继续推进。这套机制同时服务于两个层面：编排层面的 `INVOKE` 指令，以及节点内部通过解释器 API 发起的 `call_sub`。
 
 本章将从解释器底层 API 出发，逐层解析调用栈管理、参数传递机制，以及在节点代码中直接调用子程序的实践。
 
-## 4.3.1 call_sub：解释器底层的调用原语
+## call_sub：解释器底层的调用原语
 
 `call_sub` 是 `WorkflowInterpreter` 提供的**底层调用原语**。编排层面的 `INVOKE` 指令、节点内部的子程序调用，最终都通过它完成。它的核心工作流程如下：
 
@@ -28,7 +28,7 @@ AmritaSense 提供了完整的子程序调用机制。与 `JMP` 的单向跳转�
 
 子程序执行完毕后，`call_sub` 会检查 `JMP` 位。如果子程序内部执行了跳转操作（如 `JMP`），该标志已被设置为 `True`。在这种情况下，`finally` 块**不会**恢复原来的执行指针——跳转后的新地址被保留，解释器从跳转目标继续执行。这确保了子程序内部的跳转能够正确影响主工作流控制流。
 
-## 4.3.2 带操作数的子程序传参
+## 带操作数的子程序传参
 
 `call_sub` 支持直接传递额外的位置参数和关键字参数。这些参数在子程序入口节点的依赖解析阶段被合并到可用参数池中，供节点的函数签名声明。
 
@@ -50,6 +50,46 @@ async def caller_node(pc: WorkflowInterpreter):
 
 被调用的子程序节点可以声明对应的参数签名来接收这些操作数。参数的匹配由解释器内部的依赖解析系统完成——位置参数按索引匹配，关键字参数按名称匹配。
 
+### 从外部触发 trap
+
+当 `call_sub(interrupt=True)` 作用在运行中的解释器上时，目标不一定是例程本体——它可以直接是一个 `CALL` 节点，由该 `CALL` 代你进入例程：
+
+```python
+import asyncio
+
+from amrita_sense import ALIAS, Node, WorkflowInterpreter
+from amrita_sense.instructions import CALL, FN
+from amrita_sense.instructions.subprogram import ARCHIVED_NODES
+from amrita_sense.runtime.workflow import PC_CHECKPOINT
+
+
+@Node()
+async def trap_point() -> None: ...
+
+
+@Node()
+async def worker_a() -> None: ...
+
+
+async def main() -> None:
+    worker = FN("worker_entry", worker_a)
+    traps = ARCHIVED_NODES(ALIAS(CALL("worker_entry"), "trap_entry"))
+
+    comp = trap_point >> traps >> worker
+    pc = WorkflowInterpreter(comp.render())
+
+    task = asyncio.create_task(pc.run())
+    await pc.object_io.wait_to_suspend(PC_CHECKPOINT)
+    await pc.call_sub(pc.get_graph().calc.resolve_alias("trap_entry"), interrupt=True)
+    pc.object_io.resume()
+    await task
+
+
+asyncio.run(main())
+```
+
+这就是一次 **trap**：停驻节点被 trap 那一轮消耗掉，执行从**停驻地址 + 1** 继续——因为 `RET` 恢复到保存地址**再加一**。完整的地址栈推演与可运行版本（`demos/d10_call_trap.py`）见[外部中断调用](/zh/guide/advanced/external_interrupt)。
+
 ### 与 Depends 的协同
 
 子程序节点可以同时使用 `call_sub` 传入的操作数和 `Depends` 声明的依赖。两者来自不同的注入源，在依赖解析阶段统一处理。如果操作数和依赖之间存在名称冲突，操作数具有更高的匹配优先级。
@@ -58,7 +98,7 @@ async def caller_node(pc: WorkflowInterpreter):
 如果子程序入口节点通过 `Depends` 声明了某个依赖，而该依赖的工厂函数返回了 `None`，工作流会**直接抛出异常并终止**。这与事件系统的“返回 None 则跳过处理器”行为不同——节点是原子执行单元，依赖解析失败意味着节点无法运行，这不是可以“跳过”的场景。
 :::
 
-## 4.3.3 调用栈与返回地址恢复
+## 调用栈与返回地址恢复
 
 调用栈是 AmritaSense 子程序调用机制的核心数据结构，保证了多层嵌套调用的正确返回。
 
@@ -92,7 +132,7 @@ level1 返回: []
 
 ### 跳转覆盖与返回抑制
 
-如果子程序内部执行了 `JMP` 或其他跳转操作，`JMP` 位会被置起。此时 `call_sub` 的 `finally` 块会跳过弹栈恢复，返回地址被留在栈上。这意味着子程序通过跳转“覆盖”了正常的返回行为——开发者在子程序中使用 JMP 时，需要意识到调用栈不会自动清理，可能需要手动管理栈状态。
+如果子程序内部执行了 `JMP` 或其他跳转操作，`JMP` 位会被置起。此时 `call_sub` 的 `finally` 块依然会弹出保存的地址，但会**跳过指针恢复**——跳转目标被保留，解释器从那里继续。这意味着子程序通过跳转“覆盖”了正常的返回行为：`call_sub` 压入的那个地址会被丢弃，而不是被恢复。开发者需要意识到，子程序内的 `JMP` 会取消该次调用的自动返回。
 
 ### 小结
 

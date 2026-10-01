@@ -17,7 +17,7 @@ class InterruptNotice(BaseException):
 
 **Why inherit from `BaseException`**
 
-Python's `except Exception` does not catch `BaseException` subclasses. Therefore, no `TRY/CATCH` block in the workflow can intercept `InterruptNotice` by default. This is an intentional design choice — `RESET` must be an "uncatchable" emergency termination signal. The only exception is explicitly adding `InterruptNotice` to `exception_ignored`, at which point it becomes catchable as a regular exception.
+Python's `except Exception` does not catch `BaseException` subclasses. Therefore, no `Try`/`CATCH` block in the workflow can intercept `InterruptNotice` by default. This is an intentional design choice — `RESET` must be an "uncatchable" emergency termination signal. The only exception is explicitly adding `InterruptNotice` to `exception_ignored`, at which point it becomes catchable as a regular exception.
 
 **Trigger methods**
 
@@ -80,7 +80,7 @@ class BreakLoop(Exception):
 
 `BreakLoop` is automatically added to the `_exc_ignored` tuple during `WorkflowInterpreter` initialization. This means:
 
-- Any `TRY/CATCH` block inside a loop body **cannot** catch `BreakLoop`.
+- Any `Try`/`CATCH` block inside a loop body **cannot** catch `BreakLoop`.
 - It penetrates all intermediate exception handling layers and reaches the innermost `WhileNode` or `DONode`.
 - The loop node catches `BreakLoop` and executes `jump_near(NOP)`, exiting cleanly.
 
@@ -109,7 +109,7 @@ Raised when an operation is attempted in an invalid state. Common triggers:
 - Calling `terminate_all()` or `wait_all()` on a non-top-level interpreter
 - Starting `run()` on an interpreter that is already running
 - Accessing `wait` on an interpreter that is not running
-- Violating TRY/CATCH syntax constraints (e.g., adding CATCH after FINALLY, duplicate THEN)
+- Violating `Try`/`CATCH` syntax constraints (e.g., adding CATCH after FINALLY, duplicate THEN)
 
 See [Subgraph Isolation](../../guide/practice/subgraph-isolation.md) for correct usage patterns.
 

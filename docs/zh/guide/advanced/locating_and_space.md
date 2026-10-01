@@ -4,7 +4,7 @@
 
 本章将深入解析构成这套寻址体系的核心机制：编译期的别名绑定、运行时的地址解析，以及 Bubble 作用域的空间隔离。
 
-## 4.2.1 编译期绑定：ALIAS 别名系统
+## 编译期绑定：ALIAS 别名系统
 
 `ALIAS` 是定位体系的**编译期基础**。它为节点绑定一个全局唯一的符号名，并在渲染阶段注册到 `alias2vector_map`，供 JMP 和 INVOKE 在运行时查表解析。
 
@@ -41,7 +41,7 @@ labeled_action = ALIAS(action, "main_action")
 workflow = IF(some_condition, JMP("main_action")) >> labeled_action
 ```
 
-## 4.2.2 运行时解析：JMP 无条件跳转
+## 运行时解析：JMP 无条件跳转
 
 `JMP` 是 AmritaSense 中最直接的控制流跳转指令。它在运行时通过别名查表获取目标地址，然后执行一次指针改写，使解释器下一步直接执行目标节点。
 
@@ -63,7 +63,7 @@ workflow = IF(some_condition, JMP("main_action")) >> labeled_action
 2. **避免用 JMP 替代循环**：JMP 不会在调用栈上压入返回地址，不适用于需要返回的场景。如果需要子程序调用并返回，应使用 `INVOKE` 指令——这将在 [下一章](./child_node.md) 详细展开
 3. **留意 Bubble 边界**：JMP 可以在任意层级间跳转，但滥用跨层级跳转会使控制流难以追踪。建议同一 Bubble 内用 `jump_near`，跨 Bubble 用 `jump_to`
 
-## 4.2.3 INVOKE 指令：子程序调用的入口
+## INVOKE 指令：子程序调用的入口
 
 除了 `JMP` 的单向跳转，AmritaSense 还提供了 `INVOKE` 指令，用于**调用子程序并在执行完毕后自动返回**。`INVOKE` 与 `JMP` 共享同一套别名寻址体系——两者都依赖 `ALIAS` 注册符号名，都在编译期的 `_post_compile` 阶段完成地址解析和拼写纠错。
 
@@ -76,9 +76,9 @@ workflow = IF(some_condition, JMP("main_action")) >> labeled_action
 | 适用场景         | 单向跳转、分支合并     | 子程序复用、中断处理         |
 
 > **详细展开**
-> `INVOKE` 指令的完整机制——包括调用栈管理、`ARCHIVED_NODES` 子程序存储结构、`SubprogramJumpNode` 的跳过逻辑、以及中断向量表的实现——将在 [第 4.3 章：子节点调用](./child_node.md) 中详细解析。
+> `INVOKE` 指令的完整机制——包括调用栈管理、`ARCHIVED_NODES` 子程序存储结构、`SubprogramJumpNode` 的跳过逻辑、以及中断向量表的实现——将在[子节点调用](./child_node.md)中详细解析。
 
-## 4.2.4 空间隔离：Bubble 作用域与 Near 寻址
+## 空间隔离：Bubble 作用域与 Near 寻址
 
 AmritaSense 使用 `PointerVector` 实现多层嵌套的地址空间管理。每一个被括号 `()` 包裹的节点组，在编译后形成一个独立的 `NodeComposeRendered`，拥有自己的内部 `near` 地址空间——这就是 **Bubble**。
 

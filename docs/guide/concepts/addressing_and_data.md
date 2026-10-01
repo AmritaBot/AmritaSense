@@ -2,7 +2,7 @@
 
 Before diving into AmritaSense’s control flow, you must understand how it organizes and locates nodes. It is not a flat graph; it is a deep, precisely addressable address space.
 
-## 3.2.1 Address space: Bubble and hierarchical structure
+## Address space: Bubble and hierarchical structure
 
 In AmritaSense, node placement and location are not a flat one-layer structure. Instead, it is a **multi-layer nested address space**.
 
@@ -12,7 +12,7 @@ A Bubble has its own `near` address space, which is essentially the linear index
 
 This design makes logical partitioning extremely natural: you do not need to manually manage complex subgraph references. You simply use parentheses to define scope, and jump and call semantics are automatically limited to that local space.
 
-## 3.2.2 Pointer vectors: variable-dimensional high-dimensional indices
+## Pointer vectors: variable-dimensional high-dimensional indices
 
 Since the address space is multi-layered, how can we pinpoint any node precisely?
 
@@ -28,7 +28,7 @@ In the `WorkflowInterpreter` main loop, the engine always treats the address poi
 
 When nested execution is needed, the interpreter appends a new dimension to the pointer vector (entering a Bubble). When the Bubble is finished, it pops that dimension (exiting the Bubble) and returns to the previous layer.
 
-## 3.2.3 Location and jumps: the ALIAS symbol aliasing system
+## Location and jumps: the ALIAS symbol aliasing system
 
 After understanding the address space and pointer vector layout, the next step is node location and flow jump capability.
 

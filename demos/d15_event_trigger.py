@@ -1,7 +1,8 @@
-"""11_event_trigger.py — ConstructableEvent + TRIGGER_EVENT instruction
+"""d15_event_trigger.py — ConstructableEvent + TRIGGER_EVENT instruction
 
 Usage:
-    python demos/11_event_trigger.py
+    python demos/d15_event_trigger.py
+    python -i demos/d15_event_trigger.py   # same, then use `inter` directly in the REPL
 """
 
 import asyncio
@@ -43,9 +44,13 @@ async def do_work() -> str:
     return "completed"
 
 
+composition = do_work >> TRIGGER_EVENT(AuditEvent)
+# Module-level so a REPL can `from demos.d15_event_trigger import inter` and step into the trigger.
+inter = WorkflowInterpreter(composition.render())
+
+
 async def main() -> None:
-    comp = (do_work >> TRIGGER_EVENT(AuditEvent)).render()
-    await WorkflowInterpreter(comp).run()
+    await inter.run()
 
 
 if __name__ == "__main__":

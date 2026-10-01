@@ -114,7 +114,7 @@ class NodeComposeRendered(AbstractCompose[AddressCalculator]):
 1. Expands all `SelfCompileInstruction` instances (calling their `extract()` method).
 2. Recursively renders nested compositions, constructing each nested `NodeComposeRendered` through its declared `get_builder()`.
 3. Assigns a `PointerVector` address to each node.
-4. Collects all `AliasNode` instances, storing alias-to-address mappings into `alias2vector_map`.
+4. Collects all `AliasNode` instances, storing alias-to-address mappings into `alias2vector_map`. An alias is transparent at run time (`__call__` forwards to the wrapped node), so its compile-time hook is forwarded as well: an aliased `CALL` / `INT` / `INVOKE` still resolves its operands during rendering.
 
 ### Key attributes
 

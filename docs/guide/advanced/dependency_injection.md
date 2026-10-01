@@ -2,7 +2,7 @@
 
 The AmritaSense workflow engine integrates the dependency injection (DI) system, providing powerful dependency resolution and injection capabilities for workflow nodes. This integration allows node functions to declare their dependencies, and the engine will automatically resolve and inject those dependencies at execution time.
 
-## 4.1.1 Overview: node and event DI mechanism
+## Overview: node and event DI mechanism
 
 In AmritaSense, every workflow node is essentially a callable function. Through dependency injection, these functions can declare the dependencies they require, including:
 
@@ -12,7 +12,7 @@ In AmritaSense, every workflow node is essentially a callable function. Through 
 
 The dependency injection system resolves dependencies before node execution and ensures that all declared dependencies are provided. If dependency resolution fails, the workflow throws an exception and terminates.
 
-## 4.1.2 Basic usage: Depends() declaration
+## Basic usage: Depends() declaration
 
 Dependency injection is implemented through `Depends()`. `Depends()` accepts a dependency provider function and returns a dependency factory that is called at node execution time to obtain the actual dependency value.
 
@@ -30,7 +30,7 @@ def my_node(dependency_value: ReturnType = Depends(dependency_provider_function)
 ```
 
 `Depends` may also be written inside the annotation with `Annotated` — see
-[4.1.10 `Annotated` Declarations](#_4-1-10-annotated-declarations).
+[`Annotated` declarations](#annotated-declarations).
 
 ### Built-in dependency tools
 
@@ -61,7 +61,7 @@ def navigation_node(
     pc.jump_offset(offset)
 ```
 
-## 4.1.3 Concurrent resolution and runtime injection
+## Concurrent resolution and runtime injection
 
 AmritaSense’s dependency injection system supports concurrent resolution and runtime injection, which means:
 
@@ -84,7 +84,7 @@ def async_node(result: str = Depends(async_dependency)):
     print(f"Received: {result}")
 ```
 
-## 4.1.5 Event and hook integration
+## Event and hook integration
 
 AmritaSense uses the same dependency matcher for workflow nodes and hook/event handlers. That means event listener callbacks can also declare `Depends(...)` dependencies, and the runtime will resolve them before invoking the callback. This makes it possible to share the same dependency provider functions across normal nodes and external hooks.
 
@@ -99,7 +99,7 @@ async def on_event(event: Any, pc: WorkflowInterpreter = Depends(POINTER_DEPENDS
 
 The event/hook system resolves dependencies through the same `MatcherFactory` machinery used by node execution, so the behavior is consistent across the engine.
 
-## 4.1.6 Important behavior: returning None terminates the workflow
+## Important behavior: returning None terminates the workflow
 
 The dependency injection system has an important behavior: **if a dependency provider function returns `None`, the workflow terminates immediately**.
 
@@ -142,21 +142,31 @@ def safe_node(value: str = Depends(get_maybe_value)):
 
 ### Error handling
 
-If a dependency provider returns `None`, the workflow raises a `DependsResolveFailed` exception. This exception can be caught with TRY/CATCH:
+If a dependency provider returns `None`, resolving that node fails and the workflow raises a `DependsInjectFailed` (a `DependsException`). That is an ordinary exception, so a `Try`/`CATCH` block can handle it:
 
 ```python
-def failing_dependency():
+def failing_dependency() -> str | None:
     return None
 
 
-TRY(NodeType(lambda: print("This won't execute"))).CATCH(
-    DependsResolveFailed, NodeType(lambda: print("Caught dependency failure"))
-)
+@Node()
+def needs_dependency(value: str = Depends(failing_dependency)) -> None:
+    print("This won't execute")
+
+
+@Node()
+def on_failure(exc_val: DependsInjectFailed) -> None:
+    print(f"Caught dependency failure: {exc_val}")
+
+
+Try(needs_dependency).CATCH(DependsInjectFailed, on_failure)
 ```
+
+`CATCH` matches on the exception type, so an exception that no handler claims keeps propagating — a `CATCH(ValueError, ...)` will not swallow a `KeyError`. The handler can also ask for the exception itself: `exc_type`, `exc_val` and `exc_tb` are injected like any other dependency.
 
 This design ensures that dependency injection remains robust and predictable while giving developers a clear error handling mechanism.
 
-## 4.1.7 DI Result Cache
+## DI Result Cache
 
 The `WorkflowInterpreter` maintains an internal DI result cache (`_di_cache`) to avoid redundant dependency resolution when the same node is executed multiple times with the same argument types.
 
@@ -187,7 +197,7 @@ The cache payload is an `LRUCache` (from `cachetools`) with a maximum of 2048 en
 
 `DependsFactory(cacheable=True)` — or, with the preferred spelling, `Depends(f, use_cache=True)` — providers are resolved **once, at cache-write time**, and their results are stored in the cache. `cacheable=False` (the default) providers are stored as-is and re-resolved **on every call** — use this for providers with side effects or time-varying values. This separation is orthogonal to cache validity (`hash_trustable`).
 
-For **generator** providers, sharing is governed by `scope` instead of `use_cache`; see [4.1.11 Generator Dependencies and Lifecycle](#_4-1-11-generator-dependencies-and-lifecycle).
+For **generator** providers, sharing is governed by `scope` instead of `use_cache`; see [Generator dependencies and lifecycle](#generator-dependencies-and-lifecycle).
 
 ### Cache lifecycle
 
@@ -213,7 +223,7 @@ pc2 = WorkflowInterpreter(rendered)
 await pc2.run()  # Every node re-resolves dependencies from scratch
 ```
 
-## 4.1.8 DI Preload Cache
+## DI Preload Cache
 
 When `__flags__.WORKFLOW_DI_PRELOAD_CACHE` is enabled, the interpreter pre-resolves dependency injection for **every node** during the `run()` initialization phase — before the first node executes.
 
@@ -247,7 +257,7 @@ pc = WorkflowInterpreter(rendered)
 await pc.run()  # DI is pre-resolved for all nodes before the first node runs
 ```
 
-## 4.1.9 Cache Constraints and Flag Conflicts
+## Cache Constraints and Flag Conflicts
 
 ### `NO_DEPENDENCY_META_CACHE` conflict
 
@@ -261,7 +271,7 @@ Setting `WORKFLOW_DI_NO_CACHE = True` together with `WORKFLOW_DI_PRELOAD_CACHE =
 
 `_refresh_di_cache_full()` will raise `DependsResolveFailed` if `hash_trustable` is `False` when called. Always call `rehash_args()` after modifying DI arguments to ensure cache integrity.
 
-## 4.1.10 `Annotated` Declarations
+## `Annotated` Declarations
 
 `Depends` may be written inside the annotation instead of as the default value. Both forms are equivalent, and a parameter must not use both at once:
 
@@ -292,7 +302,7 @@ Only the type inside `Annotated` participates in type-based matching; any other 
 
 A malformed declaration raises `DependsDeclarationError` while the node or handler is being **constructed**, not when it runs.
 
-## 4.1.11 Generator Dependencies and Lifecycle
+## Generator Dependencies and Lifecycle
 
 A provider may be a generator. The value before `yield` is injected, and everything after it runs as a teardown:
 

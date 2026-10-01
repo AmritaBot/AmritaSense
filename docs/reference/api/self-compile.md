@@ -23,11 +23,11 @@ class SelfCompileInstruction(ABC):
 
 **Design philosophy**
 
-Self-compile instructions are the cornerstone of AmritaSense's extensibility. Built-in instructions like `IF`, `WHILE`, and `TRY` all implement this interface, and developers can create their own control flow primitives by subclassing it — encapsulating **composition patterns**, not concrete business logic.
+Self-compile instructions are the cornerstone of AmritaSense's extensibility. Built-in instructions like `IF`, `WHILE`, and `Try` all implement this interface, and developers can create their own control flow primitives by subclassing it — encapsulating **composition patterns**, not concrete business logic.
 
 ## Built-in Self-Compile Instructions
 
-All of AmritaSense's built-in instructions are subclasses of `SelfCompileInstruction`. The following lists only their compile-time expansion structure; for detailed syntax and runtime behavior, see Section 4.5: Built-in Instruction Set.
+All of AmritaSense's built-in instructions are subclasses of `SelfCompileInstruction`. The following lists only their compile-time expansion structure; for detailed syntax and runtime behavior, see the [built-in instruction set](/guide/advanced/built-in_instruction_set/if_clause).
 
 ### Conditional branching instructions
 
@@ -37,12 +37,12 @@ All of AmritaSense's built-in instructions are subclasses of `SelfCompileInstruc
 
 ### Loop instructions
 
-- `WhileClause`: `WHILE(condition).ACTION(action)` → `[WhileNode, condition, action, CheckUpNode, NOP]`
-- `DoWhileClause`: `DO(do).WHILE(condition)` → `[DONode, do, DowhileNode, condition, NOP]`
+- `WhileClause`: `WHILE(condition).ACTION(action)` → `[WhileNode, condition, action, CheckUpNode, NOP]`. `action` must be a **single node** — a composition raises `TypeError` at compile time; use `NATIVE_WHILE` for a multi-node body.
+- `DoWhileClause`: `DO(do).WHILE(condition)` → `[DONode, do, DowhileNode, condition, NOP]`. `do` must be a **single node**; use `NATIVE_DO` for a multi-node body.
 
 ### Exception handling instructions
 
-- `TryClause`: Expands to `[TryNode, try_body, ...catch_handler_i, catch_body_i..., FinNode(optional), fin_body, NOP]`. `TryNode` manages the runtime logic of the entire exception handling chain.
+- `TryClause`: Expands to `[TryNode, try_body, catch_body_1, ..., catch_body_n, then_body?, finally_body?, NOP]` — the catch bodies are plain slots, and `TryNode` holds their addresses in `_catch_addr_chain`. `TryNode` manages the runtime logic of the entire exception handling chain.
 
 ### Subprogram storage instructions
 

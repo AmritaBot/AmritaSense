@@ -53,10 +53,10 @@ comp = (
 )
 ```
 
-`CALL(entrypoint)` pushes the current pointer (main-flow semantics: `from_adr`
-defaults to `None`, which resolves to the current pointer when not inside a
-`call_sub`) and jumps to the entrypoint. `RET` restores the pointer there, and
-the interpreter advances onto the next node — `after_fn`.
+`CALL(entrypoint)` pushes its own address (`from_adr` defaults to `None`, which
+always resolves to the current pointer — the `CALL` node itself) and jumps to the
+entrypoint. `RET` restores the pointer there, and the interpreter advances onto
+the next node — `after_fn`.
 
 ## `INTER_FN(entrypoint, block)` — Interrupt Service Routine
 
@@ -75,7 +75,7 @@ Identical shape, but the trailing instruction is `IRET()` instead of `RET`:
 [_fn_escape, ALIAS(NOP, "isr_entry"), <block>, IRET()]
 ```
 
-`IRET` pops a saved `InterpreterContext` and **restores the whole interpreter state** (pointer, exception-ignore list, dependency args, return-address stack) — not just the pointer.
+`IRET` pops a saved `InterpreterContext` and **restores the whole interpreter state** (pointer, exception-ignore list, dependency args, return-address stack, panic exception, status register) — not just the pointer.
 
 ### Calling an INTER_FN Block
 

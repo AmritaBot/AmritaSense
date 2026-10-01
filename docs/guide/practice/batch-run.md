@@ -156,12 +156,17 @@ async def action():
 
 
 @Node()
+async def never():
+    return False
+
+
+@Node()
 async def side_task():
     print("side task")
 
 
 workflow = BATCH_RUN(
-    IF(check, action).ELIF(lambda: False, action).ELSE(action),
+    IF(check, action).ELIF(never, action).ELSE(action),
     side_task,
     fail_fast=False,
 )
@@ -187,10 +192,10 @@ workflow = BATCH_RUN(risky_node, safe_node, fail_fast=False)
 # → safe_node completes; all exceptions raised as BaseExceptionGroup
 ```
 
-### Wrapping with `TRY/CATCH`
+### Wrapping with `Try`/`CATCH`
 
 ```python
-from amrita_sense.instructions import TRY
+from amrita_sense.instructions import Try
 
 
 @Node()
@@ -198,7 +203,7 @@ def handle_error(exc: ExceptionGroup):
     print(f"Batch error: {exc.exceptions}")
 
 
-workflow = TRY(BATCH_RUN(risky_node, safe_node, fail_fast=False)).CATCH(
+workflow = Try(BATCH_RUN(risky_node, safe_node, fail_fast=False)).CATCH(
     ExceptionGroup, handle_error
 )
 ```

@@ -1,11 +1,11 @@
-# 4.4 External Interrupt Calls
+# External Interrupt Calls
 
 AmritaSense provides a safe external invocation mechanism that allows **external systems to inject subroutines at node boundaries**, enabling flexible debugging, monitoring, and dynamic control. The core of this mechanism is the interpreter lock and `call_sub(interrupt=True)`, which turns "interrupts" from hardware-level preemption into controllable, programmable "safe external calls."
 
 > **Distinction: Flow Suspend vs. External Call**
-> The flow suspension (Suspend) introduced in Section 3.4 pauses the execution flow via `SuspendObjectStream`, waiting for external `resume()` before continuing. This section discusses **actively injecting a complete subroutine from the outside** during the suspend window or at node boundaries, which automatically returns after execution. The two can be combined, but they belong to different capability dimensions.
+> The flow suspension (Suspend) introduced in [Execution & Interrupt](/guide/concepts/exec_and_interrupt) pauses the execution flow via `SuspendObjectStream`, waiting for external `resume()` before continuing. This section discusses **actively injecting a complete subroutine from the outside** during the suspend window or at node boundaries, which automatically returns after execution. The two can be combined, but they belong to different capability dimensions.
 
-## 4.4.1 Interpreter Lock and Safe External Call Principles
+## Interpreter Lock and Safe External Call Principles
 
 The core of external injection operations is `aiologic.Lock` (the interpreter lock), which ensures atomicity of the injection and avoids race conditions with the normal execution flow.
 
@@ -39,7 +39,7 @@ The key is `interrupt=True`, which tells the interpreter to acquire the interpre
 
 This design allows the same `call_sub` API to serve both internal reuse and external injection, distinguished by a single boolean parameter.
 
-## 4.4.2 Interrupt Program Storage Structure
+## Interrupt Program Storage Structure
 
 To facilitate external calls, we need to pre-place dedicated node sequences in the workflow that respond to interrupts. These sequences are packaged as "interrupt programs" and stored in the workflow — normal flow skips them. AmritaSense provides `ARCHIVED_NODES` to construct such storage areas.
 
@@ -81,7 +81,7 @@ Place `interrupt_handlers` at the end or in a suitable position within the workf
 
 > **ARCHIVED_NODES vs ARCHIVED_SEGMENT**: `ARCHIVED_NODES` archives a flat list of individual nodes (each alias-addressable, ideal for handler libraries). `ARCHIVED_SEGMENT` archives a whole `NodeCompose` (`[JMP 2, Payload, NOP]`) as one unit — the building block for `FN` / `INTER_FN` function blocks. Use the former for handler libraries, the latter for full routines.
 
-## 4.4.3 SubprogramJumpNode Execution Logic
+## SubprogramJumpNode Execution Logic
 
 `SubprogramJumpNode` is a lightweight node specifically designed to skip the subsequent storage area. Its implementation is very simple:
 
@@ -94,7 +94,7 @@ It has `address_able=True` and can be aliased (though usually not needed). This 
 
 `SubprogramJumpNode` is specifically designed for skipping storage areas, with clearer semantics. `JMP` is a general-purpose jump instruction that could be misused. Using a dedicated jump node reduces the risk of developer confusion.
 
-## 4.4.4 Building a Safe Injectable Node Library
+## Building a Safe Injectable Node Library
 
 Using the mechanisms described above, developers can build an "injectable node library" for debugging, health checks, error recovery, and more. These library nodes must follow certain safety constraints.
 
@@ -138,7 +138,112 @@ Or, while the workflow is running, call `call_sub(interrupt=True)` from another 
 
 Through this mechanism, AmritaSense transforms external intervention from "disruptive interrupts" into "safe function calls," providing a solid foundation for building full-featured debuggers, monitoring systems, and dynamic flow control.
 
-## 4.4.5 Interrupt Routines & Context Snapshots
+## Trap: Entering `CALL` / `INT` from Outside
+
+A **trap** is what happens when an external `call_sub(interrupt=True)` lands on a `CALL` or `INT` node instead of on an ordinary handler node.
+
+`call_sub` pushes the parked address `C` and enters the target node. When that target is itself a `CALL`, the `CALL` pushes **its own address** `P` and jumps on — so the return-address stack ends up holding `[C, P]`. `call_sub`'s `finally` block pops `P` back off (it is the address the entered node pushed), leaving `[C]`. From there the `FN` block runs to its trailing `RET`, which pops `C` and resumes the main flow at `C + 1`.
+
+The net effect: **the trap consumes the cycle the interpreter was parked on, and execution resumes at parked address + 1.**
+
+```mermaid
+sequenceDiagram
+    participant Ext as External caller
+    participant CS as call_sub
+    participant S as _ret_addr_stack
+    participant T as CALL (trap_entry)
+    participant W as FN body
+    participant R as RET
+
+    Ext->>CS: call_sub(interrupt=True)
+    CS->>S: push(C) — parked address
+    CS->>T: enter the trap node
+    T->>S: push(P) — CALL's own address
+    T->>W: jump_to("worker_entry")
+    CS->>S: pop() -> P (finally block)
+    W-->>W: worker_a, worker_b
+    R->>S: pop() -> C
+    R->>R: rebase_ptr(C) -> advance -> C + 1
+```
+
+### Why the aliased node must be the `CALL` itself
+
+The trap target has to be a node that actually performs the trap. `ALIAS` is transparent: it forwards both `__call__` and `_post_compile` to the wrapped node, so `ALIAS(CALL("worker_entry"), "trap_entry")` behaves exactly like the bare `CALL` while giving it a name the external caller can resolve.
+
+### Full example
+
+```python
+import asyncio
+
+from amrita_sense import ALIAS, Node, WorkflowInterpreter
+from amrita_sense.instructions import CALL, FN
+from amrita_sense.instructions.subprogram import ARCHIVED_NODES
+from amrita_sense.runtime.workflow import PC_CHECKPOINT
+
+
+@Node()
+async def trap_point() -> None:
+    print("[main] trap_point  <- parked here; the trap consumes this cycle")
+
+
+@Node()
+async def main_step() -> None:
+    print("[main] main_step")
+
+
+@Node()
+async def worker_a() -> None:
+    print("  [worker] a")
+
+
+async def main() -> None:
+    # FN block: [_fn_escape, ALIAS(NOP, "worker_entry"), worker_a, RET()]
+    worker = FN("worker_entry", worker_a)
+
+    # Trap library: skipped by normal flow, entered only via call_sub(interrupt=True)
+    traps = ARCHIVED_NODES(ALIAS(CALL("worker_entry"), "trap_entry"))
+
+    comp = trap_point >> main_step >> traps >> worker
+    pc = WorkflowInterpreter(comp.render())
+
+    task = asyncio.create_task(pc.run())
+    await pc.object_io.wait_to_suspend(PC_CHECKPOINT)  # park; the lock is now free
+    await pc.call_sub(pc.get_graph().calc.resolve_alias("trap_entry"), interrupt=True)
+    pc.object_io.resume()
+    await task
+
+
+asyncio.run(main())
+```
+
+The runnable version is `demos/d10_call_trap.py`; its output is:
+
+```text
+=== external trap: CALL -> FN -> RET ===
+
+[ext]  parked at PointerVector([0]), is_running = True
+  [worker] a
+  [worker] b
+[main] main_step
+[main] main_tail
+
+[ext]  done — the parked node was consumed, flow resumed at parked + 1
+```
+
+`INT` works the same way: `ALIAS(INT("isr_entry"), "trap_entry")` snapshots the context with the parked address as the return address and dispatches into the `INTER_FN` block, whose `IRET` restores the snapshot and resumes at `C + 1`. The only difference is the channel — `INT` / `IRET` travel through the context stack, `CALL` / `RET` through the return-address stack.
+
+### Trap vs. plain injection
+
+| Injection target         | Return-address stack                                             | Resumes at                                           |
+| ------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------- |
+| Ordinary handler node    | `[C]`, popped by `call_sub`'s `finally`                          | `C` — the parked node still runs after the injection |
+| `CALL` / `INT` trap node | `[C, P]`; `P` popped by `call_sub`, `C` popped by `RET` / `IRET` | `C + 1` — the parked node is consumed by the trap    |
+
+### Trap targets must not touch the stack
+
+`call_sub` pops unconditionally, without checking what it popped. A trap target therefore has to leave the return-address stack balanced: `CALL` and `INT` do exactly that, but a node that pushes or pops on its own would desynchronize the stack. Keep trap targets to `CALL` / `INT` nodes.
+
+## Interrupt Routines & Context Snapshots
 
 AmritaSense provides built-in instructions for interrupt-style control transfer **within** a workflow: `INT` / `IRET`. Unlike `call_sub(interrupt=True)` which injects code from **outside** the interpreter, these instructions are placed directly in the `>>` chain and perform:
 

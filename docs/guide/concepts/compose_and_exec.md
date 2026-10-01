@@ -1,6 +1,6 @@
 # Composition & Execution
 
-## 3.1.1 Nodes
+## Nodes
 
 In AmritaSense, the common way to declare a node is using the `@Node()` decorator. For example:
 
@@ -29,7 +29,7 @@ Using `@Node()` returns a `Node` object. In fact, `Node` is a wrapper class with
 
 So how do we chain nodes together? That brings us to composition.
 
-## 3.1.2 Composition
+## Composition
 
 A single node cannot execute on its own. We need to compose it; composition links nodes together and defines their positional relationship. In AmritaSense, we can use the `>>` operator to define ordering between nodes, for example:
 
@@ -45,7 +45,7 @@ comp_rendered: NodeComposeRendered = compose.render()
 
 At this point, the preparation is complete. The next step is to run it.
 
-## 3.1.3 Execution
+## Execution
 
 The rendered composition is essentially a **data container containing nodes**. Execution requires an interpreter. Here we introduce the concept of `WorkflowInterpreter`. Before that, let’s inspect its constructor:
 
@@ -107,7 +107,7 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-## 3.1.4 Dependency declaration
+## Dependency declaration
 
 This is an abstract concept, but if you have used frameworks like `FastAPI` or `NoneBot2`, you will quickly understand how dependency resolution works in AmritaSense. If not, don’t worry — we will unpack it step by step.
 

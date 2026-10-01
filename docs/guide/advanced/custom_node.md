@@ -2,7 +2,7 @@
 
 In AmritaSense, nodes are the basic units of execution flow. Built-in instructions are ultimately expanded into node compositions, while custom nodes are the direct way developers encapsulate their business logic. This chapter explains node essence, lifecycle, and how to use `POINTER_DEPENDS` to gain full interpreter control when necessary.
 
-## 4.6.1 The `@Node` decorator and node essence
+## The `@Node` decorator and node essence
 
 The `@Node()` decorator converts an ordinary Python function or coroutine into a workflow node. It does not do anything complex — it simply packages the function object, signature metadata, and a few data fields into a `Node` instance.
 
@@ -32,7 +32,7 @@ Each node is essentially a thin wrapper around the original function. It preserv
 
 **Everything is a node** — this is AmritaSense’s core philosophy. Conditionals, loop bodies, exception handlers, and JMP targets are all `Node` or `BaseNode` instances. Custom nodes are no exception.
 
-## 4.6.2 Handling sync and async nodes
+## Handling sync and async nodes
 
 AmritaSense unifies synchronous and asynchronous nodes. In `_call()`, it decides how to execute based on `iscoroutinefunction` and `wrap_to_async`.
 
@@ -80,7 +80,7 @@ This is appropriate for extremely lightweight sync operations, such as simple co
 
 The `Node` class is also memory-optimized using `__slots__`, avoiding a default `__dict__` and keeping each node as lightweight as possible.
 
-## 4.6.3 Node lifecycle and atomicity
+## Node lifecycle and atomicity
 
 ### Lifecycle
 
@@ -105,7 +105,7 @@ If a custom node class inherits from `BaseNode`, it can override two lifecycle h
 - `_post_compile(compose: NodeComposeRendered)` — called after the workflow graph is fully compiled. `InvokeNode` and `JumpNode` use this hook to resolve aliases to addresses at compile time, avoiding runtime overhead.
 - `_pre_check(pointer: WorkflowInterpreter)` — called before each node execution. Used for runtime checks that depend on interpreter state (e.g., `BatchRun` forks child interpreters here).
 
-## 4.6.4 `POINTER_DEPENDS`: access to the interpreter
+## `POINTER_DEPENDS`: access to the interpreter
 
 `POINTER_DEPENDS` is a special dependency injection factory that allows a node to obtain the current `WorkflowInterpreter` instance.
 
@@ -136,7 +136,7 @@ With interpreter access, nodes can directly manipulate pointers and the call sta
 
 Therefore, **inject `POINTER_DEPENDS` only when necessary**. Most nodes should use normal Python logic and composition-level instructions (`IF`, `WHILE`, `INVOKE`) to express control flow, and only directly access the interpreter when instructions cannot express the desired behavior.
 
-## 4.6.5 Safe runtime integration
+## Safe runtime integration
 
 Custom nodes that need runtime context should use `POINTER_DEPENDS` to access `WorkflowInterpreter` rather than manipulating internal interpreter state directly. The interpreter exposes safe APIs such as:
 

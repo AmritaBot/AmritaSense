@@ -1,7 +1,8 @@
-"""13_call_ret.py — CALL + RET modern function-call pattern
+"""d08_call_ret.py — CALL + RET modern function-call pattern
 
 Usage:
-    python demos/13_call_ret.py
+    python demos/d08_call_ret.py
+    python -i demos/d08_call_ret.py   # same, then use `inter` directly in the REPL
 
 CALL(to_adr) combines PUSH_RET + JMP:
   - from_adr=None in the main flow: the current pointer is pushed, so
@@ -35,16 +36,20 @@ async def after_return() -> None:
     print("Back here (popped via RET)")
 
 
+# Pattern: CALL(entry) -> body -> RET() — 1) pushes the current pointer and jumps into the archived segment; 2) the ALIAS proxy executes doing_work, then RET() pops the saved address, rebases there, and the interpreter advances onto after_return.
+composition = (
+    start
+    >> CALL("doing_work")
+    >> after_return
+    >> ARCHIVED_SEGMENT(ALIAS(doing_work, "doing_work") >> RET())
+)
+# Module-level so a REPL can `from demos.d08_call_ret import inter` and step across the CALL/RET boundary.
+inter = WorkflowInterpreter(composition.render())
+
+
 async def main() -> None:
     print("=== CALL + RET example ===")
-    # Pattern: CALL(entry) -> body -> RET() — 1) pushes the current pointer and jumps into the archived segment; 2) the ALIAS proxy executes doing_work, then RET() pops the saved address, rebases there, and the interpreter advances onto after_return
-    comp = (
-        start
-        >> CALL("doing_work")
-        >> after_return
-        >> ARCHIVED_SEGMENT(ALIAS(doing_work, "doing_work") >> RET())
-    )
-    await WorkflowInterpreter(comp.render()).run()
+    await inter.run()
 
 
 if __name__ == "__main__":

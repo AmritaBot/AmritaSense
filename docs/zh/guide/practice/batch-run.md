@@ -156,12 +156,17 @@ async def action():
 
 
 @Node()
+async def never():
+    return False
+
+
+@Node()
 async def side_task():
     print("side task")
 
 
 workflow = BATCH_RUN(
-    IF(check, action).ELIF(lambda: False, action).ELSE(action),
+    IF(check, action).ELIF(never, action).ELSE(action),
     side_task,
     fail_fast=False,
 )
@@ -187,10 +192,10 @@ workflow = BATCH_RUN(risky_node, safe_node, fail_fast=False)
 # → safe_node 正常完成，所有异常收集为 BaseExceptionGroup 抛出
 ```
 
-### 用 `TRY/CATCH` 包裹
+### 用 `Try`/`CATCH` 包裹
 
 ```python
-from amrita_sense.instructions import TRY
+from amrita_sense.instructions import Try
 
 
 @Node()
@@ -198,7 +203,7 @@ def handle_error(exc: ExceptionGroup):
     print(f"批量执行出错: {exc.exceptions}")
 
 
-workflow = TRY(BATCH_RUN(risky_node, safe_node, fail_fast=False)).CATCH(
+workflow = Try(BATCH_RUN(risky_node, safe_node, fail_fast=False)).CATCH(
     ExceptionGroup, handle_error
 )
 ```

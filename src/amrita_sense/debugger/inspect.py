@@ -29,11 +29,17 @@ def _fmt_ptr(inter: WorkflowInterpreter) -> str:
 def _walk_graph(
     graph: AbstractCompose[AddressCalculator], prefix: list[int] | None = None
 ) -> list[tuple[list[int], BaseNode]]:
-    """Flatten the graph into (address, BaseNode) pairs (DFS)."""
+    """Flatten the graph into (address, BaseNode) pairs (DFS).
+
+    Children are reached through `__len__` + `__getitem__`: the rendered-graph
+    contract deliberately leaves iteration out, because addressing is
+    index-based.
+    """
     result: list[tuple[list[int], BaseNode]] = []
     if prefix is None:
         prefix = []
-    for idx, item in enumerate(graph):
+    for idx in range(len(graph)):
+        item = graph[idx]
         addr = [*prefix, idx]
         if isinstance(item, BaseNode):
             result.append((addr, item))

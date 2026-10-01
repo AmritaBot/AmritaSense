@@ -16,7 +16,7 @@ AmritaSense provides two standard loop paradigms: `WHILE` (check before executin
 | -------- | ------------- | ------------------------------------------------ |
 | index 0  | `WhileNode`   | call the condition and decide whether to enter   |
 | index 1  | `condition`   | condition node returning `bool`                  |
-| index 2  | `action`      | loop body                                        |
+| index 2  | `action`      | loop body (a single node)                        |
 | index 3  | `CheckUpNode` | unconditional jump back to `WhileNode`           |
 | index 4  | `NOP`         | loop exit; continue from here after leaving loop |
 
@@ -31,13 +31,24 @@ AmritaSense provides two standard loop paradigms: `WHILE` (check before executin
 | Position | Node          | Responsibility                                  |
 | -------- | ------------- | ----------------------------------------------- |
 | index 0  | `DONode`      | execute loop body first, then jump to condition |
-| index 1  | `do_node`     | loop body node (executes at least once)         |
+| index 1  | `do_node`     | loop body (a single node, runs at least once)   |
 | index 2  | `DowhileNode` | call the condition and decide whether to loop   |
 | index 3  | `condition`   | condition node returning `bool`                 |
 | index 4  | `NOP`         | loop exit                                       |
 
 > **Key difference**
 > WHILE checks the condition before the loop body; DO-WHILE executes the loop body before the condition. Both use `NOP` as the unified loop exit.
+
+## Single-node loop body
+
+`WHILE` and `DO-WHILE` enter their body with a single `call_sub`, which executes exactly one node. The body must therefore be a **single node**: a composition (`a >> b`, `NodeCompose(...)`) would be entered but never advanced, so only its first child would run. Passing a composition raises `TypeError` at compile time.
+
+```python
+WHILE(cond).ACTION(one_node)  # OK
+WHILE(cond).ACTION(step_a >> step_b)  # TypeError
+```
+
+A jump-based self-compiled instruction such as `Try(...)` is fine, because it does all of its work inside one node execution. For a multi-node body use [`NATIVE_WHILE`](/guide/advanced/native_control_flow#native_while) / `NATIVE_DO`, which accept either a single node or a bubble.
 
 ## Runtime execution flow
 
@@ -63,7 +74,7 @@ Within `action` or `do_node`, you can `raise BreakLoop` to implement `break` sem
 
 `BreakLoop` is automatically added to `_exc_ignored` during interpreter initialization, so:
 
-- it will not be caught by any inner `TRY/CATCH`
+- it will not be caught by any inner `Try`/`CATCH`
 - it will directly propagate to the outer `WhileNode` or `DONode`
 - `WhileNode` and `DONode` catch it and jump to `NOP` to exit cleanly
 

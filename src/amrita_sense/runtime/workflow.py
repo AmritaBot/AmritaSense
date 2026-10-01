@@ -145,7 +145,7 @@ class WorkflowInterpreter(Generic[io_T]):
         Args:
             node_compose: The workflow graph to execute, either pre-rendered or a self-compiling instruction.
             object_io: Optional I/O stream for external communication. Defaults to a new SuspendObjectStream.
-            exception_ignored: Exception types that should bypass TRY/CATCH handlers.
+            exception_ignored: Exception types that should bypass Try/CATCH handlers.
             extra_args: Additional positional arguments for dependency injection.
             extra_kwargs: Additional keyword arguments for dependency injection.
             addr_stack: Optional pre-initialized return address stack.

@@ -93,12 +93,16 @@ class InterpreterContext:
 字段说明：
 
 - `ptr`：执行指针（`PointerVector`）的快照。
-- `exception_ignored`：绕过 TRY/CATCH 的异常类型快照。
+- `exception_ignored`：绕过 `Try`/`CATCH` 的异常类型快照。
 - `s_args` / `s_kwargs`：依赖注入参数的快照。若在 `dump_interpreter()` 中排除则为 `None`。
 - `extra`：扩展数据字典，供自定义使用。
 - `stack`：返回地址栈的快照。若排除则为 `None`。
 - `exception`：panic 异常的快照，无 panic 则为 `None`。
 - `flags`：状态寄存器的快照。`dump_interpreter()` 在构建快照时会剥掉 `HLT`，因为快照记录的是「要回到的状态」，而「主循环正停在这个节点上」不属于其中。因此恢复快照永远不会让挂起复活。
+
+`ptr` 和 `exception_ignored` 是必填的位置参数，其余字段都有默认值，因此也可以手动构造实例并直接压入 `pc.context_stack`。
+
+标准的生产者是 `WorkflowInterpreter.dump_interpreter()`（由 `PUSH_CONTEXT` 与 `INT` 调用），标准的消费者是 `WorkflowInterpreter.rebase_context()`（由 `IRET` 调用）。`PUSH_CONTEXT` 与 `INT` 都先构建快照，再**覆盖** `ptr` 为解析出的返回地址，因此快照中的 `ptr` 是恢复后继续执行的地址——不一定等于拍摄快照时的指针。
 
 ## Flags
 

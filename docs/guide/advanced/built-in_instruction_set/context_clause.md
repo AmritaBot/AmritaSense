@@ -53,6 +53,7 @@ This is the low-level primitive — unlike `INT`, it does **not** set `if_flag` 
 | `stack` (ret-addr)    | Only when `exclude_stack=False`      |
 | `extra`               | Always (empty dict)                  |
 | `exception`           | Always (panic exception or `None`)   |
+| `flags`               | Always (`HLT` stripped)              |
 
 ### Execution flow
 
@@ -133,7 +134,7 @@ The counterpart to `INT`. Pops the top `InterpreterContext` from the context sta
 ### Execution flow
 
 1. Pops the top `InterpreterContext` from `pc.context_stack`.
-2. Calls `pc.rebase_context(ctx)` — restores pointer, exception-ignore list, dependency args, return-address stack.
+2. Calls `pc.rebase_context(ctx)` — restores pointer, exception-ignore list, dependency args, return-address stack, panic exception, and the status register.
 3. Sets `pc.if_flag = False`.
 
 ---

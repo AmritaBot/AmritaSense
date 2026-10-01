@@ -178,7 +178,7 @@ Output:
 
 ## Error Handling
 
-If the sub-workflow raises an exception, `FUN_BLOCK` collects all exceptions (including those from nested sub-interpreters) via `search_exceptions()` and re-raises them as a `BaseExceptionGroup`. This means you can wrap `FUN_BLOCK` in a `TRY/CATCH` to handle sub-workflow failures:
+If the sub-workflow raises an exception, `FUN_BLOCK` collects all exceptions (including those from nested sub-interpreters) via `search_exceptions()` and re-raises them as a `BaseExceptionGroup`. This means you can wrap `FUN_BLOCK` in a `Try`/`CATCH` to handle sub-workflow failures:
 
 ```python
 from amrita_sense.instructions import Try

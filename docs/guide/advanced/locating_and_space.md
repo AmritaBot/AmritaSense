@@ -4,7 +4,7 @@ In AmritaSense, a workflow is not a static graph of node connections; it is a **
 
 This chapter dives into the core mechanisms that make up this addressing system: compile-time alias binding, runtime address resolution, and Bubble scope isolation.
 
-## 4.2.1 Compile-time binding: the ALIAS alias system
+## Compile-time binding: the ALIAS alias system
 
 `ALIAS` is the **compile-time foundation** of the locating system. It binds a node to a globally unique symbol name and registers it into `alias2vector_map` during render time so that JMP and INVOKE can resolve it at runtime.
 
@@ -41,7 +41,7 @@ labeled_action = ALIAS(action, "main_action")
 workflow = IF(some_condition, JMP("main_action")) >> labeled_action
 ```
 
-## 4.2.2 Runtime resolution: JMP unconditional jump
+## Runtime resolution: JMP unconditional jump
 
 `JMP` is the most direct control flow jump instruction in AmritaSense. At runtime, it looks up the target address from the alias table and performs a single pointer rewrite so the interpreter directly executes the target node.
 
@@ -63,7 +63,7 @@ All jump methods (`jump_to`, `jump_near`, `jump_offset`, etc.) use the `@markup`
 2. **Do not use JMP as a substitute for loops**: JMP does not push a return address onto the call stack and is not suitable for cases requiring a return. Use `INVOKE` for subroutine calls that need to return — this will be covered in detail in [the next chapter](./child_node.md).
 3. **Mind Bubble boundaries**: JMP can jump across any nesting level, but overusing cross-level jumps makes control flow difficult to trace. Prefer `jump_near` within the same Bubble and `jump_to` for cross-Bubble jumps.
 
-## 4.2.3 INVOKE instruction: the entry point for subroutine invocation
+## INVOKE instruction: the entry point for subroutine invocation
 
 In addition to `JMP`'s one-way jump, AmritaSense also provides the `INVOKE` instruction for **calling a subroutine and automatically returning after execution**. `INVOKE` shares the same alias-based addressing system as `JMP` — both rely on `ALIAS` for symbol registration, and both complete address resolution and spelling correction during the compile-time `_post_compile` phase.
 
@@ -76,9 +76,9 @@ In addition to `JMP`'s one-way jump, AmritaSense also provides the `INVOKE` inst
 | Use cases                | One-way jumps, branch merging       | Subroutine reuse, interrupt handling     |
 
 > **Further reading**
-> The complete `INVOKE` mechanism — including call stack management, the `ARCHIVED_NODES` storage structure, `SubprogramJumpNode` skip logic, and interrupt vector table implementation — will be covered in detail in [Chapter 4.3: Calling Subroutines](./child_node.md).
+> The complete `INVOKE` mechanism — including call stack management, the `ARCHIVED_NODES` storage structure, `SubprogramJumpNode` skip logic, and interrupt vector table implementation — will be covered in detail in [Calling Subroutines](./child_node.md).
 
-## 4.2.4 Scope isolation: Bubble scopes and near addressing
+## Scope isolation: Bubble scopes and near addressing
 
 AmritaSense uses `PointerVector` to manage multi-level nested address spaces. Every node group wrapped in parentheses `()` forms an independent `NodeComposeRendered` after compilation, with its own internal `near` address space — this is a **Bubble**.
 

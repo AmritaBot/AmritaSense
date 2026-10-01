@@ -4,7 +4,7 @@ AmritaSense provides a complete subroutine call mechanism. Unlike `JMP`’s one-
 
 This chapter starts from the interpreter’s low-level API and explains call stack management, argument passing, and how to invoke subroutines in node code.
 
-## 4.3.1 `call_sub`: the interpreter’s low-level call primitive
+## `call_sub`: the interpreter’s low-level call primitive
 
 `call_sub` is a low-level call primitive provided by `WorkflowInterpreter`. Both the composition-level `INVOKE` instruction and node-internal subroutine calls ultimately use it. Its core workflow is:
 
@@ -28,7 +28,7 @@ This design lets the same call primitive serve both internal reuse and external 
 
 After the subroutine completes, `call_sub` checks the `JMP` bit. If the subroutine executed a jump operation such as `JMP`, that bit is set. In that case, the `finally` block **does not restore the original execution pointer** — the new jump target is preserved, and the interpreter continues from there. This ensures subroutine-internal jumps can correctly affect the main workflow control flow.
 
-## 4.3.2 Passing arguments to subroutines
+## Passing arguments to subroutines
 
 `call_sub` supports passing extra positional and keyword arguments directly. These arguments are merged into the available parameter pool for the subroutine’s entry node during dependency resolution.
 
@@ -49,6 +49,46 @@ async def caller_node(pc: WorkflowInterpreter):
 
 The called subroutine’s nodes can declare corresponding parameters in their function signatures. Parameter matching is handled by the interpreter’s internal dependency resolution system: positional arguments are matched by index, and keyword arguments are matched by name.
 
+### Triggering a trap from outside
+
+When `call_sub(interrupt=True)` is fired at a running interpreter, the target does not have to be the routine body — it can be a `CALL` node, and that `CALL` enters the routine for you:
+
+```python
+import asyncio
+
+from amrita_sense import ALIAS, Node, WorkflowInterpreter
+from amrita_sense.instructions import CALL, FN
+from amrita_sense.instructions.subprogram import ARCHIVED_NODES
+from amrita_sense.runtime.workflow import PC_CHECKPOINT
+
+
+@Node()
+async def trap_point() -> None: ...
+
+
+@Node()
+async def worker_a() -> None: ...
+
+
+async def main() -> None:
+    worker = FN("worker_entry", worker_a)
+    traps = ARCHIVED_NODES(ALIAS(CALL("worker_entry"), "trap_entry"))
+
+    comp = trap_point >> traps >> worker
+    pc = WorkflowInterpreter(comp.render())
+
+    task = asyncio.create_task(pc.run())
+    await pc.object_io.wait_to_suspend(PC_CHECKPOINT)
+    await pc.call_sub(pc.get_graph().calc.resolve_alias("trap_entry"), interrupt=True)
+    pc.object_io.resume()
+    await task
+
+
+asyncio.run(main())
+```
+
+This is a **trap**: the parked node is consumed by the trap cycle and execution resumes at _parked address + 1_, because `RET` resumes at its saved address **plus one**. See [External Interrupt Calls](/guide/advanced/external_interrupt) for the full stack trace of the trap and a runnable version (`demos/d10_call_trap.py`).
+
 ### Coordination with Depends
 
 Subroutine nodes can use both operands passed via `call_sub` and dependencies declared via `Depends`. Both sources are unified during dependency resolution. If there is a name conflict between operands and dependencies, operands have higher priority.
@@ -57,7 +97,7 @@ Subroutine nodes can use both operands passed via `call_sub` and dependencies de
 If a subroutine entry node declares a dependency via `Depends` and that provider returns `None`, the workflow raises an exception and terminates. This is different from an event system where a `None` return might be treated as a “skip.” Node execution is atomic, and failed dependency resolution means the node cannot run.
 :::
 
-## 4.3.3 Call stack and return address restoration
+## Call stack and return address restoration
 
 The call stack is the core data structure of AmritaSense’s subroutine mechanism, ensuring correct return behavior for nested calls.
 
@@ -91,7 +131,7 @@ Every `call_sub` pushes the current address, and every return pops the top addre
 
 ### Jump override and return suppression
 
-If the subroutine executes `JMP` or another jump operation, the `JMP` bit is set. In that case, `call_sub` skips restoring the saved pointer and does not pop the return address. This means the subroutine’s internal jump can “override” normal return behavior. Developers should understand that `JMP` inside a subroutine may prevent automatic return stack cleanup and may require explicit stack management.
+If the subroutine executes `JMP` or another jump operation, the `JMP` bit is set. In that case, `call_sub`'s `finally` block still pops the saved address, but **skips the pointer restore** — the jump target is preserved and the interpreter continues from there. This means the subroutine's internal jump can "override" normal return behavior: the address that `call_sub` pushed is discarded rather than resumed at. Developers should understand that `JMP` inside a subroutine cancels the automatic return for that call.
 
 ### Summary
 

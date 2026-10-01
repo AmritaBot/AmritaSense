@@ -2,7 +2,7 @@
 
 AmritaSense’s built-in instruction set already covers core control flow such as conditionals, loops, and exception handling. But when those basic instructions repeatedly appear in fixed patterns, you can encapsulate them as **new instructions** with `SelfCompileInstruction`. This extension does not modify the interpreter; it only expands into standard node compositions at compile time, and at runtime it behaves exactly like built-in instructions.
 
-## 4.7.1 Selfcompiled instruction interface: `SelfCompileInstruction`
+## Selfcompiled instruction interface: `SelfCompileInstruction`
 
 `SelfCompileInstruction` is an abstract base class that defines the unified entry for all self-compiled instructions:
 
@@ -33,7 +33,7 @@ The contract only says "return _some_ source composition" (`AbstractComposeOrigi
 3. If the expanded structure includes jumps, address calculation must be handled inside `extract()`.
 4. The returned `NodeCompose` is automatically rendered; you do not need to call `render()` manually.
 
-## 4.7.2 Implementation pattern: `extract()` and address calculation
+## Implementation pattern: `extract()` and address calculation
 
 The core task in implementing a custom instruction is mapping an “intention” to a concrete sequence of nodes. This mapping involves three steps:
 
@@ -81,7 +81,7 @@ This is equivalent to writing:
 workflow = start >> log_start >> process_data >> log_end >> end
 ```
 
-## 4.7.3 Example 1: retry wrapper
+## Example 1: retry wrapper
 
 Wrapping a potentially failing node with retry logic is a typical use case for self-compiled instructions.
 
@@ -89,13 +89,12 @@ Wrapping a potentially failing node with retry logic is a typical use case for s
 
 - execute the target node
 - if the node raises an exception, retry
-- if the maximum retry count is exceeded, raise the final exception or execute a fallback node
+- if the maximum retry count is exceeded, execute a fallback node
 
 ### Implementation
 
 ```python
-from amrita_sense.instructions import IF, TRY
-from amrita_sense.exceptions import BreakLoop
+from amrita_sense.instructions import IF, NATIVE_WHILE, Try
 
 
 class RetryClause(SelfCompileInstruction):
@@ -107,29 +106,34 @@ class RetryClause(SelfCompileInstruction):
         self._fallback = fallback
 
     def extract(self) -> NodeCompose:
-        @Node()
-        def attempt():
-            pass  # placeholder; self._node will be executed inside the TRY block
+        retries = 0
+        ok = False
 
         @Node()
-        def on_error():
+        def under_max() -> bool:
+            return not ok and retries < self._max
+
+        @Node()
+        def on_error() -> None:
             nonlocal retries
             retries += 1
-            if retries >= self._max:
-                raise BreakLoop
 
-        retries = 0
+        @Node()
+        def on_success() -> None:
+            nonlocal ok
+            ok = True
 
-        retry_body = TRY(self._node).CATCH(Exception, on_error)
+        @Node()
+        def failed() -> bool:
+            return not ok
 
-        # SelfCompileInstruction supports `>>` directly; no trailing NOP needed
-        # — the interpreter finishes when the workflow reaches its end.
-        if self._fallback:
-            return (
-                WHILE(lambda: retries < self._max).ACTION(retry_body) >> self._fallback
-            )
-        else:
-            return WHILE(lambda: retries < self._max).ACTION(retry_body).extract()
+        # The body is a composition, so the loop must be NATIVE_WHILE (WHILE takes one node).
+        body = Try(self._node).CATCH(Exception, on_error).THEN(on_success)
+        loop = NATIVE_WHILE(under_max).ACTION(body)
+
+        if self._fallback is not None:
+            return loop >> IF(failed, self._fallback)
+        return loop.extract()
 ```
 
 Usage:
@@ -138,22 +142,15 @@ Usage:
 RetryClause(call_api, max_retries=3, fallback=use_cache)
 ```
 
-This expands into:
-
-```python
-(
-    WHILE(lambda: retries < self._max).ACTION(TRY(call_api).CATCH(Exception, on_error))
-    >> use_cache
-)
-```
-
 ### Key points
 
-- `extract()` uses built-in instructions `WHILE` and `TRY`, demonstrating the composability of custom instructions.
+- The loop body is a **composition** — `Try(...).CATCH(...).THEN(...)` — so the loop must be `NATIVE_WHILE`. The `call_sub`-based `WHILE` accepts a **single node** only; see [single-node loop body](/guide/advanced/built-in_instruction_set/while_clause#single-node-loop-body).
+- Native loops wrap no `try/except` around the body, so the loop exits through its **condition** instead of `BreakLoop`: `under_max` turns false as soon as `on_success` sets `ok`, or `on_error` exhausts the retry budget.
+- `IF(failed, ...)` runs the fallback only when every attempt failed.
 - Jump addresses are handled by the built-in instructions, so `RetryClause` does not need to manage offsets manually.
 - Users see only `RetryClause(...)`, while the expansion remains transparent.
 
-## 4.7.4 Example 2: conditional execution wrapper
+## Example 2: conditional execution wrapper
 
 Encapsulate the common pattern “execute a node when a condition is true, otherwise skip it” as a single instruction.
 
@@ -191,7 +188,7 @@ class ExecuteWhenElse(SelfCompileInstruction):
         return NodeCompose(IF(self._cond, self._action).ELSE(self._other))
 ```
 
-## 4.7.5 Disassembly annotation: `__sdb_dis__` / `__sdb_cmt__`
+## Disassembly annotation: `__sdb_dis__` / `__sdb_cmt__`
 
 A custom instruction expands into nodes the user never wrote, so a debugger listing shows framework internals by default. A node can describe its own line with two **soft-constraint magic attributes** read by the REPL debugger's disassembler:
 
@@ -237,7 +234,7 @@ See [REPL Debugging](../practice/repl-debugging#disassembly-view) for the listin
 ## Design principles for custom instructions
 
 1. **Encapsulate patterns, not logic**: custom instructions should encapsulate recurring composition patterns (retry, conditional execution, timeout protection), not concrete business logic. Business logic belongs inside nodes.
-2. **Leverage existing instructions**: prefer composing built-in primitives like `IF`, `WHILE`, and `TRY` rather than manually managing jump offsets. Only calculate addresses manually when built-in instructions cannot express the needed flow.
+2. **Leverage existing instructions**: prefer composing built-in primitives like `IF`, `WHILE`, and `Try` rather than manually managing jump offsets. Only calculate addresses manually when built-in instructions cannot express the needed flow.
 3. **Keep it transparent**: the expanded structure should match a hand-written composition and should not break debugging, suspension, or interruption behavior.
 4. **Use semantic naming**: instruction names should convey the control flow intent clearly (for example, `Retry`, `Timeout`, `Parallel`), so the composition reads like natural language.
 5. **Annotate the mnemonic**: give your node a `__sdb_dis__` so a debugger listing shows `RETRY 3 -> [1, 0]` instead of an anonymous internal node — custom instructions are exactly the ones that most need it.

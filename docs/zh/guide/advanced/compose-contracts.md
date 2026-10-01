@@ -81,8 +81,10 @@ from amrita_sense.node.abc_base import (
 读取面（运行时与钩子使用）：
 
 - `calc` —— 绑定的地址计算器（`resolve_alias()`、`find_addr()`、`find_addr_safe()`、`advance()`）。
-- `__getitem__(key)` / `__iter__()` / `__len__()` —— 按索引 / 顺序访问子条目。
+- `__getitem__(key)` / `__len__()` —— 按索引访问子条目。顺序访问**不在**契约内：图是由 `PointerVector` 寻址的，每次查找都走 `__getitem__`。需要遍历时用 `for i in range(len(graph)): graph[i]`。
 - `__bool__()` —— 为空或尚未构建时返回 `False`。
+
+> **为什么没有 `__iter__`？** 寻址本来就只依赖 `__getitem__`，迭代器提供不了契约需要的东西——而且它天然的文档表述（“遍历所有节点”）本身就是错的：渲染图产出的是**条目**，其中可能包含嵌套容器而非节点。另外，越界索引抛的是 `NullPointerException`，它**不是** `IndexError`，所以 Python 的隐式序列迭代协议不会生效：`for x in graph` 不可用，`for i in range(len(graph))` 可用。
 
 构建面（`render()` 以及渲染器遇到嵌套源组合时使用）：
 
@@ -136,9 +138,6 @@ class FakeRendered(AbstractCompose[FakeCalculator]):
 
     def __getitem__(self, key: int):
         return self._items[key]
-
-    def __iter__(self):
-        return iter(self._items)
 
     def __bool__(self) -> bool:
         return True

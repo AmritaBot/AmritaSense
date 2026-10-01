@@ -1,4 +1,4 @@
-# 4.5.4 NOP 哨兵指令与 RESET 强制终止指令
+# NOP 哨兵指令与 RESET 强制终止指令
 
 `NOP` 和 `RESET` 是 AmritaSense 指令集中两个特殊的“原子”指令。它们不是 `SelfCompileInstruction`，没有编译期展开的空间结构，而是直接作为单个节点存在于工作流中，其功能完全体现在运行时的行为上。
 
@@ -67,7 +67,7 @@ RESET: _Node[NoReturn] = _reset_operation
 
 ### 异常穿透规则
 
-`InterruptNotice` 是 `BaseException` 子类。在 Python 的异常体系中，`except Exception` 不会捕获 `BaseException` 的子类。因此，**工作流中的 `TRY/CATCH` 块默认无法捕获 `InterruptNotice`**，它天然具有穿透性。
+`InterruptNotice` 是 `BaseException` 子类。在 Python 的异常体系中，`except Exception` 不会捕获 `BaseException` 的子类。因此，**工作流中的 `Try`/`CATCH` 块默认无法捕获 `InterruptNotice`**，它天然具有穿透性。
 
 唯一的例外：如果在 `WorkflowInterpreter` 初始化时**显式**将 `InterruptNotice` 加入 `exception_ignored` 元组，它将变为可捕获的普通异常。但通常情况下不需要这样做——`RESET` 的设计意图就是“不可拦截”的紧急终止。
 

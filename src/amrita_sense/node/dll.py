@@ -259,22 +259,6 @@ class DLLComposeProxy(AbstractCompose[Never]):
                 raise GraphBuildError("DLLComposeProxy: Compose has not been built yet")
             return self._compose[key]
 
-    def __iter__(self) -> Iterator[NodeComposeRendered | BaseNode]:
-        """Iterate over the children of the rendered compose.
-
-        Yields:
-            Each child node or rendered compose in order.
-
-        Raises:
-            NullPointerException: If the compose has not been built yet.
-        """
-        with self._lock:
-            if self._compose is None:
-                raise NullPointerException(
-                    "DLLComposeProxy: Compose has not been built yet"
-                )
-            return iter(self._compose)
-
     def __bool__(self) -> bool:
         """Return the truthiness of the rendered compose.
 

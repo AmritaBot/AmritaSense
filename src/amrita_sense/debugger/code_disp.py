@@ -268,7 +268,8 @@ def _walk(graph: AbstractCompose) -> _Walk:
         block = _Block(addr=addr, kind=type(container).__name__)
         blocks.append(block)
         try:
-            items = list(container)
+            # Children are read through `__len__` + `__getitem__`; the contract does not promise `__iter__`.
+            items = [container[offset] for offset in range(len(container))]
         except Exception:
             block.readable = False
             return index

@@ -1,7 +1,8 @@
-"""19_int_iret.py — INT / IRET interrupt-style jump
+"""d12_int_iret.py — INT / IRET interrupt-style jump
 
 Usage:
-    python demos/19_int_iret.py
+    python demos/d12_int_iret.py
+    python -i demos/d12_int_iret.py   # same, then use `inter` directly in the REPL
 
 INT(jump_to, ret_to=None) snapshots the interpreter state and
 jumps to the handler:
@@ -38,21 +39,24 @@ async def back_to_main() -> None:
     print("[main] Back from interrupt — resuming normal flow")
 
 
+# Archived handler: skipped by normal flow, entered via INT.
+interrupt_handler = ARCHIVED_SEGMENT(
+    ALIAS(handler_entry, "int_handler") >> handler_body >> IRET(),
+)
+
+composition = (
+    main_start
+    >> INT("int_handler", None)  # Restore at the next command.
+    >> back_to_main  # executes after restore
+    >> interrupt_handler
+)
+# Module-level so a REPL can `from demos.d12_int_iret import inter` and watch `if_flag` / `context_stack`.
+inter = WorkflowInterpreter(composition.render())
+
+
 async def main() -> None:
     print("=== INT + IRET demo ===\n")
-
-    # Archived handler: skipped by normal flow, entered via INT
-    interrupt_handler = ARCHIVED_SEGMENT(
-        ALIAS(handler_entry, "int_handler") >> handler_body >> IRET(),
-    )
-
-    comp = (
-        main_start
-        >> INT("int_handler", None)  # Restore at the next command.
-        >> back_to_main  # executes after restore
-        >> interrupt_handler
-    )
-    await WorkflowInterpreter(comp.render()).run()
+    await inter.run()
 
 
 if __name__ == "__main__":

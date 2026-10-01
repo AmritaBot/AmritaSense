@@ -95,17 +95,21 @@ class TryNode(BaseNode):
                 exc_val, pc._exc_ignored
             ):
                 raise
-            idx: int | None = None
-            for exc, idx in self._catch_addr_chain:
+            match_addr: int | None = None
+            for exc, addr in self._catch_addr_chain:
                 if isinstance(exc_val, exc):
+                    match_addr = addr
                     break
-            if idx is not None:
-                await pc.call_near(
-                    idx,
-                    exc_type=exc_type,
-                    exc_val=exc_val,
-                    exc_tb=exc_tb,
-                )
+            if match_addr is None:
+                # No handler claims this exception type, so it has to keep
+                # travelling up.  (`finally` still runs on the way out.)
+                raise
+            await pc.call_near(
+                match_addr,
+                exc_type=exc_type,
+                exc_val=exc_val,
+                exc_tb=exc_tb,
+            )
         else:
             if self._else_addr is not None:
                 await pc.call_near(self._else_addr)

@@ -1,8 +1,8 @@
-# 4.1 依赖注入
+# 依赖注入
 
 AmritaSense 工作流引擎集成了依赖注入（Dependency Injection, DI）系统，为工作流节点提供了强大的依赖解析和注入能力。这种集成使得节点函数可以声明其依赖项，而引擎会在执行时自动解析并注入这些依赖。
 
-## 4.1.1 概述：节点与事件的 DI 机制
+## 概述：节点与事件的 DI 机制
 
 在 AmritaSense 中，每个工作流节点本质上都是一个可调用的函数。通过依赖注入机制，这些函数可以声明它们需要的各种依赖项，包括：
 
@@ -12,7 +12,7 @@ AmritaSense 工作流引擎集成了依赖注入（Dependency Injection, DI）�
 
 依赖注入系统在节点执行前进行依赖解析，确保所有声明的依赖都能被正确提供。如果依赖解析失败，工作流将抛出相应的异常并终止执行。
 
-## 4.1.2 基本用法：Depends() 声明
+## 基本用法：Depends() 声明
 
 依赖注入通过 `Depends()` 函数实现。`Depends()` 接收一个依赖提供者函数，并返回一个依赖工厂，该工厂会在节点执行时被调用来获取实际的依赖值。
 
@@ -29,7 +29,7 @@ def my_node(dependency_value: ReturnType = Depends(dependency_provider_function)
     pass
 ```
 
-`Depends` 也可以写在注解里（配合 `Annotated`），详见 [4.1.10 `Annotated` 声明](#_4-1-10-annotated-声明)。
+`Depends` 也可以写在注解里（配合 `Annotated`），详见 [`Annotated` 声明](#annotated-声明)。
 
 ### 内置依赖工具
 
@@ -60,7 +60,7 @@ def navigation_node(
     pc.jump_offset(offset)
 ```
 
-## 4.1.3 并发解析与运行时注入
+## 并发解析与运行时注入
 
 AmritaSense 的依赖注入系统支持并发解析和运行时注入，这意味着：
 
@@ -84,7 +84,7 @@ def async_node(result: str = Depends(async_dependency)):
     print(f"Received: {result}")
 ```
 
-## 4.1.5 事件与钩子集成
+## 事件与钩子集成
 
 AmritaSense 对节点和事件处理器使用相同的依赖匹配机制。这意味着事件回调也可以声明 `Depends(...)` 依赖项，运行时在调用回调前会解析这些依赖。
 
@@ -99,7 +99,7 @@ async def on_event(event: Any, pc: WorkflowInterpreter = Depends(POINTER_DEPENDS
 
 事件/钩子系统通过与节点执行相同的 `MatcherFactory` 机制解析依赖，因此整个引擎中的行为是一致的。
 
-## 4.1.6 关键行为：返回 None 将直接“炸掉”工作流
+## 关键行为：返回 None 将直接“炸掉”工作流
 
 依赖注入系统有一个重要的行为特性：**如果依赖提供者函数返回 `None`，整个工作流将被终止**。
 
@@ -144,21 +144,31 @@ def safe_node(value: str = Depends(get_maybe_value)):
 
 ### 错误处理
 
-当依赖提供者返回 `None` 时，工作流会抛出 `DependsResolveFailed` 异常。这个异常可以通过 TRY/CATCH 机制捕获：
+当依赖提供者返回 `None` 时，该节点的依赖解析失败，工作流会抛出 `DependsInjectFailed`（属于 `DependsException`）。它是一个普通异常，因此可以用 `Try`/`CATCH` 捕获：
 
 ```python
-def failing_dependency():
-    return None  # 这会导致工作流终止
+def failing_dependency() -> str | None:
+    return None
 
 
-TRY(NodeType(lambda: print("This won't execute"))).CATCH(
-    DependsResolveFailed, NodeType(lambda: print("Caught dependency failure"))
-)
+@Node()
+def needs_dependency(value: str = Depends(failing_dependency)) -> None:
+    print("不会执行到这里")
+
+
+@Node()
+def on_failure(exc_val: DependsInjectFailed) -> None:
+    print(f"已捕获依赖失败：{exc_val}")
+
+
+Try(needs_dependency).CATCH(DependsInjectFailed, on_failure)
 ```
+
+`CATCH` 按异常类型匹配，因此没有任何处理者认领的异常会继续向上传播——`CATCH(ValueError, ...)` 不会吞掉 `KeyError`。处理节点还可以直接声明异常本身：`exc_type`、`exc_val`、`exc_tb` 与其他依赖一样可被注入。
 
 这种设计确保了依赖注入系统的健壮性和可预测性，同时为开发者提供了清晰的错误处理机制。
 
-## 4.1.7 DI 结果缓存
+## DI 结果缓存
 
 `WorkflowInterpreter` 维护一个内部 DI 结果缓存（`_di_cache`），避免在相同参数类型下重复执行同一节点的依赖解析。
 
@@ -187,7 +197,7 @@ cache_key = hash((id(node.func), code))
 
 `DependsFactory(cacheable=True)`（推荐写法为 `Depends(f, use_cache=True)`）的提供者在**写入缓存时解析一次**，结果存入缓存。`cacheable=False`（默认）的提供者按原样存储，**每次调用**重新解析——适用于有副作用或取值随时间变化的提供者。该区分与缓存有效性（`hash_trustable`）正交。
 
-对**生成器**提供者而言，共享与否由 `scope` 而非 `use_cache` 决定，参见 [4.1.11 生成器依赖与生命周期](#_4-1-11-生成器依赖与生命周期)。
+对**生成器**提供者而言，共享与否由 `scope` 而非 `use_cache` 决定，参见[生成器依赖与生命周期](#生成器依赖与生命周期)。
 
 ### 缓存生命周期
 
@@ -213,7 +223,7 @@ pc2 = WorkflowInterpreter(rendered)
 await pc2.run()  # 每个节点从头重新解析依赖
 ```
 
-## 4.1.8 DI 预加载缓存
+## DI 预加载缓存
 
 启用 `__flags__.WORKFLOW_DI_PRELOAD_CACHE` 后，解释器在 `run()` 初始化阶段为**每个节点**预解析依赖注入——在第一个节点执行之前完成。
 
@@ -247,7 +257,7 @@ pc = WorkflowInterpreter(rendered)
 await pc.run()  # 第一个节点运行前，所有节点的 DI 已预解析完成
 ```
 
-## 4.1.9 缓存限制与标志冲突
+## 缓存限制与标志冲突
 
 ### `NO_DEPENDENCY_META_CACHE` 冲突
 
@@ -261,7 +271,7 @@ await pc.run()  # 第一个节点运行前，所有节点的 DI 已预解析完�
 
 调用 `_refresh_di_cache_full()` 时若 `hash_trustable` 为 `False`，将抛出 `DependsResolveFailed`。修改 DI 参数后务必调用 `rehash_args()` 以确保缓存完整性。
 
-## 4.1.10 `Annotated` 声明
+## `Annotated` 声明
 
 `Depends` 既可以写在默认值里，也可以写在注解里。两种写法等价，但同一个参数不得同时使用：
 
@@ -292,7 +302,7 @@ def my_node(
 
 声明有误时会在**构造**节点/处理器阶段就抛出 `DependsDeclarationError`，而不是等到运行时。
 
-## 4.1.11 生成器依赖与生命周期
+## 生成器依赖与生命周期
 
 提供者可以是生成器：`yield` 之前的值被注入，之后的部分作为清理逻辑执行：
 

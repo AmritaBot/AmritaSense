@@ -1,11 +1,12 @@
-"""23_annotated_di.py — Annotated[...] dependency declarations
+"""d16_annotated_di.py — Annotated[...] dependency declarations
+
+Usage:
+    python demos/d16_annotated_di.py
+    python -i demos/d16_annotated_di.py   # same, then use `inter` directly in the REPL
 
 Shows the two equivalent ways to declare a dependency, that a parameter must
 not use both at once, and how a malformed declaration fails at construction
 time rather than at run time.
-
-Usage:
-    python demos/23_annotated_di.py
 """
 
 import asyncio
@@ -33,6 +34,11 @@ async def greet(
     print(f"{by_default}, {by_annotation}!")
 
 
+composition = NodeCompose(greet)
+# Module-level so a REPL can `from demos.d16_annotated_di import inter` and inspect the resolved dependencies.
+inter = WorkflowInterpreter(composition.render())
+
+
 def show_malformed_declaration() -> None:
     """A contradictory declaration is rejected while the node is built."""
 
@@ -51,7 +57,7 @@ def show_malformed_declaration() -> None:
 
 
 async def main() -> None:
-    await WorkflowInterpreter(NodeCompose(greet).render()).run()
+    await inter.run()
     show_malformed_declaration()
 
 

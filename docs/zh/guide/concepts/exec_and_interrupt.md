@@ -2,13 +2,13 @@
 
 在复杂的工作流场景中，仅仅能“执行”是不够的。我们需要在必要时让执行流暂停下来，接受外部检查或干预，然后继续运行。AmritaSense 将这种能力内建在解释器核心之中。
 
-## 3.4.1 中断机制概述
+## 中断机制概述
 
 AmritaSense 解释器的中断体系分为两种本质不同的模式：
 
 | 模式                             | 触发源                                                         | 可控性                                                                                  | 后果                                                                                                  |
 | -------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **内中断**（Internal Interrupt） | 节点内部抛出异常（含 `InterruptNotice`）                       | 普通异常可被 `TRY`/`CATCH` 压制；`InterruptNotice`（`BaseException`）内部**完全不可控** | 普通异常未捕获 -> **Panic 状态**（Interpreter Dumped）；`InterruptNotice` -> 清空栈与指针，工作流终止 |
+| **内中断**（Internal Interrupt） | 节点内部抛出异常（含 `InterruptNotice`）                       | 普通异常可被 `Try`/`CATCH` 压制；`InterruptNotice`（`BaseException`）内部**完全不可控** | 普通异常未捕获 -> **Panic 状态**（Interpreter Dumped）；`InterruptNotice` -> 清空栈与指针，工作流终止 |
 | **外中断**（External Interrupt） | 外部通过 `call_sub(interrupt=True)` 在解释器周期中途注入子调用 | **外部驱动，内部无法控制**                                                              | 子调用在解释锁保护下执行，与主循环序列化                                                              |
 
 ```mermaid
@@ -17,7 +17,7 @@ flowchart TB
         A[节点执行] --> B{节点抛出异常?}
         B -->|否| I[正常完成]
         B -->|是| C{异常类型?}
-        C -->|普通 Exception| D{被 TRY/CATCH 捕获?}
+        C -->|普通 Exception| D{被 Try/CATCH 捕获?}
         D -->|是| E[异常被压制<br/>工作流继续]
         D -->|否| F[Panic 状态<br/>Interpreter Dumped]
         F --> G[_panic_exc 被设置]
@@ -47,21 +47,21 @@ flowchart TB
 - **内中断**：解释器主循环在获取 `_interpret_lock` 后执行节点；节点异常在锁内抛出，沿正常异常路径传播。
 - **外中断**：`call_sub(interrupt=True)` 同样获取 `_interpret_lock` 后执行子调用，与主循环序列化；`interrupt=False` 则绕过锁，子调用运行在非中断安全区。
 
-## 3.4.2 内中断（Internal Interrupt）—— 节点异常体系
+## 内中断（Internal Interrupt）—— 节点异常体系
 
 内中断来自**工作流内部**。任何一个节点在执行过程中抛出的异常，都属于内中断范畴。根据异常类型，内中断分为两条路径。
 
 ### 路径一：可压制异常（普通 `Exception` 子类）-> Panic / Recover
 
-普通异常（继承自 `Exception`）可被工作流中的 `TRY`/`CATCH` 块压制。AmritaSense 提供两种压制手段：
+普通异常（继承自 `Exception`）可被工作流中的 `Try`/`CATCH` 块压制。AmritaSense 提供两种压制手段：
 
-1. **`TRY`/`CATCH` 工作流节点**：在编排中显式指定哪些异常类型应被捕获并压制。被捕获的异常不会导致流程终止。
-2. **`exception_ignored` 初始化参数**：在构造 `WorkflowInterpreter` 时传入一个异常类型元组。这些类型的异常将**绕过所有 TRY/CATCH 块**，直达解释器顶层。
+1. **`Try`/`CATCH` 工作流节点**：在编排中显式指定哪些异常类型应被捕获并压制。被捕获的异常不会导致流程终止。
+2. **`exception_ignored` 初始化参数**：在构造 `WorkflowInterpreter` 时传入一个异常类型元组。这些类型的异常将**绕过所有 `Try`/`CATCH` 块**，直达解释器顶层。
 
 ```python
 from amrita_sense.runtime import WorkflowInterpreter
 
-# ValueError 和 TypeError 将不被任何 TRY/CATCH 捕获
+# ValueError 和 TypeError 将不被任何 `Try`/`CATCH` 捕获
 interpreter = WorkflowInterpreter(
     workflow,
     exception_ignored=(ValueError, TypeError),
@@ -121,7 +121,7 @@ class InterruptNotice(BaseException):
 
 因为 Python 中 `except Exception` 不捕获 `BaseException` 子类，所以：
 
-- 工作流中任何 `TRY` 节点**无法**压制 `InterruptNotice`
+- 工作流中任何 `Try` 节点**无法**压制 `InterruptNotice`
 - 节点内部的 `try/except Exception` **无法**捕获它
 - 只有解释器主循环的最外层 `except InterruptNotice` 才会响应
 
@@ -189,13 +189,13 @@ if self._flags & Flags.HLT:
 
 ### 内中断总结
 
-| 路径         | 异常类型                            | 可压制       | 未压制后果                  | 可恢复                  |
-| ------------ | ----------------------------------- | ------------ | --------------------------- | ----------------------- |
-| 可压制异常   | `Exception` 子类                    | ✅ TRY/CATCH | Panic -> Interpreter Dumped | ✅ Recovered from Panic |
-| 不可压制异常 | `InterruptNotice` (`BaseException`) | ❌           | 清空栈与指针，工作流终止    | ❌                      |
-| 保留上下文   | `InterruptKeepContext`              | ❌           | 保留状态，等待恢复          | ✅ 再次 `run()`         |
+| 路径         | 异常类型                            | 可压制           | 未压制后果                  | 可恢复                  |
+| ------------ | ----------------------------------- | ---------------- | --------------------------- | ----------------------- |
+| 可压制异常   | `Exception` 子类                    | ✅ `Try`/`CATCH` | Panic -> Interpreter Dumped | ✅ Recovered from Panic |
+| 不可压制异常 | `InterruptNotice` (`BaseException`) | ❌               | 清空栈与指针，工作流终止    | ❌                      |
+| 保留上下文   | `InterruptKeepContext`              | ❌               | 保留状态，等待恢复          | ✅ 再次 `run()`         |
 
-## 3.4.3 外中断（External Interrupt）—— `call_sub(interrupt=True)`
+## 外中断（External Interrupt）—— `call_sub(interrupt=True)`
 
 外中断的本质与异常无关。它通过 `call_sub(interrupt=True)` 模式，让外部调用方在解释器**每个周期的中途**注入受保护的子调用。
 
@@ -256,9 +256,9 @@ flowchart TB
 
 ### `outer_interpreting`
 
-**任何** `call_sub` 执行期间（无论 `interrupt` 取值），只读属性 `outer_interpreting` 为 `True`；调用返回时清除。`CALL` / `INT` 在 `from_adr` / `ret_to` 为 `None` 时据此选择默认返回地址：调用期间复用 `_ret_addr_stack` 栈顶（父级的返回地址），否则使用当前指针。这保证了周期中途注入的子调用返回语义正确。
+**任何** `call_sub` 执行期间（无论 `interrupt` 取值），只读属性 `outer_interpreting` 为 `True`；调用返回时清除。`INT` 在 `ret_to` 为 `None` 时据此选择默认返回地址：调用期间复用 `_ret_addr_stack` 栈顶（父级的返回地址），否则使用当前指针。`CALL` **不**参考它——其 `from_adr=None` 默认值始终解析为当前指针（`CALL` 节点自身），因此它压入的返回地址在主流程与子程序内部完全一致。
 
-## 3.4.4 挂起操作的交互模型（协作式挂起点）
+## 挂起操作的交互模型（协作式挂起点）
 
 与上述中断（终止性）不同，挂起是**可恢复的**。底层能力全部由 `SuspendObjectStream` 基类提供。
 
@@ -325,7 +325,7 @@ sequenceDiagram
 >
 > 因此，**挂起信号是持久状态，而中断检查是瞬时动作**。正因为 SoS 有状态地持有信号，`wait_to_suspend()` 可以在解释器启动之前、之中或之后的任何时刻调用——只要信号在 SoS 上置位，解释器在下一个节点边界就会命中。
 
-## 3.4.5 节点间断点
+## 节点间断点
 
 **触发时机：** 每个节点执行完毕，解释器进入下一轮循环，在推进指针、寻址完成之后，正式执行下一个节点之前。
 
@@ -344,7 +344,7 @@ sequenceDiagram
 在此时如果要重定向目标，请务必**直接操作指针**，不要使用标准跳转API，否则会导致状态混乱。
 :::
 
-## 3.4.6 执行前断点
+## 执行前断点
 
 **触发时机：** 某个特定节点被寻址加载后，正式执行其函数体之前。
 
@@ -362,20 +362,20 @@ sequenceDiagram
 因此，在该断点内进行任何跳转或修改操作，**必须严格使用解释器提供的官方跳转 API**（如 `jump_to`、`jump_near` 等），让解释器通过标准流程更新内部状态，而非直接操纵指针向量。
 :::
 
-## 3.4.7 事件系统与自定义钩子
+## 事件系统与自定义钩子
 
 AmritaSense 还提供了与工作流执行并行的运行时事件/钩子系统。自定义事件通过继承 `BaseEvent` 定义，处理器通过 `on_event(event_type)` 注册，事件通过 `MatcherFactory.trigger_event(...)` 触发。
 
 完整的事件与钩子系统说明请参见单独的进阶文档页：`进阶 > 事件系统`。
 
-## 3.4.8 总结
+## 总结
 
 AmritaSense 的流程中断体系，涵盖了从节点级异常到外部强制终止的完整控制谱系：
 
 | 机制                                     | 类型 | 可恢复                 | 触发源              | 可控性                     |
 | ---------------------------------------- | ---- | ---------------------- | ------------------- | -------------------------- |
 | 协作式挂起（`wait_to_suspend`/`resume`） | 挂起 | ✅ 可恢复              | 外部主动            | 内部协作                   |
-| 内中断·可压制（节点异常 -> Panic）       | 中断 | ✅ 可通过 Recover 恢复 | 节点内部            | 可通过 TRY/CATCH 压制      |
+| 内中断·可压制（节点异常 -> Panic）       | 中断 | ✅ 可通过 Recover 恢复 | 节点内部            | 可通过 `Try`/`CATCH` 压制  |
 | 内中断·不可压制（`InterruptNotice`）     | 中断 | ❌ 不可恢复            | 节点内部 / 外部抛出 | 内部完全不可控             |
 | 外中断（`call_sub(interrupt=True)`）     | 中断 | 无"恢复"概念           | 外部调用方          | 内部完全不可控，由锁序列化 |
 

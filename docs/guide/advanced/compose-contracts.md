@@ -81,8 +81,10 @@ This is the interface the runtime consumes — the interpreter, the debugger and
 Read side (used at runtime and by hooks):
 
 - `calc` — the bound address calculator (`resolve_alias()`, `find_addr()`, `find_addr_safe()`, `advance()`).
-- `__getitem__(key)` / `__iter__()` / `__len__()` — indexed / sequential access to child entries.
+- `__getitem__(key)` / `__len__()` — indexed access to child entries. Sequential access is not part of the contract: the graph is addressed by `PointerVector`, so every lookup goes through `__getitem__`. Walk a graph with `for i in range(len(graph)): graph[i]`.
 - `__bool__()` — `False` while empty or not yet built.
+
+> **Why no `__iter__`?** Addressing already goes through `__getitem__`, so an iterator adds nothing the contract needs — and its natural docstring ("iterate over all nodes") would be wrong anyway, since a rendered graph yields _entries_ that may be nested containers rather than nodes. Note that out-of-range indexing raises `NullPointerException`, which is **not** an `IndexError`, so Python's implicit sequence-iteration protocol does not kick in: `for x in graph` does not work, `for i in range(len(graph))` does.
 
 Build side (used by `render()` and by the renderer when it meets a nested source composition):
 
@@ -136,9 +138,6 @@ class FakeRendered(AbstractCompose[FakeCalculator]):
 
     def __getitem__(self, key: int):
         return self._items[key]
-
-    def __iter__(self):
-        return iter(self._items)
 
     def __bool__(self) -> bool:
         return True

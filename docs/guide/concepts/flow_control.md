@@ -2,7 +2,7 @@
 
 After understanding the address space, pointer vectors, and node jumps, we can dive into AmritaSense’s **flow control** capabilities. This is the core competitive advantage of AmritaSense as a general-purpose workflow orchestration engine. It provides a complete, Turing-complete set of control flow primitives, so you can orchestrate arbitrarily complex asynchronous tasks with an intuition close to that of a programming language.
 
-## 3.3.1 Conditional branching
+## Conditional branching
 
 AmritaSense is natively Turing-complete, and it includes a first-class conditional branching syntax. Unlike graph-based workflow engines that simulate branching with “routing functions + string maps,” AmritaSense makes conditional branches a built-in primitive.
 
@@ -25,7 +25,7 @@ It fully reproduces Python-style `elif` chain syntax. The number of `ELIF` entri
 - **Seamless sync/async mixing**: whether the condition returns `bool` synchronously or returns an awaitable `bool` asynchronously, the engine normalizes it to a unified execution interface automatically.
 - **Static address calculation at compile time**: all branch jump offsets are computed during `render()`, so runtime execution only involves pointer vector arithmetic. There is no graph traversal or string hashing overhead.
 
-## 3.3.2 Loops
+## Loops
 
 AmritaSense natively includes node-level loop primitives and supports two standard loop paradigms: `WHILE` and `DO-WHILE`. Both align with classic programming language semantics and treat the loop condition itself as a composable node.
 
@@ -67,30 +67,30 @@ Traditional Sense loops (`WHILE` / `DO`) do not provide a native `continue` keyw
 
 > Native loops (`NATIVE_WHILE` / `NATIVE_DO`) provide an explicit `CONTINUE()` instruction that pops the stack and jumps straight to the loop head — see [Native Control Flow](../advanced/native_control_flow.md).
 
-## 3.3.3 Exception handling
+## Exception handling
 
-AmritaSense natively provides a **node-domain TRY/CATCH exception handling system**. This is a capability that traditional workflow engines often lack. In AmritaSense, exception handling is a first-class citizen alongside conditionals and loops.
+AmritaSense natively provides a **node-domain `Try`/`CATCH` exception handling system**. This is a capability that traditional workflow engines often lack. In AmritaSense, exception handling is a first-class citizen alongside conditionals and loops.
 
 ### Full usage
 
 ```python
-TRY(do).CATCH(exc, handler)  # catch a specific exception
-TRY(do).FINALLY(cleanup)  # finally block only
-TRY(do).CATCH(exc, handler).FINALLY(cleanup)  # catch + cleanup
-TRY(do).THEN(success).CATCH(exc, handler).FINALLY(cleanup)  # full four-part structure
-TRY(do).CATCH(exc, handler).THEN(success)  # catch + success branch
-TRY(do).CATCH(exc1, handler1).CATCH(exc2, handler2).FINALLY(cleanup)  # multiple catches
+Try(do).CATCH(exc, handler)  # catch a specific exception
+Try(do).FINALLY(cleanup)  # finally block only
+Try(do).CATCH(exc, handler).FINALLY(cleanup)  # catch + cleanup
+Try(do).THEN(success).CATCH(exc, handler).FINALLY(cleanup)  # full four-part structure
+Try(do).CATCH(exc, handler).THEN(success)  # catch + success branch
+Try(do).CATCH(exc1, handler1).CATCH(exc2, handler2).FINALLY(cleanup)  # multiple catches
 ```
 
 The overall logic is highly aligned with Python’s `try-except-else-finally`. The differences are:
 
 - Use `CATCH` to declare the exception type to catch and a corresponding handler node.
-- Use `THEN` as the equivalent of Python’s `else` branch — it executes only if the `TRY` block completes without an exception.
+- Use `THEN` as the equivalent of Python’s `else` branch — it executes only if the `Try` block completes without an exception.
 
 ### Syntax constraints
 
-1. `TRY` must be followed by at least one `CATCH` or `FINALLY`.
-2. A single `TRY` structure can define at most one `FINALLY` and one `THEN`.
+1. `Try` must be followed by at least one `CATCH` or `FINALLY`.
+2. A single `Try` structure can define at most one `FINALLY` and one `THEN`.
 3. `CATCH` may be defined multiple times. The engine uses a **top-to-bottom short-circuit** matching rule — the first matching `CATCH` is executed and later catches are ignored.
 
 ### Special exception penetration rules

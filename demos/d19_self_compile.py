@@ -1,7 +1,8 @@
-"""14_self_compile.py — Custom SelfCompileInstruction
+"""d19_self_compile.py — Custom SelfCompileInstruction
 
 Usage:
-    python demos/14_self_compile.py
+    python demos/d19_self_compile.py
+    python -i demos/d19_self_compile.py   # same, then use `inter` directly in the REPL
 """
 
 import asyncio
@@ -44,9 +45,12 @@ async def do_work() -> str:
     return "ok"
 
 
+# SelfCompileInstruction can be passed straight to the interpreter (it extracts + renders internally) — no trailing NOP needed; module-level so a REPL can drive it.
+inter = WorkflowInterpreter(TimedWrapper(do_work))
+
+
 async def main() -> None:
-    # SelfCompileInstruction can be passed straight to the interpreter (it extracts + renders internally) — no trailing NOP needed.
-    await WorkflowInterpreter(TimedWrapper(do_work)).run()
+    await inter.run()
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 在了解寻址空间、指针向量与节点跳转的基础概念之后，我们正式深入 AmritaSense 引擎的**流程控制**能力体系。这是 AmritaSense 作为通用工作流编排引擎的核心竞争力——它提供了一套完备的、图灵完备的控制流指令集，让你可以用接近编程语言的直觉来编排任意复杂的异步任务。
 
-## 3.3.1 条件分支
+## 条件分支
 
 AmritaSense 是原生图灵完备的运行时，因此拥有原生设计的完整条件分支语法。与基于图的工作流引擎需要“路由函数 + 字符串映射”的模拟方式不同，AmritaSense 将条件分支直接内建为一级指令。
 
@@ -25,7 +25,7 @@ IF(condi, do).ELIF(condi2, do2).ELSE(else_do)  # 完整 IF-ELIF-ELSE 链
 - **同步与异步无缝混用**：不论条件是同步返回 `bool` 的函数，还是异步返回 `Awaitable[bool]` 的协程，引擎都会自动归一化为统一的执行接口，无需开发者做任何额外适配。
 - **编译期地址静态计算**：所有分支的跳转偏移量在 `render()` 阶段就已计算完毕，运行时只是一次指针向量的算术操作，没有图遍历或字符串哈希的开销。
 
-## 3.3.2 循环体
+## 循环体
 
 AmritaSense 原生内置节点级循环原语，支持两种标准循环范式：`WHILE` 和 `DO-WHILE`。两者都与经典编程语言的语义完全对齐，且循环条件本身也是一个可编排的节点。
 
@@ -67,35 +67,35 @@ def early_exit():
 
 > 原生循环（`NATIVE_WHILE` / `NATIVE_DO`）提供了显式的 `CONTINUE()` 指令——弹栈后直接跳到循环头，详见 [原生控制流](../advanced/native_control_flow.md)。
 
-## 3.3.3 异常处理
+## 异常处理
 
-AmritaSense 原生提供了**节点域的 TRY/CATCH 异常捕获体系**。这是传统工作流引擎普遍缺失的能力——在 AmritaSense 中，异常处理和条件分支、循环一样，是一等公民。
+AmritaSense 原生提供了**节点域的 `Try`/`CATCH` 异常捕获体系**。这是传统工作流引擎普遍缺失的能力——在 AmritaSense 中，异常处理和条件分支、循环一样，是一等公民。
 
 ### 完整用法
 
 ```python
-TRY(do).CATCH(exc, handler)  # 捕获特定异常
-TRY(do).FINALLY(cleanup)  # 仅定义清理块
-TRY(do).CATCH(exc, handler).FINALLY(cleanup)  # 捕获 + 清理
-TRY(do).THEN(success).CATCH(exc, handler).FINALLY(cleanup)  # 完整四段式
-TRY(do).CATCH(exc, handler).THEN(success)  # 捕获 + 成功分支
-TRY(do).CATCH(exc1, handler1).CATCH(exc2, handler2).FINALLY(cleanup)  # 多异常捕获
+Try(do).CATCH(exc, handler)  # 捕获特定异常
+Try(do).FINALLY(cleanup)  # 仅定义清理块
+Try(do).CATCH(exc, handler).FINALLY(cleanup)  # 捕获 + 清理
+Try(do).THEN(success).CATCH(exc, handler).FINALLY(cleanup)  # 完整四段式
+Try(do).CATCH(exc, handler).THEN(success)  # 捕获 + 成功分支
+Try(do).CATCH(exc1, handler1).CATCH(exc2, handler2).FINALLY(cleanup)  # 多异常捕获
 ```
 
 整体逻辑与 Python 的 `try-except-else-finally` 高度对齐，差异点在于：
 
 - 使用 `CATCH` 声明要捕获的异常类型和对应的处理节点
-- 使用 `THEN` 等价于 Python 的 `else` 分支——仅在 `TRY` 块无异常、正常执行完毕时才执行
+- 使用 `THEN` 等价于 Python 的 `else` 分支——仅在 `Try` 块无异常、正常执行完毕时才执行
 
 ### 语法约束
 
-1. `TRY` 之后必须跟随至少一个 `CATCH` 或 `FINALLY`
-2. 单个 `TRY` 结构中，`FINALLY` 和 `THEN` 最多只能各定义一个
+1. `Try` 之后必须跟随至少一个 `CATCH` 或 `FINALLY`
+2. 单个 `Try` 结构中，`FINALLY` 和 `THEN` 最多只能各定义一个
 3. `CATCH` 可以定义多个，引擎采用**从上到下、短路优先**的匹配规则——第一个匹配到异常类型的 `CATCH` 处理节点会被执行，后续的 `CATCH` 不再检查
 
 ### 特殊异常穿透规则
 
-与通用编程语言的行为不同：AmritaSense 引入了一套**异常穿透**机制。如果在 `WorkflowInterpreter` 初始化时，通过 `exception_ignored` 参数标记了某些异常类型，那么当这些异常在 `TRY` 块中抛出时，当前层级的任何 `CATCH` 都会直接跳过该异常——**异常不会在这一层被捕获，而是向上穿透，直达顶层全局异常处理器**。
+与通用编程语言的行为不同：AmritaSense 引入了一套**异常穿透**机制。如果在 `WorkflowInterpreter` 初始化时，通过 `exception_ignored` 参数标记了某些异常类型，那么当这些异常在 `Try` 块中抛出时，当前层级的任何 `CATCH` 都会直接跳过该异常——**异常不会在这一层被捕获，而是向上穿透，直达顶层全局异常处理器**。
 
 ```python
 pc = WorkflowPC(nd, exception_ignored=(CriticalError,))

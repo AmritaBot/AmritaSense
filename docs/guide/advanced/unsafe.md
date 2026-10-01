@@ -56,9 +56,9 @@ By default, nodes whose functions are synchronous but have `wrap_to_async=True` 
 DISABLE_EXC_IGNORED: bool = False
 ```
 
-By default, `InterruptNotice` and `BreakLoop` are automatically added to `_exc_ignored` so they penetrate all `TRY/CATCH` blocks. The matcher system also respects `exception_ignored` types during dependency resolution. Setting this flag to `True` disables all of this behavior — no exceptions are automatically ignored, and the matcher treats every exception as catchable.
+By default, `InterruptNotice` and `BreakLoop` are automatically added to `_exc_ignored` so they penetrate all `Try`/`CATCH` blocks. The matcher system also respects `exception_ignored` types during dependency resolution. Setting this flag to `True` disables all of this behavior — no exceptions are automatically ignored, and the matcher treats every exception as catchable.
 
-**When to use**: When you need `TRY/CATCH` blocks to intercept `BreakLoop` or `InterruptNotice`, or when you want fully manual control over which exceptions penetrate.
+**When to use**: When you need `Try`/`CATCH` blocks to intercept `BreakLoop` or `InterruptNotice`, or when you want fully manual control over which exceptions penetrate.
 
 ### `NO_DEPENDENCY_META_CACHE`
 

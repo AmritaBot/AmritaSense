@@ -24,6 +24,11 @@ def make_node(name: str, log: list):
     return node
 
 
+def read_children(graph) -> list:
+    """Read a rendered graph the way the contract prescribes: `__len__` + `__getitem__`."""
+    return [graph[i] for i in range(len(graph))]
+
+
 class ResolveOnCompile(BaseNode):
     """Node whose `_post_compile` resolves an alias through the host calculator."""
 
@@ -168,7 +173,7 @@ def test_dll_proxy_read_dunders_forward_to_rendered_payload(log):
 
     assert len(proxy) == 1
     assert bool(proxy) is True
-    assert list(iter(proxy)) == [b]
+    assert read_children(proxy) == [b]
 
 
 def test_dll_proxy_children_swap_after_apply(log):
@@ -181,7 +186,7 @@ def test_dll_proxy_children_swap_after_apply(log):
     dll.apply(c.as_compose())
     # The same proxy slot now forwards to the new payload.
     assert proxy[0] is c
-    assert list(iter(proxy)) == [c]
+    assert read_children(proxy) == [c]
 
 
 def test_dll_apply_rejects_non_nodecompose_payload(log):
@@ -196,14 +201,14 @@ def test_dll_apply_rejects_non_nodecompose_payload(log):
 
     # Rejection happens before any mutation: the proxy still serves the previously applied payload.
     assert proxy[0] is b
-    assert list(iter(proxy)) == [b]
+    assert read_children(proxy) == [b]
     assert len(proxy) == 1
     assert bool(proxy) is True
 
     # And a subsequent valid rebase keeps working.
     dll.apply(c.as_compose())
     assert proxy[0] is c
-    assert list(iter(proxy)) == [c]
+    assert read_children(proxy) == [c]
 
 
 def test_dll_empty_payload_renders_but_is_not_addressable(log):

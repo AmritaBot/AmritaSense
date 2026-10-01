@@ -17,7 +17,7 @@ class InterruptNotice(BaseException):
 
 **为什么继承 `BaseException`**
 
-Python 的 `except Exception` 不会捕获 `BaseException` 的子类。因此，工作流中的任何 `TRY/CATCH` 块默认无法拦截 `InterruptNotice`。这是设计上的刻意选择——`RESET` 必须是“不可捕获”的紧急终止信号。唯一的例外是显式将 `InterruptNotice` 加入 `exception_ignored`，此时它变为可被 CATCH 捕获的普通异常。
+Python 的 `except Exception` 不会捕获 `BaseException` 的子类。因此，工作流中的任何 `Try`/`CATCH` 块默认无法拦截 `InterruptNotice`。这是设计上的刻意选择——`RESET` 必须是“不可捕获”的紧急终止信号。唯一的例外是显式将 `InterruptNotice` 加入 `exception_ignored`，此时它变为可被 CATCH 捕获的普通异常。
 
 **触发方式**
 
@@ -82,7 +82,7 @@ class BreakLoop(Exception):
 
 > 此自动加入行为可通过 `amrita_sense._unsafe` 中的 `__flags__.DISABLE_EXC_IGNORED = True` 禁用。详见 [Unsafe 特性](../../guide/advanced/unsafe.md)。
 
-- 循环体内部的任何 `TRY/CATCH` 块**不能**捕获 `BreakLoop`
+- 循环体内部的任何 `Try`/`CATCH` 块**不能**捕获 `BreakLoop`
 - 它会穿透中间所有异常处理层，直达最内层的 `WhileNode` 或 `DONode`
 - 循环节点捕获到 `BreakLoop` 后执行 `jump_near(NOP)`，干净退出
 
@@ -109,7 +109,7 @@ def process_item():
 - 在非顶层解释器上调用 `terminate_all()` 或 `wait_all()`
 - 在已在运行的解释器上启动 `run()`
 - 在未运行的解释器上访问 `wait`
-- 违反 TRY/CATCH 语法约束（如在 FINALLY 之后添加 CATCH、重复 THEN 等）
+- 违反 `Try`/`CATCH` 语法约束（如在 FINALLY 之后添加 CATCH、重复 THEN 等）
 
 正确的使用模式请参见 [子图隔离调用](../../guide/practice/subgraph-isolation.md)。
 
