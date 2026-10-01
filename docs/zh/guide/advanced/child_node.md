@@ -90,7 +90,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-这就是一次 **trap**：停驻节点被 trap 那一轮消耗掉，执行从**停驻地址 + 1** 继续——因为 `RET` 恢复到保存地址**再加一**。完整的地址栈推演与可运行版本（`demos/25_call_trap.py`）见[外部中断调用](/zh/guide/advanced/external_interrupt)。
+这就是一次 **trap**：停驻节点被 trap 那一轮消耗掉，执行从**停驻地址 + 1** 继续——因为 `RET` 恢复到保存地址**再加一**。完整的地址栈推演与可运行版本（`demos/10_call_trap.py`）见[外部中断调用](/zh/guide/advanced/external_interrupt)。
 
 ### 与 Depends 的协同
 

@@ -1,7 +1,8 @@
-"""20_batch_run.py — BATCH_RUN concurrent execution demo
+"""22_batch_run.py — BATCH_RUN concurrent execution demo
 
 Usage:
-    python demos/20_batch_run.py
+    python demos/22_batch_run.py
+    python -i demos/22_batch_run.py   # same, then use `inter` / `subgraph_inter` / `fail_fast_inter` in the REPL
 """
 
 import asyncio
@@ -66,21 +67,31 @@ async def safe_node() -> None:
     print("  [safe] completed despite sibling failure")
 
 
+branch_a = validate >> enrich
+branch_b = clean >> transform
+
+# Module-level so a REPL can `from demos.22_batch_run import inter, subgraph_inter, fail_fast_inter` and run each batch by hand.
+inter = WorkflowInterpreter(
+    BATCH_RUN(fetch_users, fetch_orders, fetch_products).as_compose().render()
+)
+subgraph_inter = WorkflowInterpreter(
+    BATCH_RUN(branch_a, branch_b).as_compose().render()
+)
+fail_fast_inter = WorkflowInterpreter(
+    BATCH_RUN(risky_node, safe_node, fail_fast=False).as_compose().render()
+)
+
+
 async def main() -> None:
     print("=== Demo 1: Parallel bare nodes ===")
-    workflow = BATCH_RUN(fetch_users, fetch_orders, fetch_products)
-    await WorkflowInterpreter(workflow.as_compose().render()).run()
+    await inter.run()
 
     print("\n=== Demo 2: Parallel subgraphs ===")
-    branch_a = validate >> enrich
-    branch_b = clean >> transform
-    workflow2 = BATCH_RUN(branch_a, branch_b)
-    await WorkflowInterpreter(workflow2.as_compose().render()).run()
+    await subgraph_inter.run()
 
     print("\n=== Demo 3: fail_fast=False ===")
-    workflow3 = BATCH_RUN(risky_node, safe_node, fail_fast=False)
     try:
-        await WorkflowInterpreter(workflow3.as_compose().render()).run()
+        await fail_fast_inter.run()
     except Exception as e:
         print(f"  Exception caught: {e!r}")
 

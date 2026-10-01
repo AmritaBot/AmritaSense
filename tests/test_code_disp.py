@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import io
 import re
-from collections.abc import Iterator
 from typing import Any
 
 import pytest
@@ -18,6 +17,7 @@ from amrita_sense.debugger.code_disp import (
     resolve_cmt,
     resolve_dis,
 )
+from amrita_sense.exceptions import NullPointerException
 from amrita_sense.instructions import (
     ALIAS,
     IF,
@@ -443,24 +443,26 @@ class TestWindow:
 
 
 class _Unreadable(AbstractCompose[Any]):
-    """Container that refuses to be read, like an unbuilt DLL proxy."""
+    """Container that refuses to be read, like an unbuilt DLL proxy.
+
+    The contract exposes children through `__len__` + `__getitem__`, so an
+    unbuilt container refuses through those members.
+    """
 
     @property
     def calc(self) -> Any:
         raise AttributeError("no calculator")
 
     def __init__(self) -> None: ...
-    def __getitem__(self, key: int) -> Any:
-        raise IndexError(key)
 
-    def __iter__(self) -> Iterator[Any]:
-        raise RuntimeError("not built yet")
+    def __getitem__(self, key: int) -> Any:
+        raise NullPointerException(f"not built yet: {key}")
 
     def __bool__(self) -> bool:
         return True
 
     def __len__(self) -> int:
-        return 0
+        raise NullPointerException("not built yet")
 
     def _build(
         self, current_path: list[int] | None = None, top: Any = None
@@ -479,9 +481,6 @@ class TestContractSafety:
 
             def __getitem__(self, key: int) -> Any:
                 return self._items[key]
-
-            def __iter__(self) -> Iterator[Any]:
-                return iter(self._items)
 
             def __bool__(self) -> bool:
                 return True
@@ -508,9 +507,6 @@ class TestContractSafety:
 
             def __getitem__(self, key: int) -> Any:
                 return self._items[key]
-
-            def __iter__(self) -> Iterator[Any]:
-                return iter(self._items)
 
             def __bool__(self) -> bool:
                 return True

@@ -81,13 +81,21 @@ class AbstractCompose(ABC, Generic[Calc_T]):
     `_post_compile` hooks rely on when they consume a *rendered* workflow
     graph.  At runtime the graph is treated as read-only, so the contract
     splits into two surfaces: a read side (`calc`, `__getitem__`,
-    `__iter__`, `__bool__`, `__len__`) that the interpreter and hooks
-    use, and a build side (`__init__(compose)`, `_build(...)`) that
-    `render()` and the renderer use while compiling.  Both build members
-    are abstract so that any source composition can be rendered through its
-    own `get_builder()`.  Keeping the contract small makes it cheap to
+    `__bool__`, `__len__`) that the interpreter and hooks use, and a build
+    side (`__init__(compose)`, `_build(...)`) that `render()` and the
+    renderer use while compiling.  Both build members are abstract so that
+    any source composition can be rendered through its own
+    `get_builder()`.  Keeping the contract small makes it cheap to
     implement a fake rendered graph in tests (mock) or to plug in a custom
     rendered-graph implementation.
+
+    Sequential access is deliberately **not** part of the contract.  The
+    graph is addressed by `PointerVector`, so every lookup goes through
+    `__getitem__`; walk a graph with `for i in range(len(graph))` when you
+    need every child.  Note that out-of-range indexing raises
+    :class:`~amrita_sense.exceptions.NullPointerException`, which is not an
+    `IndexError`, so the implicit sequence-iteration protocol does not
+    apply.
 
     The default, fully-featured implementation is `NodeComposeRendered`
     (see `amrita_sense.node.core`); anything satisfying this contract can
@@ -112,15 +120,6 @@ class AbstractCompose(ABC, Generic[Calc_T]):
 
         Returns:
             The node at the specified index.
-        """
-        ...
-
-    @abstractmethod
-    def __iter__(self) -> Iterator[BaseNode | AbstractCompose]:
-        """Iterate over all nodes in the rendered graph.
-
-        Yields:
-            Each node in the rendered graph sequentially.
         """
         ...
 

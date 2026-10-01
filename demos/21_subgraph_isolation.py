@@ -1,7 +1,8 @@
-"""16_subgraph_isolation.py — fork_interpreter + interpreter tree lifecycle
+"""21_subgraph_isolation.py — fork_interpreter + interpreter tree lifecycle
 
 Usage:
-    python demos/16_subgraph_isolation.py
+    python demos/21_subgraph_isolation.py
+    python -i demos/21_subgraph_isolation.py   # same, then use `inter` directly in the REPL
 
 Demonstrates: fork_interpreter(), asyncio.gather for parallel execution,
 terminate() for early stop, and interpreter tree properties (parent, id).
@@ -41,18 +42,20 @@ async def main_start() -> None:
     print("[main] started")
 
 
+# Module-level so a REPL can `from demos.21_subgraph_isolation import inter` and fork children by hand.
+inter = WorkflowInterpreter(main_start.as_compose().render())
+
+
 async def demo_parallel() -> None:
     """Fork two children and run parent + children concurrently via gather."""
     print("\n=== Demo 1: parallel execution via asyncio.gather ===")
 
-    parent = WorkflowInterpreter(main_start.as_compose().render())
-
-    child_a = parent.fork_interpreter(compose=sub_comp.render(), middleware=None)
-    child_b = parent.fork_interpreter(compose=sub_comp.render(), middleware=None)
+    child_a = inter.fork_interpreter(compose=sub_comp.render(), middleware=None)
+    child_b = inter.fork_interpreter(compose=sub_comp.render(), middleware=None)
     assert child_a.parent
     assert child_b.parent
 
-    print(f"[main] parent id:  {parent.id}")
+    print(f"[main] parent id:  {inter.id}")
     print(f"[main] child_a id: {child_a.id}  parent: {child_a.parent.id}")
     print(f"[main] child_b id: {child_b.id}  parent: {child_b.parent.id}")
     print(f"[main] child_a top: {child_a.top_interpreter.id}")
@@ -60,13 +63,13 @@ async def demo_parallel() -> None:
 
     # asyncio.gather runs all to completion — no manual wait needed
     await asyncio.gather(
-        parent.run(),
+        inter.run(),
         child_a.run(),
         child_b.run(),
     )
 
     print("[main] all interpreters finished")
-    print(f"[main] parent.sub_interpreters: {list(parent.sub_interpreters.keys())}")
+    print(f"[main] parent.sub_interpreters: {list(inter.sub_interpreters.keys())}")
 
 
 async def demo_terminate() -> None:

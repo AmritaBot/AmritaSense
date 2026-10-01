@@ -587,13 +587,5 @@ class NodeComposeRendered(AbstractCompose[AddressCalculator]):
             raise NullPointerException(f"NodeComposeRendered index out of range: {key}")
         return self._graph[key]
 
-    def __iter__(self):
-        """Iterate over all nodes in the rendered graph.
-
-        Yields:
-            Each node in the rendered graph sequentially.
-        """
-        yield from self._graph
-
 
 addressing.NodeComposeRendered = NodeComposeRendered

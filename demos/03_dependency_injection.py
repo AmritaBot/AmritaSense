@@ -2,6 +2,7 @@
 
 Usage:
     python demos/03_dependency_injection.py
+    python -i demos/03_dependency_injection.py   # same, then use `inter` directly in the REPL
 """
 
 import asyncio
@@ -20,15 +21,17 @@ async def display(message: str) -> None:
     print(message)
 
 
+composition = greet >> display
+# Module-level so a REPL can `from demos.03_dependency_injection import inter` and inspect the injected arguments.
+inter = WorkflowInterpreter(
+    composition.render(),
+    extra_args=("World",),  # str type -> injected into `name`
+    extra_kwargs={"greeting": "Hello"},  # name match -> injected into `greeting`
+)
+
+
 async def main() -> None:
-    composition = greet >> display
-    rendered = composition.render()
-    interpreter = WorkflowInterpreter(
-        rendered,
-        extra_args=("World",),  # str type -> injected into `name`
-        extra_kwargs={"greeting": "Hello"},  # name match -> injected into `greeting`
-    )
-    await interpreter.run()
+    await inter.run()
 
 
 if __name__ == "__main__":

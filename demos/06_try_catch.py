@@ -2,6 +2,7 @@
 
 Usage:
     python demos/06_try_catch.py
+    python -i demos/06_try_catch.py   # same, then use `inter` / `success_inter` in the REPL
 """
 
 import asyncio
@@ -33,30 +34,24 @@ async def cleanup() -> None:
     print("Cleanup complete")
 
 
-async def example_1() -> None:
-    """Exception caught by CATCH"""
-    print("=== Example 1: ValueError -> caught by CATCH ===")
-    # TryClause is a SelfCompileInstruction — pass it straight to the interpreter.
-    await WorkflowInterpreter(Try(may_fail).CATCH(ValueError, handle_error)).run()
+@Node()
+async def always_ok() -> str:
+    return "all good"
 
 
-async def example_2() -> None:
-    """Normal execution + THEN + FINALLY"""
-    print("\n=== Example 2: normal execution + THEN + FINALLY ===")
-
-    @Node()
-    async def always_ok() -> str:
-        return "all good"
-
-    comp = (
-        Try(always_ok).THEN(on_success).CATCH(ValueError, handle_error).FINALLY(cleanup)
-    )
-    await WorkflowInterpreter(comp).run()
+# TryClause is a SelfCompileInstruction — pass it straight to the interpreter; module-level so a REPL can drive both paths.
+inter = WorkflowInterpreter(Try(may_fail).CATCH(ValueError, handle_error))
+success_inter = WorkflowInterpreter(
+    Try(always_ok).THEN(on_success).CATCH(ValueError, handle_error).FINALLY(cleanup)
+)
 
 
 async def main() -> None:
-    await example_1()
-    await example_2()
+    print("=== Example 1: ValueError -> caught by CATCH ===")
+    await inter.run()
+
+    print("\n=== Example 2: normal execution + THEN + FINALLY ===")
+    await success_inter.run()
 
 
 if __name__ == "__main__":

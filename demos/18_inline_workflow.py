@@ -1,7 +1,8 @@
-"""12_inline_workflow.py — Inline workflow: encapsulate a workflow in a class
+"""18_inline_workflow.py — Inline workflow: encapsulate a workflow in a class
 
 Usage:
-    python demos/12_inline_workflow.py
+    python demos/18_inline_workflow.py
+    python -i demos/18_inline_workflow.py   # same, then use `inter` / `workflow` in the REPL
 """
 
 import asyncio
@@ -35,10 +36,13 @@ class SimpleWorkflow:
         return self.result
 
 
+# Module-level so a REPL can `from demos.18_inline_workflow import inter`; `inter` is the workflow's interpreter.
+workflow = SimpleWorkflow(value=21)
+inter = workflow.interpreter
+
+
 async def main() -> None:
-    wf = SimpleWorkflow(value=21)
-    result = await wf.run()
-    print(result)
+    print(await workflow.run())
 
 
 if __name__ == "__main__":

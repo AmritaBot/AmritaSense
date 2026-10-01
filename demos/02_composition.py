@@ -2,6 +2,7 @@
 
 Usage:
     python demos/02_composition.py
+    python -i demos/02_composition.py   # same, then use `inter` directly in the REPL
 """
 
 import asyncio
@@ -24,11 +25,13 @@ async def print_result() -> None:
     print("Composition complete")
 
 
+composition = double >> add_one >> print_result
+# Module-level so a REPL can `from demos.02_composition import inter` and drive it directly.
+inter = WorkflowInterpreter(composition.render())
+
+
 async def main() -> None:
-    composition = double >> add_one >> print_result
-    rendered = composition.render()
-    interpreter = WorkflowInterpreter(rendered)
-    await interpreter.run()
+    await inter.run()
 
 
 if __name__ == "__main__":

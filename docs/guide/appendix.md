@@ -20,7 +20,7 @@ An independent address space formed after compilation by nodes wrapped in parent
 
 ### 9.1.5 Instruction Set
 
-A complete set of control flow primitives provided by AmritaSense, including `IF/ELIF/ELSE` (conditional branching), `WHILE/DO-WHILE` (loops), `JMP` (unconditional jump), `INVOKE` (subroutine call), `TRY/CATCH/THEN/FIN` (exception handling), `NOP` (sentinel), and `RESET` (forced termination). All instructions are expanded into low-level node compositions at compile time and completed through pointer jumps at runtime.
+A complete set of control flow primitives provided by AmritaSense, including `IF/ELIF/ELSE` (conditional branching), `WHILE/DO-WHILE` (loops), `JMP` (unconditional jump), `INVOKE` (subroutine call), `CALL` / `RET` (function block call and return), `INT` / `IRET` (interrupt transfer), `PUSH_CONTEXT` / `POP_CONTEXT` (context snapshot), `TRY/CATCH/THEN/FIN` (exception handling), `NOP` (sentinel), and `RESET` (forced termination). All instructions are expanded into low-level node compositions at compile time and completed through pointer jumps at runtime.
 
 ### 9.1.6 Self-Compile Instruction
 
@@ -32,21 +32,29 @@ A _composition_ in AmritaSense is described by two abstract contracts in `amrita
 
 ### 9.1.8 Interrupt
 
-A cooperative suspension mechanism provided by AmritaSense. The workflow actively suspends at specified markers, yielding control back to the external system. The external system can inspect state and modify variables during this window, then resume execution via `resume()`. This is the foundational capability for building debuggers and external monitoring systems.
+A cooperative suspension mechanism provided by AmritaSense. The workflow actively suspends at specified markers, yielding control back to the external system. The external system can inspect state and modify variables during this window, then resume execution via `resume()`. This is the foundational capability for building debuggers and external monitoring systems. For the control-transfer flavour — an external call that lands on a `CALL` / `INT` node — see the Trap entry below.
 
-### 9.1.9 Depends (Dependency Injection)
+### 9.1.9 Trap
+
+An **external interrupt whose target is a `CALL` or `INT` node** instead of a plain handler node. When an external caller fires `call_sub(interrupt=True)` at a running interpreter, `call_sub` pushes the parked address `C` and enters the target. If the target is a `CALL`, the `CALL` pushes **its own address** `P` and jumps on, so the return-address stack holds `[C, P]`; `call_sub`'s `finally` block pops `P` again (it is what the entered node pushed), and the routine's trailing `RET` pops `C`. Because `RET` resumes at its saved address **plus one**, the net effect is that the trap consumes the cycle the interpreter was parked on and execution resumes at **parked address + 1**.
+
+That is what separates a trap from a plain injection: an ordinary handler node leaves only `[C]` on the stack, `call_sub` pops it, and the parked node still runs afterwards. `INT` produces the same trap effect through the context stack — its `IRET` restores the snapshot and resumes at `C + 1`.
+
+Trap targets must not push or pop `_ret_addr_stack` themselves: `call_sub` pops unconditionally, without checking what it popped. `CALL` and `INT` are the nodes that satisfy this contract. See [External Interrupt Calls](/guide/advanced/external_interrupt) for the full stack trace, and `demos/10_call_trap.py` for a runnable version.
+
+### 9.1.10 Depends (Dependency Injection)
 
 A dependency injection pattern inspired by FastAPI. Nodes declare the resources they need by declaring `Depends(factory)` in their function signatures. AmritaSense's dependency resolution system supports concurrent resolution, runtime injection, and type matching. If a factory function returns `None`, the workflow will terminate immediately.
 
-### 9.1.10 Alias
+### 9.1.11 Alias
 
 A globally unique symbol name bound to a node via the `ALIAS` instruction. Registered into `alias2vector_map` at compile time for `JMP` and `INVOKE` to look up and resolve at runtime. This is the foundation of AmritaSense's symbolic addressing system.
 
-### 9.1.11 Subprogram
+### 9.1.12 Subprogram
 
 A sequence of nodes defined by the `ARCHIVED_NODES` instruction, skipped by `SubprogramJumpNode`, and accessible only through `INVOKE` or external injection. Subprograms can store interrupt handling logic, debugging tools, or reusable functional modules without affecting the normal execution flow. For archiving a full node composition (e.g. function bodies), use `ARCHIVED_SEGMENT` instead; `FN` / `INTER_FN` build on it to define named function blocks (see [Function Block Call](/guide/advanced/function-block-call)).
 
-### 9.1.12 Other Core Terminology
+### 9.1.13 Other Core Terminology
 
 - **Interpret Lock**: An `aiologic.Lock` instance that guarantees only one node is executing at a time, forming the mutual exclusion basis for safe external invocation.
 - **Jump Mark**: The `JMP` bit of the status register. When set, the interpreter skips the regular pointer advancement step and the next cycle starts from the jump target.
@@ -57,7 +65,7 @@ A sequence of nodes defined by the `ARCHIVED_NODES` instruction, skipped by `Sub
 - **Debugger**: A REPL-first, pure-function debugging toolkit provided by the `amrita_sense.debugger` module. Includes state inspection (`inspect`, `where`, `backtrace`, `list_nodes`, `list_sub_intp`), step control (`step`, `step_over`, `step_out`, `cont`), and breakpoint management (`break_at_tag`, `break_at_addr`, `clear_break_*`, `list_breaks`). Injected via composite middleware without modifying the core runtime. Sync functions are callable directly in a REPL without `await`.
 - **Breakpoint**: An execution pause point marked on a specific node tag or address. Set via `amrita_sense.debugger`'s `break_at_tag()` and `break_at_addr()`, with support for conditional expressions (`condition` parameter). When hit, raises `BreakpointHit` (inherits `BaseException`, not `Exception`, avoiding the panic mechanism), caught by `cont()` to pause execution.
 
-### 9.1.13 Abbreviations
+### 9.1.14 Abbreviations
 
 - **API**: Application Programming Interface
 - **DI**: Dependency Injection
@@ -66,7 +74,7 @@ A sequence of nodes defined by the `ARCHIVED_NODES` instruction, skipped by `Sub
 - **HTTP**: Hypertext Transfer Protocol
 - **ISA**: Instruction Set Architecture
 
-### 9.1.14 Primitive
+### 9.1.15 Primitive
 
 **Primitive** is a core concept in computer architecture, referring to the **smallest indivisible operation unit** defined within a processor's Instruction Set Architecture (ISA). In an ISA, primitives dictate the most fundamental capabilities a processor can execute—such as addition, data loading, conditional branching—and all complex programs are ultimately composed of these primitives. Primitives define "what the hardware can do"; software achieves arbitrarily complex logic through the combination of primitives.
 

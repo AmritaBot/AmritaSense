@@ -1,7 +1,8 @@
-"""23_modern_funcall.py — FN / INTER_FN modern function-call patterns
+"""09_modern_funcall.py — FN / INTER_FN modern function-call patterns
 
 Usage:
-    python demos/23_modern_funcall.py
+    python demos/09_modern_funcall.py
+    python -i demos/09_modern_funcall.py   # same, then use `inter` directly in the REPL
 
 AmritaSense "function blocks" are control-flow transfers, NOT real
 computer function calls — there is no function context: no stack frame,
@@ -63,31 +64,34 @@ async def after_isr() -> None:
     print("[main] resumed after interrupt routine")
 
 
+# Pattern 1: FN + CALL(entrypoint) — fn_block layout: [_fn_escape, NOP("fn_entry"), fn_body, RET]
+fn_block = FN(
+    "fn_entry",
+    fn_body,
+)
+
+# Pattern 2: INTER_FN + INT(entrypoint) — isr_block layout: [_fn_escape, NOP("isr_entry"), isr_body, IRET]
+isr_block = INTER_FN(
+    "isr_entry",
+    isr_body,
+)
+
+composition = (
+    main_start
+    >> CALL("fn_entry")  # call fn_block; return lands on the next node
+    >> after_fn
+    >> fn_block  # skipped by normal flow via _fn_escape
+    >> INT("isr_entry")  # dispatch interrupt; return lands on the next node
+    >> after_isr
+    >> isr_block  # skipped by normal flow via _fn_escape
+)
+# Module-level so a REPL can `from demos.09_modern_funcall import inter` and step across both boundaries.
+inter = WorkflowInterpreter(composition.render())
+
+
 async def main() -> None:
     print("=== FN / INTER_FN modern function-call demo ===\n")
-
-    # Pattern 1: FN + CALL(entrypoint) — fn_block layout: [_fn_escape, NOP("fn_entry"), fn_body, RET]
-    fn_block = FN(
-        "fn_entry",
-        fn_body,
-    )
-
-    # Pattern 2: INTER_FN + INT(entrypoint) — isr_block layout: [_fn_escape, NOP("isr_entry"), isr_body, IRET]
-    isr_block = INTER_FN(
-        "isr_entry",
-        isr_body,
-    )
-
-    comp = (
-        main_start
-        >> CALL("fn_entry")  # call fn_block; return lands on the next node
-        >> after_fn
-        >> fn_block  # skipped by normal flow via _fn_escape
-        >> INT("isr_entry")  # dispatch interrupt; return lands on the next node
-        >> after_isr
-        >> isr_block  # skipped by normal flow via _fn_escape
-    )
-    await WorkflowInterpreter(comp.render()).run()
+    await inter.run()
 
 
 if __name__ == "__main__":

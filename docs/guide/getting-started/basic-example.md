@@ -61,4 +61,4 @@ graph LR;
 
 Of course, `IF` also supports `ELIF` and `ELSE`. We will cover those in later chapters.
 
-> **More examples**: See the `demos/` directory in the source repository for more standalone, runnable examples covering all core features.
+> **More examples**: See the `demos/` directory in the source repository for more standalone, runnable examples covering all core features. Every demo binds its interpreter to a module-level `inter`, so `python -i demos/NN_name.py` drops you straight into a REPL that can inspect and step the workflow.

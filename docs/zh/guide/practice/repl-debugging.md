@@ -433,10 +433,10 @@ AmritaSense 的 Panic/Recover 机制是调试器的核心能力之一。当节�
 
 ## 完整示例
 
-项目中的 `demos/21_debug_repl.py` 提供了一个端到端的 REPL 调试演示，覆盖了上述所有功能：
+项目中的 `demos/25_debug_repl.py` 提供了一个端到端的 REPL 调试演示，覆盖了上述所有功能：
 
 ```bash
-python demos/21_debug_repl.py
+python demos/25_debug_repl.py
 ```
 
 演示流程：
@@ -456,14 +456,77 @@ flowchart TD
     K --> L[list_sub_intp 子解释器树]
 ```
 
-你也可以在 REPL 中手动操作：
+### 每个 demo 都暴露 `inter`
+
+`demos/` 下的每个脚本都在模块级构建解释器并绑定到 `inter`。因此任何一个 demo 都可以当作完整调试流程的演练场——把一个小 demo 从头走到尾，是理解 AmritaSense 如何驱动图的最快方式。导入时不会执行任何东西——只有 `if __name__ == "__main__"` 会跑工作流——所以导入一个 demo 拿到的是一个全新的、未执行过的解释器。
+
+需要多个解释器的 demo 会在 `inter` 之外用描述性名字额外暴露它们；例如 `demos/05_while_loop.py` 同时导出 `inter` 和 `do_while_inter`。
+
+#### 把 `inter` 拿进 REPL
+
+文件名以数字开头，所以 `from demos.24_step_by import inter` 会直接 `SyntaxError`。请改用 `importlib`：
 
 ```python
+>>> import importlib
 >>> from amrita_sense.debugger import *
->>> from demos.21_debug_repl import inter
->>> inspect(inter)
->>> step(inter)     # 不需 await！
+>>> inter = importlib.import_module("demos.24_step_by").inter
 ```
+
+另一种方式是用 `python -i` 跑一个 demo，跑完继续在里面操作——注意这会**先执行** demo，所以你拿到的是执行完毕的状态，而不是全新状态：
+
+```bash
+python -i demos/01_minimal.py
+```
+
+#### 一次完整的调试会话
+
+`demos/24_step_by.py` 是一条三节点链（`a >> b >> c`），小到可以看清每一步。地址、tag 与 PC 标记都直接来自这些工具：
+
+```python
+>>> where(inter)
+📍 [0]  NodeSuspend::a  stack_depth=0
+
+>>> list_nodes(inter)
+           [0]  NodeSuspend::a                            a
+           [1]  NodeSuspend::b                            b
+           [2]  NodeSuspend::c                            c
+
+>>> dis(inter, around=None)
+segment [root]:
+=>[0] a; 24_step_by.py:13
+  [1] b; 24_step_by.py:18
+  [2] c; 24_step_by.py:23
+
+>>> step(inter)
+Node A
+>>> where(inter)
+📍 [1]  NodeSuspend::b  stack_depth=0
+
+>>> step(inter); step(inter)
+Node B
+Node C
+>>> where(inter)
+📍 []  <INVALID>  stack_depth=0
+```
+
+接着设一个断点，让 `cont()` 一路跑到它。没有显式 `tag=` 的 `@Node()` 名字是 `NodeSuspend::<函数名>`，这正是 `break_at_tag()` 要匹配的字符串：
+
+```python
+>>> break_at_tag(inter, "NodeSuspend::c")
+🔴 Breakpoint: tag='NodeSuspend::c' hits=0
+
+>>> cont(inter)
+Node A
+Node B
+⏸️  Hit breakpoint: tag='NodeSuspend::c' hits=1
+>>> where(inter)
+📍 [2]  NodeSuspend::c  stack_depth=0
+
+>>> clear_break_tag(inter, "NodeSuspend::c")
+✖  Removed: tag='NodeSuspend::c' hits=1
+```
+
+`demos/25_debug_repl.py` 用同样的工具走了一遍更长的脚本——跨段的汇编码、`step_over`、一次故意的崩溃与 panic 恢复，以及子解释器树。
 
 ## 安全注意事项
 

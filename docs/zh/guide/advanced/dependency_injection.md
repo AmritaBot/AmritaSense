@@ -29,7 +29,7 @@ def my_node(dependency_value: ReturnType = Depends(dependency_provider_function)
     pass
 ```
 
-`Depends` 也可以写在注解里（配合 `Annotated`），详见 [4.1.10 `Annotated` 声明](#_4-1-10-annotated-声明)。
+`Depends` 也可以写在注解里（配合 `Annotated`），详见 [4.1.9 `Annotated` 声明](#_4-1-9-annotated-声明)。
 
 ### 内置依赖工具
 
@@ -84,7 +84,7 @@ def async_node(result: str = Depends(async_dependency)):
     print(f"Received: {result}")
 ```
 
-## 4.1.5 事件与钩子集成
+## 4.1.4 事件与钩子集成
 
 AmritaSense 对节点和事件处理器使用相同的依赖匹配机制。这意味着事件回调也可以声明 `Depends(...)` 依赖项，运行时在调用回调前会解析这些依赖。
 
@@ -99,7 +99,7 @@ async def on_event(event: Any, pc: WorkflowInterpreter = Depends(POINTER_DEPENDS
 
 事件/钩子系统通过与节点执行相同的 `MatcherFactory` 机制解析依赖，因此整个引擎中的行为是一致的。
 
-## 4.1.6 关键行为：返回 None 将直接“炸掉”工作流
+## 4.1.5 关键行为：返回 None 将直接“炸掉”工作流
 
 依赖注入系统有一个重要的行为特性：**如果依赖提供者函数返回 `None`，整个工作流将被终止**。
 
@@ -158,7 +158,7 @@ TRY(NodeType(lambda: print("This won't execute"))).CATCH(
 
 这种设计确保了依赖注入系统的健壮性和可预测性，同时为开发者提供了清晰的错误处理机制。
 
-## 4.1.7 DI 结果缓存
+## 4.1.6 DI 结果缓存
 
 `WorkflowInterpreter` 维护一个内部 DI 结果缓存（`_di_cache`），避免在相同参数类型下重复执行同一节点的依赖解析。
 
@@ -187,7 +187,7 @@ cache_key = hash((id(node.func), code))
 
 `DependsFactory(cacheable=True)`（推荐写法为 `Depends(f, use_cache=True)`）的提供者在**写入缓存时解析一次**，结果存入缓存。`cacheable=False`（默认）的提供者按原样存储，**每次调用**重新解析——适用于有副作用或取值随时间变化的提供者。该区分与缓存有效性（`hash_trustable`）正交。
 
-对**生成器**提供者而言，共享与否由 `scope` 而非 `use_cache` 决定，参见 [4.1.11 生成器依赖与生命周期](#_4-1-11-生成器依赖与生命周期)。
+对**生成器**提供者而言，共享与否由 `scope` 而非 `use_cache` 决定，参见 [4.1.10 生成器依赖与生命周期](#_4-1-10-生成器依赖与生命周期)。
 
 ### 缓存生命周期
 
@@ -213,7 +213,7 @@ pc2 = WorkflowInterpreter(rendered)
 await pc2.run()  # 每个节点从头重新解析依赖
 ```
 
-## 4.1.8 DI 预加载缓存
+## 4.1.7 DI 预加载缓存
 
 启用 `__flags__.WORKFLOW_DI_PRELOAD_CACHE` 后，解释器在 `run()` 初始化阶段为**每个节点**预解析依赖注入——在第一个节点执行之前完成。
 
@@ -247,7 +247,7 @@ pc = WorkflowInterpreter(rendered)
 await pc.run()  # 第一个节点运行前，所有节点的 DI 已预解析完成
 ```
 
-## 4.1.9 缓存限制与标志冲突
+## 4.1.8 缓存限制与标志冲突
 
 ### `NO_DEPENDENCY_META_CACHE` 冲突
 
@@ -261,7 +261,7 @@ await pc.run()  # 第一个节点运行前，所有节点的 DI 已预解析完�
 
 调用 `_refresh_di_cache_full()` 时若 `hash_trustable` 为 `False`，将抛出 `DependsResolveFailed`。修改 DI 参数后务必调用 `rehash_args()` 以确保缓存完整性。
 
-## 4.1.10 `Annotated` 声明
+## 4.1.9 `Annotated` 声明
 
 `Depends` 既可以写在默认值里，也可以写在注解里。两种写法等价，但同一个参数不得同时使用：
 
@@ -292,7 +292,7 @@ def my_node(
 
 声明有误时会在**构造**节点/处理器阶段就抛出 `DependsDeclarationError`，而不是等到运行时。
 
-## 4.1.11 生成器依赖与生命周期
+## 4.1.10 生成器依赖与生命周期
 
 提供者可以是生成器：`yield` 之前的值被注入，之后的部分作为清理逻辑执行：
 

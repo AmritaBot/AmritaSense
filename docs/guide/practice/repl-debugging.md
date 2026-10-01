@@ -435,10 +435,10 @@ AmritaSense's Panic/Recover mechanism is one of the debugger's core capabilities
 
 ## Full Example
 
-The project includes `demos/21_debug_repl.py`, an end-to-end REPL debugging demo covering all features above:
+The project includes `demos/25_debug_repl.py`, an end-to-end REPL debugging demo covering all features above:
 
 ```bash
-python demos/21_debug_repl.py
+python demos/25_debug_repl.py
 ```
 
 Demo flow:
@@ -458,14 +458,77 @@ flowchart TD
     K --> L[list_sub_intp sub-interpreter tree]
 ```
 
-You can also operate manually in a REPL:
+### Every demo exposes `inter`
+
+Every script under `demos/` builds its interpreter at module level and binds it to `inter`. Each one therefore doubles as a playground for the full debugging workflow, and walking a small demo end to end is the quickest way to build intuition for how AmritaSense drives a graph. Nothing runs at import time — only `if __name__ == "__main__"` executes the workflow — so importing a demo hands you a fresh, untouched interpreter.
+
+Demos that need more than one interpreter expose the extras under descriptive names next to `inter`; `demos/05_while_loop.py`, for instance, exports `inter` and `do_while_inter`.
+
+#### Getting `inter` into a REPL
+
+The file names start with a digit, so `from demos.24_step_by import inter` is a `SyntaxError`. Import through `importlib` instead:
 
 ```python
+>>> import importlib
 >>> from amrita_sense.debugger import *
->>> from demos.21_debug_repl import inter
->>> inspect(inter)
->>> step(inter)     # no await needed!
+>>> inter = importlib.import_module("demos.24_step_by").inter
 ```
+
+Alternatively, run a demo under `python -i` and keep poking at it afterwards — note that this _executes_ the demo first, so you land on the finished state rather than a fresh one:
+
+```bash
+python -i demos/01_minimal.py
+```
+
+#### A complete debugging session
+
+`demos/24_step_by.py` is a three-node chain (`a >> b >> c`) — small enough to watch every step. Addresses, tags and the PC marker all come straight from the tools:
+
+```python
+>>> where(inter)
+📍 [0]  NodeSuspend::a  stack_depth=0
+
+>>> list_nodes(inter)
+           [0]  NodeSuspend::a                            a
+           [1]  NodeSuspend::b                            b
+           [2]  NodeSuspend::c                            c
+
+>>> dis(inter, around=None)
+segment [root]:
+=>[0] a; 24_step_by.py:13
+  [1] b; 24_step_by.py:18
+  [2] c; 24_step_by.py:23
+
+>>> step(inter)
+Node A
+>>> where(inter)
+📍 [1]  NodeSuspend::b  stack_depth=0
+
+>>> step(inter); step(inter)
+Node B
+Node C
+>>> where(inter)
+📍 []  <INVALID>  stack_depth=0
+```
+
+Then set a breakpoint and let `cont()` drive to it. A `@Node()` without an explicit `tag=` is named `NodeSuspend::<function name>`, and that is the string `break_at_tag()` matches:
+
+```python
+>>> break_at_tag(inter, "NodeSuspend::c")
+🔴 Breakpoint: tag='NodeSuspend::c' hits=0
+
+>>> cont(inter)
+Node A
+Node B
+⏸️  Hit breakpoint: tag='NodeSuspend::c' hits=1
+>>> where(inter)
+📍 [2]  NodeSuspend::c  stack_depth=0
+
+>>> clear_break_tag(inter, "NodeSuspend::c")
+✖  Removed: tag='NodeSuspend::c' hits=1
+```
+
+`demos/25_debug_repl.py` walks the same tools through a longer script — disassembly across segments, `step_over`, a deliberate crash with panic recovery, and the sub-interpreter tree.
 
 ## Security Considerations
 

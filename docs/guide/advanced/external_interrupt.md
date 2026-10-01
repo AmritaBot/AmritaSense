@@ -218,7 +218,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-The runnable version is `demos/25_call_trap.py`; its output is:
+The runnable version is `demos/10_call_trap.py`; its output is:
 
 ```text
 === external trap: CALL -> FN -> RET ===

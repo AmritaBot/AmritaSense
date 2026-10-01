@@ -2,6 +2,7 @@
 
 Usage:
     python demos/04_if_branch.py
+    python -i demos/04_if_branch.py   # same, then use `inter` directly in the REPL
 """
 
 import asyncio
@@ -27,15 +28,17 @@ async def grade_c() -> str:
     return "C"
 
 
-async def main() -> None:
-    # Inline condition nodes via NodeType
-    cond_a = NodeType(lambda: False, wrap_to_async=False, address_able=False, tag=None)
-    cond_b = NodeType(lambda: True, wrap_to_async=False, address_able=False, tag=None)
+# Inline condition nodes via NodeType.
+cond_a = NodeType(lambda: False, wrap_to_async=False, address_able=False, tag=None)
+cond_b = NodeType(lambda: True, wrap_to_async=False, address_able=False, tag=None)
 
-    comp = IF(cond_a, grade_a).ELIF(cond_b, grade_b).ELSE(grade_c).extract()
-    rendered = comp.render()
-    interpreter = WorkflowInterpreter(rendered)
-    await interpreter.run()
+composition = IF(cond_a, grade_a).ELIF(cond_b, grade_b).ELSE(grade_c).extract()
+# Module-level so a REPL can `from demos.04_if_branch import inter` and step through the branches.
+inter = WorkflowInterpreter(composition.render())
+
+
+async def main() -> None:
+    await inter.run()
 
 
 if __name__ == "__main__":

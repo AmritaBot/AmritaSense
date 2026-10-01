@@ -20,7 +20,7 @@ AmritaSense 的核心寻址数据结构。它是一个变长整数数组，每�
 
 ### 9.1.5 Instruction Set（指令集）
 
-AmritaSense 提供的一套完备的控制流原语，包括 `IF/ELIF/ELSE`（条件分支）、`WHILE/DO-WHILE`（循环）、`JMP`（无条件跳转）、`INVOKE`（子程序调用）、`TRY/CATCH/THEN/FIN`（异常处理）、`NOP`（哨兵）和 `RESET`（强制终止）。所有指令在编译期展开为底层节点组合，运行时通过指针跳转完成。
+AmritaSense 提供的一套完备的控制流原语，包括 `IF/ELIF/ELSE`（条件分支）、`WHILE/DO-WHILE`（循环）、`JMP`（无条件跳转）、`INVOKE`（子程序调用）、`CALL` / `RET`（函数块调用与返回）、`INT` / `IRET`（中断转移）、`PUSH_CONTEXT` / `POP_CONTEXT`（上下文快照）、`TRY/CATCH/THEN/FIN`（异常处理）、`NOP`（哨兵）和 `RESET`（强制终止）。所有指令在编译期展开为底层节点组合，运行时通过指针跳转完成。
 
 ### 9.1.6 Self-Compile Instruction（自编译指令）
 
@@ -32,21 +32,29 @@ AmritaSense 中的“组合”由 `amrita_sense.node.abc_base` 中的两个抽�
 
 ### 9.1.8 Interrupt（流程中断）
 
-AmritaSense 提供的协作式中断机制。工作流在指定标记点主动挂起，将控制权交还给外部系统。外部系统可以在此窗口期内检查状态、修改变量，然后通过 `resume()` 恢复执行。这是构建调试器和外部监控系统的基础能力。
+AmritaSense 提供的协作式中断机制。工作流在指定标记点主动挂起，将控制权交还给外部系统。外部系统可以在此窗口期内检查状态、修改变量，然后通过 `resume()` 恢复执行。这是构建调试器和外部监控系统的基础能力。用于控制转移的那一类——外部调用落在 `CALL` / `INT` 节点上——见下方的 Trap 词条。
 
-### 9.1.9 Depends（依赖注入）
+### 9.1.9 Trap（陷阱）
+
+**目标为 `CALL` 或 `INT` 节点的外中断**，而非普通处理节点。当外部调用方对运行中的解释器触发 `call_sub(interrupt=True)` 时，`call_sub` 压入停驻地址 `C` 并进入目标。若目标是 `CALL`，`CALL` 会压入**自身地址** `P` 再跳走，于是地址栈上变成 `[C, P]`；`call_sub` 的 `finally` 块再把 `P` 弹走（它是被进入的节点压的），随后例程末尾的 `RET` 弹出 `C`。因为 `RET` 恢复到保存地址**再加一**，净效果是：trap 消耗掉解释器停驻的那一轮，执行从**停驻地址 + 1** 继续。
+
+这正是 trap 与普通注入的分野：普通处理节点只会在栈上留下 `[C]`，`call_sub` 把它弹走，停驻节点之后照常执行。`INT` 通过上下文栈产生同样的 trap 效果——它的 `IRET` 恢复快照后从 `C + 1` 继续。
+
+trap 目标不得自行压/弹 `_ret_addr_stack`：`call_sub` 的 `pop` 是无条件的，不会校验弹出的是谁压的。`CALL` 与 `INT` 恰好满足这一契约。完整的地址栈推演见[外部中断调用](/zh/guide/advanced/external_interrupt)，可运行版本见 `demos/10_call_trap.py`。
+
+### 9.1.10 Depends（依赖注入）
 
 借鉴 FastAPI 的依赖注入模式。节点通过在函数签名中声明 `Depends(factory)` 来声明自己需要的资源。AmritaSense 的依赖解析系统支持并发解析、运行时注入和类型匹配。若工厂函数返回 `None`，工作流将直接终止。
 
-### 9.1.10 Alias（别名）
+### 9.1.11 Alias（别名）
 
 通过 `ALIAS` 指令为节点绑定的全局唯一符号名。编译期注册到 `alias2vector_map`，供 `JMP` 和 `INVOKE` 在运行时查表解析。这是 AmritaSense 符号寻址体系的基础。
 
-### 9.1.11 Subprogram（子程序）
+### 9.1.12 Subprogram（子程序）
 
 通过 `ARCHIVED_NODES` 指令定义的、被 `SubprogramJumpNode` 跳过、仅通过 `INVOKE` 或外部注入访问的节点序列。子程序可以存储中断处理逻辑、调试工具或可复用的功能模块，正常执行流不受其存在的影响。若要归档完整节点组合（如函数体），改用 `ARCHIVED_SEGMENT`；`FN` / `INTER_FN` 在其上构建命名函数块（参见[函数块调用](/zh/guide/advanced/function-block-call)）。
 
-### 9.1.12 其他核心术语
+### 9.1.13 其他核心术语
 
 - **解释锁（Interpret Lock）**：`aiologic.Lock` 实例，保证每次只有一个节点在执行，是外部安全调用的互斥基础
 - **跳转标记（Jump Mark）**：状态寄存器的 `JMP` 位，置起时解释器跳过常规的指针推进步骤，下一轮从跳转目标开始
@@ -57,7 +65,7 @@ AmritaSense 提供的协作式中断机制。工作流在指定标记点主动�
 - **Debugger（调试器）**：`amrita_sense.debugger` 模块提供的一套 REPL 优先的纯函数式调试工具包。包含状态检查（`inspect`、`where`、`backtrace`、`list_nodes`、`list_sub_intp`）、步进执行（`step`、`step_over`、`step_out`、`cont`）和断点管理（`break_at_tag`、`break_at_addr`、`clear_break_*`、`list_breaks`）。通过组合式中间件（middleware）注入实现，不修改核心运行时。同步函数可直接在 REPL 中调用而无需 `await`。
 - **Breakpoint（断点）**：标记在特定节点标签或地址上的执行暂停点。通过 `amrita_sense.debugger` 的 `break_at_tag()` 和 `break_at_addr()` 设置，支持条件表达式（`condition` 参数）。命中断点时抛出 `BreakpointHit`（继承 `BaseException` 而非 `Exception`，避免触发 panic 机制），由 `cont()` 捕获后暂停执行。
 
-### 9.1.13 缩写词
+### 9.1.14 缩写词
 
 - **API**：Application Programming Interface（应用程序编程接口）
 - **DI**：Dependency Injection（依赖注入）
@@ -66,7 +74,7 @@ AmritaSense 提供的协作式中断机制。工作流在指定标记点主动�
 - **HTTP**：Hypertext Transfer Protocol（超文本传输协议）
 - **ISA**：Instruction Set Architecture（指令集架构）
 
-### 9.1.14 原语（Primitive）
+### 9.1.15 原语（Primitive）
 
 **原语**是计算机体系结构中的核心概念，指处理器指令集架构（ISA）中定义的**不可再分的最小操作单元**。在 ISA 中，原语指示了处理器能够执行的最基本能力——如加法、数据加载、条件跳转——所有复杂的程序最终都由这些原语组合而成。原语决定了"硬件能做什么"，软件则通过原语的组合实现任意复杂的逻辑。
 

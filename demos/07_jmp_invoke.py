@@ -2,6 +2,7 @@
 
 Usage:
     python demos/07_jmp_invoke.py
+    python -i demos/07_jmp_invoke.py   # same, then use `inter` / `invoke_inter` in the REPL
 """
 
 import asyncio
@@ -40,19 +41,24 @@ async def done() -> None:
     print(f"INVOKE returned: {_greet_result}")
 
 
+# JMP("target") skips skip_me and goes directly to after_jump.
+inter = WorkflowInterpreter(
+    (start >> JMP("target") >> skip_me >> ALIAS(after_jump, "target")).render()
+)
+
+# INVOKE("greeter") runs the archived subroutine inline, then returns to continue.
+_subprogram = ARCHIVED_NODES(ALIAS(reusable_greet, "greeter"))
+invoke_inter = WorkflowInterpreter(
+    (start >> INVOKE("greeter") >> done >> _subprogram).render()
+)
+
+
 async def main() -> None:
     print("=== JMP example ===")
-
-    # JMP("target") skips skip_me, goes directly to after_jump
-    comp = start >> JMP("target") >> skip_me >> ALIAS(after_jump, "target")
-    await WorkflowInterpreter(comp.render()).run()
+    await inter.run()
 
     print("\n=== INVOKE example ===")
-
-    # INVOKE("greeter") runs the subroutine inline, then returns to continue
-    sub = ARCHIVED_NODES(ALIAS(reusable_greet, "greeter"))
-    comp2 = start >> INVOKE("greeter") >> done >> sub
-    await WorkflowInterpreter(comp2.render()).run()
+    await invoke_inter.run()
 
 
 if __name__ == "__main__":

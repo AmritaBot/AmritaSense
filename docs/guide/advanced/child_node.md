@@ -89,7 +89,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-This is a **trap**: the parked node is consumed by the trap cycle and execution resumes at _parked address + 1_, because `RET` resumes at its saved address **plus one**. See [External Interrupt Calls](/guide/advanced/external_interrupt) for the full stack trace of the trap and a runnable version (`demos/25_call_trap.py`).
+This is a **trap**: the parked node is consumed by the trap cycle and execution resumes at _parked address + 1_, because `RET` resumes at its saved address **plus one**. See [External Interrupt Calls](/guide/advanced/external_interrupt) for the full stack trace of the trap and a runnable version (`demos/10_call_trap.py`).
 
 ### Coordination with Depends
 
