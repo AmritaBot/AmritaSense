@@ -1380,6 +1380,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if args.runs < 1:
+        parser.error("--runs must be at least 1")
+
     RUNS = args.runs
 
     if args.list:

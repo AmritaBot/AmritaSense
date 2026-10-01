@@ -1,75 +1,94 @@
 #!/usr/bin/env python3
-"""Render a `coverage.xml` report as Markdown for `$GITHUB_STEP_SUMMARY`.
+"""Render the coverage data as Markdown for `$GITHUB_STEP_SUMMARY`.
 
-The XML writer is built into `coverage` itself, so this reads the report
-`pytest --cov-report=xml` already produced instead of re-running coverage or
-shelling out to a third-party action.
+Reads the `.coverage` data file that `pytest --cov` already wrote, through the
+`coverage` API rather than re-parsing the XML export: same numbers, no extra
+dependency beyond the `coverage` that `pytest-cov` already pulls in, and no XML
+parser to point at untrusted input.
 
 Usage:
-    coverage_summary.py [coverage.xml] [--top N] [--min PERCENT]
+    coverage_summary.py [.coverage] [--top N] [--min PERCENT]
 
-Exit status is 0 unless `--min` is given and the total line rate is below it.
+Exit status is 0 unless `--min` is given and total line coverage is below it.
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
-from xml.etree import ElementTree
+
+from coverage import Coverage
 
 
-def _pct(value: str | None) -> float:
-    """`coverage.xml` stores rates as 0..1 fractions."""
-    if value is None:
-        return 0.0
-    return float(value) * 100
+def _relative(filename: str) -> str:
+    """Prefer a repository-relative path; fall back to the absolute one."""
+    try:
+        return os.path.relpath(filename)
+    except ValueError:  # pragma: no cover - only reachable across Windows drives
+        return filename
 
 
-def _collect(path: Path) -> tuple[dict[str, float], list[tuple[str, float, int]]]:
-    root = ElementTree.parse(path).getroot()
+def _collect(
+    data_file: Path,
+) -> tuple[dict[str, float], list[tuple[str, float, int, int]]]:
+    """Return (totals, per-file rows) from a coverage data file."""
+    cov = Coverage(data_file=str(data_file))
+    cov.load()
+    data = cov.get_data()
 
-    total = {
-        "line": _pct(root.get("line-rate")),
-        "branch": _pct(root.get("branch-rate")),
-        "lines_covered": int(root.get("lines-covered", 0)),
-        "lines_valid": int(root.get("lines-valid", 0)),
-    }
+    total_statements = 0
+    total_missing = 0
+    files: list[tuple[str, float, int, int]] = []
 
-    files: list[tuple[str, float, int]] = []
-    for cls in root.iter("class"):
-        filename = cls.get("filename") or cls.get("name") or "?"
-        rate = _pct(cls.get("line-rate"))
-        statements = len(cls.findall("./lines/line"))
-        files.append((filename, rate, statements))
+    for filename in sorted(data.measured_files()):
+        try:
+            _, statements, _, missing, _ = cov.analysis2(filename)
+        except Exception:
+            # Files without readable source (compiled extensions, generated
+            # modules) cannot be analysed; skipping them is not fatal.
+            continue
+        covered = len(statements) - len(missing)
+        total_statements += len(statements)
+        total_missing += len(missing)
+        rate = 100.0 * covered / len(statements) if statements else 100.0
+        files.append((_relative(filename), rate, len(statements), len(missing)))
 
     files.sort(key=lambda item: (item[1], -item[2]))
-    return total, files
+    totals = {
+        "rate": (
+            100.0 * (total_statements - total_missing) / total_statements
+            if total_statements
+            else 0.0
+        ),
+        "covered": total_statements - total_missing,
+        "statements": total_statements,
+    }
+    return totals, files
 
 
-def render(path: Path, top: int) -> str:
-    total, files = _collect(path)
+def render(data_file: Path, top: int) -> str:
+    totals, files = _collect(data_file)
 
     lines = ["## Coverage", ""]
     lines.append(
-        f"**Total: {total['line']:.2f}%** "
-        f"({total['lines_covered']}/{total['lines_valid']} statements)"
-        + (f" · branches {total['branch']:.2f}%" if total["branch"] else "")
+        f"**Total: {totals['rate']:.2f}%** "
+        f"({totals['covered']}/{totals['statements']} statements)"
     )
     lines.append("")
 
     if not files:
-        lines.append("_No per-file coverage data in the report._")
+        lines.append("_No per-file coverage data recorded._")
         return "\n".join(lines)
 
-    lines.append(
-        f"Lowest-covered files (worst {min(top, len(files))} of {len(files)}):"
-    )
+    shown = min(top, len(files))
+    lines.append(f"Lowest-covered files (worst {shown} of {len(files)}):")
     lines.append("")
-    lines.append("| File | Coverage | Statements |")
+    lines.append("| File | Coverage | Missing |")
     lines.append("|---|:---:|:---:|")
-    for filename, rate, statements in files[:top]:
-        lines.append(f"| `{filename}` | {rate:.1f}% | {statements} |")
+    for filename, rate, statements, missing in files[:top]:
+        lines.append(f"| `{filename}` | {rate:.1f}% | {missing}/{statements} |")
 
     return "\n".join(lines)
 
@@ -77,10 +96,10 @@ def render(path: Path, top: int) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "report",
+        "data_file",
         nargs="?",
-        default="coverage.xml",
-        help="path to the coverage XML report (default coverage.xml)",
+        default=".coverage",
+        help="coverage data file written by pytest-cov (default .coverage)",
     )
     parser.add_argument(
         "--top", type=int, default=15, help="how many low-coverage files to list"
@@ -94,17 +113,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    path = Path(args.report)
+    if args.top < 1:
+        parser.error("--top must be at least 1")
+
+    path = Path(args.data_file)
     if not path.exists():
-        print(f"Coverage report not found: {path}", file=sys.stderr)
+        print(f"Coverage data file not found: {path}", file=sys.stderr)
         return 1
 
-    total, _ = _collect(path)
+    totals, _ = _collect(path)
     print(render(path, args.top))
 
-    if args.min is not None and total["line"] < args.min:
+    if args.min is not None and totals["rate"] < args.min:
         print(
-            f"::error::Total coverage {total['line']:.2f}% "
+            f"::error::Total coverage {totals['rate']:.2f}% "
             f"is below the required {args.min:.2f}%"
         )
         return 1

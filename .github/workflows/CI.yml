@@ -65,7 +65,11 @@ jobs:
       - name: Write coverage summary
         if: always()
         run: |
-          uv run python scripts/coverage_summary.py coverage.xml >> "$GITHUB_STEP_SUMMARY"
+          if [ -f .coverage ]; then
+            uv run python scripts/coverage_summary.py >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No coverage data produced." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload coverage report
         if: always()
