@@ -369,3 +369,6 @@ test-results.xml
 # Other
 temp/
 bench.out
+benchmark-results.json
+benchmark-results.xml
+benchmark-summary.md

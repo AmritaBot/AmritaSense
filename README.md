@@ -82,6 +82,24 @@ See more demos in `demos/`
 
 Full guides, concept explanations, and API reference at **[sense.amritabot.com](https://sense.amritabot.com)**.
 
+## Benchmarks
+
+`benchmark.py` is a self-contained suite covering control flow, jump/call,
+interrupt, exception, event-dispatch, dependency-injection, composition,
+concurrency and memory scenarios.
+
+```bash
+uv run benchmark.py              # 5 measured runs per scenario, prints a table
+uv run benchmark.py --runs 20    # more samples, tighter error bars
+uv run benchmark.py --list       # list registered scenarios
+uv run benchmark.py --no-json    # skip the JSON export
+```
+
+Each scenario is reported as mean ± 1 stdev, and the whole run is written to
+`benchmark-results.json` (raw samples plus host metadata), so two revisions can
+be diffed mechanically instead of eyeballed. CI runs the suite on every
+supported Python version and uploads the JSON as an artifact.
+
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) and our [Code of Conduct](CODE_OF_CONDUCT.md).
