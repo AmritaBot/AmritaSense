@@ -89,13 +89,12 @@ workflow = start >> log_start >> process_data >> log_end >> end
 
 - 执行目标节点
 - 若节点抛出异常，自动重试
-- 超过最大重试次数后，抛出最终异常或执行降级节点
+- 超过最大重试次数后，执行降级节点
 
 ### 实现
 
 ```python
-from amrita_sense.instructions import IF, TRY
-from amrita_sense.exceptions import BreakLoop
+from amrita_sense.instructions import IF, NATIVE_WHILE, Try
 
 
 class RetryClause(SelfCompileInstruction):
@@ -107,29 +106,34 @@ class RetryClause(SelfCompileInstruction):
         self._fallback = fallback
 
     def extract(self) -> NodeCompose:
-        @Node()
-        def attempt():
-            pass  # 占位，实际逻辑由 TRY 块内的 self._node 执行
+        retries = 0
+        ok = False
 
         @Node()
-        def on_error():
+        def under_max() -> bool:
+            return not ok and retries < self._max
+
+        @Node()
+        def on_error() -> None:
             nonlocal retries
             retries += 1
-            if retries >= self._max:
-                raise BreakLoop  # 跳出重试循环，进入降级或向上抛异常
 
-        retries = 0
+        @Node()
+        def on_success() -> None:
+            nonlocal ok
+            ok = True
 
-        retry_body = TRY(self._node).CATCH(Exception, on_error)
+        @Node()
+        def failed() -> bool:
+            return not ok
 
-        # SelfCompileInstruction 直接支持 `>>`；末尾无需 NOP——
-        # 工作流到达末尾时解释器自然结束。
-        if self._fallback:
-            return (
-                WHILE(lambda: retries < self._max).ACTION(retry_body) >> self._fallback
-            )
-        else:
-            return WHILE(lambda: retries < self._max).ACTION(retry_body).extract()
+        # 循环体是组合，因此必须用 NATIVE_WHILE（WHILE 只接受单节点）。
+        body = Try(self._node).CATCH(Exception, on_error).THEN(on_success)
+        loop = NATIVE_WHILE(under_max).ACTION(body)
+
+        if self._fallback is not None:
+            return loop >> IF(failed, self._fallback)
+        return loop.extract()
 ```
 
 使用：
@@ -138,15 +142,11 @@ class RetryClause(SelfCompileInstruction):
 RetryClause(call_api, max_retries=3, fallback=use_cache)
 ```
 
-展开后等价于：
-
-```python
-WHILE(condition).ACTION(TRY(call_api).CATCH(Exception, on_error)) >> use_cache
-```
-
 ### 关键点
 
-- `extract()` 内部使用了 `WHILE` 和 `TRY` 两个内置指令，展示了自编译指令的**组合性**
+- 循环体是一个**组合**（`Try(...).CATCH(...).THEN(...)`），因此循环必须用 `NATIVE_WHILE`。基于 `call_sub` 的 `WHILE` 只接受**单节点**，参见[单节点循环体](/zh/guide/advanced/built-in_instruction_set/while_clause#单节点循环体)。
+- 原生循环不在循环体外包 `try/except`，所以循环通过**条件**退出而非 `BreakLoop`：`on_success` 把 `ok` 置真、或 `on_error` 用尽重试次数后，`under_max` 即返回假。
+- `IF(failed, ...)` 只在所有尝试都失败时执行降级节点。
 - 跳转地址由内置指令自动计算，`RetryClause` 无需手动管理偏移量
 - 用户看到的只是 `RetryClause(...)`，底层展开细节完全透明
 

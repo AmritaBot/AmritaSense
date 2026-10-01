@@ -89,13 +89,12 @@ Wrapping a potentially failing node with retry logic is a typical use case for s
 
 - execute the target node
 - if the node raises an exception, retry
-- if the maximum retry count is exceeded, raise the final exception or execute a fallback node
+- if the maximum retry count is exceeded, execute a fallback node
 
 ### Implementation
 
 ```python
-from amrita_sense.instructions import IF, TRY
-from amrita_sense.exceptions import BreakLoop
+from amrita_sense.instructions import IF, NATIVE_WHILE, Try
 
 
 class RetryClause(SelfCompileInstruction):
@@ -107,29 +106,34 @@ class RetryClause(SelfCompileInstruction):
         self._fallback = fallback
 
     def extract(self) -> NodeCompose:
-        @Node()
-        def attempt():
-            pass  # placeholder; self._node will be executed inside the TRY block
+        retries = 0
+        ok = False
 
         @Node()
-        def on_error():
+        def under_max() -> bool:
+            return not ok and retries < self._max
+
+        @Node()
+        def on_error() -> None:
             nonlocal retries
             retries += 1
-            if retries >= self._max:
-                raise BreakLoop
 
-        retries = 0
+        @Node()
+        def on_success() -> None:
+            nonlocal ok
+            ok = True
 
-        retry_body = TRY(self._node).CATCH(Exception, on_error)
+        @Node()
+        def failed() -> bool:
+            return not ok
 
-        # SelfCompileInstruction supports `>>` directly; no trailing NOP needed
-        # — the interpreter finishes when the workflow reaches its end.
-        if self._fallback:
-            return (
-                WHILE(lambda: retries < self._max).ACTION(retry_body) >> self._fallback
-            )
-        else:
-            return WHILE(lambda: retries < self._max).ACTION(retry_body).extract()
+        # The body is a composition, so the loop must be NATIVE_WHILE (WHILE takes one node).
+        body = Try(self._node).CATCH(Exception, on_error).THEN(on_success)
+        loop = NATIVE_WHILE(under_max).ACTION(body)
+
+        if self._fallback is not None:
+            return loop >> IF(failed, self._fallback)
+        return loop.extract()
 ```
 
 Usage:
@@ -138,18 +142,11 @@ Usage:
 RetryClause(call_api, max_retries=3, fallback=use_cache)
 ```
 
-This expands into:
-
-```python
-(
-    WHILE(lambda: retries < self._max).ACTION(TRY(call_api).CATCH(Exception, on_error))
-    >> use_cache
-)
-```
-
 ### Key points
 
-- `extract()` uses built-in instructions `WHILE` and `TRY`, demonstrating the composability of custom instructions.
+- The loop body is a **composition** — `Try(...).CATCH(...).THEN(...)` — so the loop must be `NATIVE_WHILE`. The `call_sub`-based `WHILE` accepts a **single node** only; see [single-node loop body](/guide/advanced/built-in_instruction_set/while_clause#single-node-loop-body).
+- Native loops wrap no `try/except` around the body, so the loop exits through its **condition** instead of `BreakLoop`: `under_max` turns false as soon as `on_success` sets `ok`, or `on_error` exhausts the retry budget.
+- `IF(failed, ...)` runs the fallback only when every attempt failed.
 - Jump addresses are handled by the built-in instructions, so `RetryClause` does not need to manage offsets manually.
 - Users see only `RetryClause(...)`, while the expansion remains transparent.
 

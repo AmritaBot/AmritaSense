@@ -2,6 +2,7 @@ from typing import cast
 
 import pytest
 
+from amrita_sense.instructions.if_clause import IF
 from amrita_sense.instructions.jump import JumpNode
 from amrita_sense.instructions.loop.do_while import DO
 from amrita_sense.instructions.loop.while_clause import WHILE
@@ -47,3 +48,30 @@ def test_while_extract_normal():
 
     # WhileNode, condition, action, CheckUpNode, NOP
     assert len(extracted._graph) == 5  # type: ignore[reportAttributeAccessIssue]
+
+
+def test_while_rejects_composition_body():
+    """A `call_sub`-based loop runs exactly one node per iteration, so a
+    composition body would silently drop every child but the first."""
+    cond = _make_node(True)
+    body = cast(NodeType, _make_node("a") >> _make_node("b"))
+
+    with pytest.raises(TypeError, match="WHILE body must be a single node"):
+        WHILE(cond).ACTION(body).extract()
+
+
+def test_do_while_rejects_composition_body():
+    cond = _make_node(True)
+    body = cast(NodeType, _make_node("a") >> _make_node("b"))
+
+    with pytest.raises(TypeError, match="DO-WHILE body must be a single node"):
+        DO(body).WHILE(cond).extract()
+
+
+def test_while_accepts_self_compiled_body():
+    """A jump-based self-compiled instruction does all its work inside one
+    node execution, so it is a valid loop body."""
+    cond = _make_node(True)
+    body = cast(NodeType, IF(cond, _make_node("a")))
+
+    assert WHILE(cond).ACTION(body).extract() is not None

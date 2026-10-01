@@ -37,8 +37,8 @@ All of AmritaSense's built-in instructions are subclasses of `SelfCompileInstruc
 
 ### Loop instructions
 
-- `WhileClause`: `WHILE(condition).ACTION(action)` → `[WhileNode, condition, action, CheckUpNode, NOP]`
-- `DoWhileClause`: `DO(do).WHILE(condition)` → `[DONode, do, DowhileNode, condition, NOP]`
+- `WhileClause`: `WHILE(condition).ACTION(action)` → `[WhileNode, condition, action, CheckUpNode, NOP]`. `action` must be a **single node** — a composition raises `TypeError` at compile time; use `NATIVE_WHILE` for a multi-node body.
+- `DoWhileClause`: `DO(do).WHILE(condition)` → `[DONode, do, DowhileNode, condition, NOP]`. `do` must be a **single node**; use `NATIVE_DO` for a multi-node body.
 
 ### Exception handling instructions
 

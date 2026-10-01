@@ -37,8 +37,8 @@ AmritaSense 的内置指令集全部是 `SelfCompileInstruction` 的子类。以
 
 ### 循环指令
 
-- `WhileClause`：`WHILE(condition).ACTION(action)` -> `[WhileNode, condition, action, CheckUpNode, NOP]`
-- `DoWhileClause`：`DO(do).WHILE(condition)` -> `[DONode, do, DowhileNode, condition, NOP]`
+- `WhileClause`：`WHILE(condition).ACTION(action)` -> `[WhileNode, condition, action, CheckUpNode, NOP]`。`action` 必须是**单节点**——传入组合会在编译期抛出 `TypeError`，多节点循环体请用 `NATIVE_WHILE`。
+- `DoWhileClause`：`DO(do).WHILE(condition)` -> `[DONode, do, DowhileNode, condition, NOP]`。`do` 必须是**单节点**，多节点循环体请用 `NATIVE_DO`。
 
 ### 异常处理指令
 

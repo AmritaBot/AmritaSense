@@ -11,6 +11,7 @@ Native instructions are **not** performance replacements for traditional ones â€
 |                   | Traditional (`IF`/`WHILE`/`DO`)              | Native (`NATIVE_IF`/`NATIVE_WHILE`/`NATIVE_DO`)                        |
 | ----------------- | -------------------------------------------- | ---------------------------------------------------------------------- |
 | Mechanism         | `call_sub` (nested call + auto stack manage) | `PUSH / JMP / CONTINUE / BREAK_LOOP` (pointer ops)                     |
+| Loop body shape   | Single node only (`call_sub` runs one node)  | Single node **or** bubble                                              |
 | Branch entry      | Interpreter auto-manages call stack          | Developer explicitly controls jumps and returns                        |
 | Bubble return     | Automatic (`call_sub` has built-in return)   | Natural flow-back via `advance_pointer` (IF/ELSE) / `CONTINUE` (loops) |
 | Loop break        | Raise `BreakLoop` exception                  | `BREAK_LOOP()` instruction (pop stack + jump to sentinel)              |
