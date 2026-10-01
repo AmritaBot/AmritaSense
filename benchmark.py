@@ -132,8 +132,10 @@ class Result:
     exec_sd: float = 0.0
     mem_peak_kb: float = 0.0
     extra: dict[str, Any] = field(default_factory=dict)
+    runs: int = 0
     compile_samples: list[float] = field(default_factory=list)
     exec_samples: list[float] = field(default_factory=list)
+    mem_samples: list[float] = field(default_factory=list)
 
     @property
     def sense_total(self) -> float:
@@ -206,9 +208,15 @@ def invoke(
 
 
 def _render_table(results: list[Result]) -> str:
-    """Markdown table of averaged results; shared by stdout and the CI summary."""
+    """Markdown table of averaged results; shared by stdout and the CI summary.
+
+    The sample count comes from the results themselves rather than the
+    module-level `RUNS`, so a direct `invoke(runs=...)` call is described
+    correctly without also having to mutate the global.
+    """
     has_mem = any(r.mem_peak_kb > 0 for r in results)
-    lines = [f"RESULTS  (mean of {RUNS} runs, ±1 stdev)", ""]
+    runs = results[0].runs if results else 0
+    lines = [f"RESULTS  (mean of {runs} runs, ±1 stdev)", ""]
 
     header = "| Group | Scenario | compile | exec | total | exec sd |"
     rule = "|---|---|:---:|:---:|:---:|:---:|"
@@ -267,6 +275,7 @@ def _mean_results(results: list[Result]) -> Result:
     head = results[0]
     comp = [r.sense_compile_s for r in results]
     exe = [r.sense_exec_s for r in results]
+    mem = [r.mem_peak_kb for r in results]
     return Result(
         label=head.label,
         group=head.group,
@@ -274,10 +283,12 @@ def _mean_results(results: list[Result]) -> Result:
         sense_exec_s=statistics.fmean(exe),
         compile_sd=statistics.stdev(comp) if len(comp) > 1 else 0.0,
         exec_sd=statistics.stdev(exe) if len(exe) > 1 else 0.0,
-        mem_peak_kb=statistics.fmean(r.mem_peak_kb for r in results),
+        mem_peak_kb=statistics.fmean(mem),
         extra=head.extra,
+        runs=len(results),
         compile_samples=comp,
         exec_samples=exe,
+        mem_samples=mem,
     )
 
 
@@ -1250,20 +1261,24 @@ def environment_meta() -> dict[str, Any]:
 
 def to_json(results: list[Result], path: str) -> None:
     """Dump every scenario plus its raw samples for trend diffing."""
-    payload = {
-        "meta": environment_meta(),
-        "results": [
-            {
-                "label": r.label,
-                "group": r.group,
-                "extra": r.extra,
-                "compile": _stats(r.compile_samples),
-                "exec": _stats(r.exec_samples),
-                "mem_peak_kb": r.mem_peak_kb,
-            }
-            for r in results
-        ],
-    }
+    entries: list[dict[str, Any]] = []
+    for r in results:
+        entry: dict[str, Any] = {
+            "label": r.label,
+            "group": r.group,
+            "extra": r.extra,
+            "runs": r.runs,
+            "compile": _stats(r.compile_samples),
+            "exec": _stats(r.exec_samples),
+            "mem_peak_kb": r.mem_peak_kb,
+        }
+        if any(r.mem_samples):
+            # Only the memory scenario produces a non-zero peak; leave the
+            # other entries free of a list of zeros.
+            entry["mem_samples"] = r.mem_samples
+        entries.append(entry)
+
+    payload = {"meta": environment_meta(), "results": entries}
     with open(path, "w", encoding="utf-8") as fp:
         json.dump(payload, fp, indent=2, ensure_ascii=False)
         fp.write("\n")
@@ -1278,7 +1293,8 @@ def _scenario_detail(r: Result) -> str:
         f"total: {r.sense_total:.6f}s\n"
         f"peak mem: {r.mem_peak_kb:.1f}KiB\n"
         f"compile samples: {[round(v, 6) for v in r.compile_samples]}\n"
-        f"exec samples: {[round(v, 6) for v in r.exec_samples]}"
+        f"exec samples: {[round(v, 6) for v in r.exec_samples]}\n"
+        f"mem samples: {[round(v, 1) for v in r.mem_samples]}"
     )
 
 
