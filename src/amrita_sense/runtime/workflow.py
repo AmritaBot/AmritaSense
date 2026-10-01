@@ -26,6 +26,11 @@ from typing import (
 from uuid import uuid4
 
 import aiologic
+from aiologic.lowlevel import (
+    AsyncLibraryNotFoundError,
+    current_async_library,
+    current_async_library_tlocal,
+)
 from typing_extensions import LiteralString
 
 from amrita_sense._unsafe import __flags__
@@ -55,6 +60,37 @@ NULL_CTX = nullcontext()
 io_T = TypeVar("io_T", bound=SuspendObjectStream, covariant=True)
 fun_T = TypeVar("fun_T", bound=Callable[..., Any], covariant=True)
 UNSET = object()
+
+
+def _pin_async_library() -> str | None:
+    """Cache aiologic's async-library detection for the duration of a run.
+
+    `aiologic.Lock` re-detects the running async library on every operation,
+    because one lock has to serve asyncio, trio and curio.  The interpreter
+    takes a lock on every step, so that detection lands in the hot path.
+
+    `aiologic.lowlevel.current_async_library()` already consults
+    `current_async_library_tlocal` first and only falls through to probing when
+    it is empty.  Nothing in aiologic or sniffio ever fills it -- the slot
+    exists for trio-asyncio style bridges -- so writing the library that is
+    *actually* running only caches an answer that was being recomputed anyway.
+
+    Returns the previous value, to be handed back to
+    `_restore_async_library()`.
+    """
+    tlocal = current_async_library_tlocal
+    previous = tlocal.name
+    if previous is None:
+        try:
+            tlocal.name = current_async_library()
+        except AsyncLibraryNotFoundError:  # pragma: no cover - never in a run
+            pass
+    return previous
+
+
+def _restore_async_library(previous: str | None) -> None:
+    """Undo `_pin_async_library()`."""
+    current_async_library_tlocal.name = previous
 
 
 class WorkflowInterpreter(Generic[io_T]):
@@ -792,6 +828,7 @@ class WorkflowInterpreter(Generic[io_T]):
             raise IllegalState(
                 "Cannot start a new workflow while one is already running"
             )
+        pinned_library = _pin_async_library()
         try:
             self._waiter_fut = asyncio.Future()
             if any(isinstance(v, DependsFactory) for v in self.__ava_args) or any(
@@ -890,6 +927,7 @@ class WorkflowInterpreter(Generic[io_T]):
             self._waiter_fut = None
             if not resumable:
                 await self._close_workflow_scope()
+            _restore_async_library(pinned_library)
 
     def _make_traceback(self) -> str:
         """Make a traceback string for the current workflow."""
