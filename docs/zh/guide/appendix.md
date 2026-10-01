@@ -40,7 +40,7 @@ AmritaSense 提供的协作式中断机制。工作流在指定标记点主动�
 
 这正是 trap 与普通注入的分野：普通处理节点只会在栈上留下 `[C]`，`call_sub` 把它弹走，停驻节点之后照常执行。`INT` 通过上下文栈产生同样的 trap 效果——它的 `IRET` 恢复快照后从 `C + 1` 继续。
 
-trap 目标不得自行压/弹 `_ret_addr_stack`：`call_sub` 的 `pop` 是无条件的，不会校验弹出的是谁压的。`CALL` 与 `INT` 恰好满足这一契约。完整的地址栈推演见[外部中断调用](/zh/guide/advanced/external_interrupt)，可运行版本见 `demos/10_call_trap.py`。
+trap 目标不得自行压/弹 `_ret_addr_stack`：`call_sub` 的 `pop` 是无条件的，不会校验弹出的是谁压的。`CALL` 与 `INT` 恰好满足这一契约。完整的地址栈推演见[外部中断调用](/zh/guide/advanced/external_interrupt)，可运行版本见 `demos/d10_call_trap.py`。
 
 ### 9.1.10 Depends（依赖注入）
 

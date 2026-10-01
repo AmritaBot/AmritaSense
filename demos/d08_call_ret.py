@@ -1,8 +1,8 @@
-"""08_call_ret.py — CALL + RET modern function-call pattern
+"""d08_call_ret.py — CALL + RET modern function-call pattern
 
 Usage:
-    python demos/08_call_ret.py
-    python -i demos/08_call_ret.py   # same, then use `inter` directly in the REPL
+    python demos/d08_call_ret.py
+    python -i demos/d08_call_ret.py   # same, then use `inter` directly in the REPL
 
 CALL(to_adr) combines PUSH_RET + JMP:
   - from_adr=None in the main flow: the current pointer is pushed, so
@@ -43,7 +43,7 @@ composition = (
     >> after_return
     >> ARCHIVED_SEGMENT(ALIAS(doing_work, "doing_work") >> RET())
 )
-# Module-level so a REPL can `from demos.08_call_ret import inter` and step across the CALL/RET boundary.
+# Module-level so a REPL can `from demos.d08_call_ret import inter` and step across the CALL/RET boundary.
 inter = WorkflowInterpreter(composition.render())
 
 

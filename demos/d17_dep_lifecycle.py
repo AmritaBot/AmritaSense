@@ -1,8 +1,8 @@
-"""17_dep_lifecycle.py — generator dependencies and lifecycle scopes
+"""d17_dep_lifecycle.py — generator dependencies and lifecycle scopes
 
 Usage:
-    python demos/17_dep_lifecycle.py
-    python -i demos/17_dep_lifecycle.py   # same, then use `inter` / `call_scope_inter` in the REPL
+    python demos/d17_dep_lifecycle.py
+    python -i demos/d17_dep_lifecycle.py   # same, then use `inter` / `call_scope_inter` in the REPL
 
 A provider may be a generator: the value before `yield` is injected and the
 code after it is the teardown.  `scope` decides when that teardown runs.
@@ -62,7 +62,7 @@ async def fresh_again(session: Session = Depends(open_session, scope="call")) ->
     print(f"  node   sees {session}")
 
 
-# Module-level so a REPL can `from demos.17_dep_lifecycle import inter, call_scope_inter` and watch the teardown order.
+# Module-level so a REPL can `from demos.d17_dep_lifecycle import inter, call_scope_inter` and watch the teardown order.
 inter = WorkflowInterpreter((shared_first >> shared_second).render())
 call_scope_inter = WorkflowInterpreter((fresh >> fresh_again).render())
 

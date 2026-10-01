@@ -1,8 +1,8 @@
-"""16_annotated_di.py — Annotated[...] dependency declarations
+"""d16_annotated_di.py — Annotated[...] dependency declarations
 
 Usage:
-    python demos/16_annotated_di.py
-    python -i demos/16_annotated_di.py   # same, then use `inter` directly in the REPL
+    python demos/d16_annotated_di.py
+    python -i demos/d16_annotated_di.py   # same, then use `inter` directly in the REPL
 
 Shows the two equivalent ways to declare a dependency, that a parameter must
 not use both at once, and how a malformed declaration fails at construction
@@ -35,7 +35,7 @@ async def greet(
 
 
 composition = NodeCompose(greet)
-# Module-level so a REPL can `from demos.16_annotated_di import inter` and inspect the resolved dependencies.
+# Module-level so a REPL can `from demos.d16_annotated_di import inter` and inspect the resolved dependencies.
 inter = WorkflowInterpreter(composition.render())
 
 

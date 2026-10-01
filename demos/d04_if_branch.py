@@ -1,8 +1,8 @@
-"""04_if_branch.py — IF / ELIF / ELSE conditional branching
+"""d04_if_branch.py — IF / ELIF / ELSE conditional branching
 
 Usage:
-    python demos/04_if_branch.py
-    python -i demos/04_if_branch.py   # same, then use `inter` directly in the REPL
+    python demos/d04_if_branch.py
+    python -i demos/d04_if_branch.py   # same, then use `inter` directly in the REPL
 """
 
 import asyncio
@@ -33,7 +33,7 @@ cond_a = NodeType(lambda: False, wrap_to_async=False, address_able=False, tag=No
 cond_b = NodeType(lambda: True, wrap_to_async=False, address_able=False, tag=None)
 
 composition = IF(cond_a, grade_a).ELIF(cond_b, grade_b).ELSE(grade_c).extract()
-# Module-level so a REPL can `from demos.04_if_branch import inter` and step through the branches.
+# Module-level so a REPL can `from demos.d04_if_branch import inter` and step through the branches.
 inter = WorkflowInterpreter(composition.render())
 
 

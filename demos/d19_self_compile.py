@@ -1,8 +1,8 @@
-"""19_self_compile.py — Custom SelfCompileInstruction
+"""d19_self_compile.py — Custom SelfCompileInstruction
 
 Usage:
-    python demos/19_self_compile.py
-    python -i demos/19_self_compile.py   # same, then use `inter` directly in the REPL
+    python demos/d19_self_compile.py
+    python -i demos/d19_self_compile.py   # same, then use `inter` directly in the REPL
 """
 
 import asyncio

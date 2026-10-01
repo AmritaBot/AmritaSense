@@ -1,8 +1,8 @@
-"""23_unsafe_flags.py — _unsafe flag configuration demo
+"""d23_unsafe_flags.py — _unsafe flag configuration demo
 
 Usage:
-    python demos/23_unsafe_flags.py
-    python -i demos/23_unsafe_flags.py   # same, then use `inter` directly in the REPL
+    python demos/d23_unsafe_flags.py
+    python -i demos/d23_unsafe_flags.py   # same, then use `inter` directly in the REPL
 
 IMPORTANT: Flags must be set BEFORE any WorkflowInterpreter is created.
 Once set, a flag cannot be changed — attempting to do so raises RuntimeError.
@@ -37,7 +37,7 @@ async def step_three() -> None:
     print("[3] Third step")
 
 
-# Module-level so a REPL can `from demos.23_unsafe_flags import inter`; the flags below stay at their defaults.
+# Module-level so a REPL can `from demos.d23_unsafe_flags import inter`; the flags below stay at their defaults.
 inter = WorkflowInterpreter((step_one >> step_two >> step_three).render())
 
 

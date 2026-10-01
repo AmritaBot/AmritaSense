@@ -433,10 +433,10 @@ AmritaSense 的 Panic/Recover 机制是调试器的核心能力之一。当节�
 
 ## 完整示例
 
-项目中的 `demos/25_debug_repl.py` 提供了一个端到端的 REPL 调试演示，覆盖了上述所有功能：
+项目中的 `demos/d25_debug_repl.py` 提供了一个端到端的 REPL 调试演示，覆盖了上述所有功能：
 
 ```bash
-python demos/25_debug_repl.py
+python demos/d25_debug_repl.py
 ```
 
 演示流程：
@@ -460,27 +460,27 @@ flowchart TD
 
 `demos/` 下的每个脚本都在模块级构建解释器并绑定到 `inter`。因此任何一个 demo 都可以当作完整调试流程的演练场——把一个小 demo 从头走到尾，是理解 AmritaSense 如何驱动图的最快方式。导入时不会执行任何东西——只有 `if __name__ == "__main__"` 会跑工作流——所以导入一个 demo 拿到的是一个全新的、未执行过的解释器。
 
-需要多个解释器的 demo 会在 `inter` 之外用描述性名字额外暴露它们；例如 `demos/05_while_loop.py` 同时导出 `inter` 和 `do_while_inter`。
+需要多个解释器的 demo 会在 `inter` 之外用描述性名字额外暴露它们；例如 `demos/d05_while_loop.py` 同时导出 `inter` 和 `do_while_inter`。
 
 #### 把 `inter` 拿进 REPL
 
-文件名以数字开头，所以 `from demos.24_step_by import inter` 会直接 `SyntaxError`。请改用 `importlib`：
+每个 demo 都是可正常导入的模块。它们的文件名带一个 `d` 前缀（`d24_step_by.py`），正是为了让名字保持是合法的 Python 标识符——以数字开头会让 `from demos.d24_step_by import inter` 变成 `SyntaxError`。`demos/` 是一个隐式命名空间包，因此在仓库根目录直接导入即可，不需要 `__init__.py`：
 
 ```python
->>> import importlib
 >>> from amrita_sense.debugger import *
->>> inter = importlib.import_module("demos.24_step_by").inter
+>>> from demos.d24_step_by import inter
+>>> inspect(inter)
 ```
 
 另一种方式是用 `python -i` 跑一个 demo，跑完继续在里面操作——注意这会**先执行** demo，所以你拿到的是执行完毕的状态，而不是全新状态：
 
 ```bash
-python -i demos/01_minimal.py
+python -i demos/d01_minimal.py
 ```
 
 #### 一次完整的调试会话
 
-`demos/24_step_by.py` 是一条三节点链（`a >> b >> c`），小到可以看清每一步。地址、tag 与 PC 标记都直接来自这些工具：
+`demos/d24_step_by.py` 是一条三节点链（`a >> b >> c`），小到可以看清每一步。地址、tag 与 PC 标记都直接来自这些工具。`step()` 自己会打印汇编码窗口，所以下面每个 `segment [root]:` 块都是终端真实显示的内容；`Node A` / `Node B` / `Node C` 则是 demo 自己的 `print()`：
 
 ```python
 >>> where(inter)
@@ -493,18 +493,31 @@ python -i demos/01_minimal.py
 
 >>> dis(inter, around=None)
 segment [root]:
-=>[0] a; 24_step_by.py:13
-  [1] b; 24_step_by.py:18
-  [2] c; 24_step_by.py:23
+=>[0] a; d24_step_by.py:13
+  [1] b; d24_step_by.py:18
+  [2] c; d24_step_by.py:23
 
 >>> step(inter)
 Node A
+segment [root]:
+  [0] a; d24_step_by.py:13
+=>[1] b; d24_step_by.py:18
+  [2] c; d24_step_by.py:23
 >>> where(inter)
 📍 [1]  NodeSuspend::b  stack_depth=0
 
 >>> step(inter); step(inter)
 Node B
+segment [root]:
+  [0] a; d24_step_by.py:13
+  [1] b; d24_step_by.py:18
+=>[2] c; d24_step_by.py:23
 Node C
+segment [root]:
+  [0] a; d24_step_by.py:13
+  [1] b; d24_step_by.py:18
+  [2] c; d24_step_by.py:23
+=> <end of workflow>
 >>> where(inter)
 📍 []  <INVALID>  stack_depth=0
 ```
@@ -514,11 +527,16 @@ Node C
 ```python
 >>> break_at_tag(inter, "NodeSuspend::c")
 🔴 Breakpoint: tag='NodeSuspend::c' hits=0
+Breakpoint(target='NodeSuspend::c', kind='tag', condition=None, hit_count=0, enabled=True)
 
 >>> cont(inter)
 Node A
 Node B
 ⏸️  Hit breakpoint: tag='NodeSuspend::c' hits=1
+segment [root]:
+  [0] a; d24_step_by.py:13
+  [1] b; d24_step_by.py:18
+=>[2] c; d24_step_by.py:23
 >>> where(inter)
 📍 [2]  NodeSuspend::c  stack_depth=0
 
@@ -526,7 +544,7 @@ Node B
 ✖  Removed: tag='NodeSuspend::c' hits=1
 ```
 
-`demos/25_debug_repl.py` 用同样的工具走了一遍更长的脚本——跨段的汇编码、`step_over`、一次故意的崩溃与 panic 恢复，以及子解释器树。
+`demos/d25_debug_repl.py` 用同样的工具走了一遍更长的脚本——跨段的汇编码、`step_over`、一次故意的崩溃与 panic 恢复，以及子解释器树。
 
 ## 安全注意事项
 

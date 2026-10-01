@@ -218,7 +218,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-可直接运行的版本是 `demos/10_call_trap.py`，输出为：
+可直接运行的版本是 `demos/d10_call_trap.py`，输出为：
 
 ```text
 === external trap: CALL -> FN -> RET ===

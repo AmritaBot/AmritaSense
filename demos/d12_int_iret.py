@@ -1,8 +1,8 @@
-"""12_int_iret.py — INT / IRET interrupt-style jump
+"""d12_int_iret.py — INT / IRET interrupt-style jump
 
 Usage:
-    python demos/12_int_iret.py
-    python -i demos/12_int_iret.py   # same, then use `inter` directly in the REPL
+    python demos/d12_int_iret.py
+    python -i demos/d12_int_iret.py   # same, then use `inter` directly in the REPL
 
 INT(jump_to, ret_to=None) snapshots the interpreter state and
 jumps to the handler:
@@ -50,7 +50,7 @@ composition = (
     >> back_to_main  # executes after restore
     >> interrupt_handler
 )
-# Module-level so a REPL can `from demos.12_int_iret import inter` and watch `if_flag` / `context_stack`.
+# Module-level so a REPL can `from demos.d12_int_iret import inter` and watch `if_flag` / `context_stack`.
 inter = WorkflowInterpreter(composition.render())
 
 

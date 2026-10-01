@@ -1,8 +1,8 @@
-"""02_composition.py — Multi-node chain
+"""d02_composition.py — Multi-node chain
 
 Usage:
-    python demos/02_composition.py
-    python -i demos/02_composition.py   # same, then use `inter` directly in the REPL
+    python demos/d02_composition.py
+    python -i demos/d02_composition.py   # same, then use `inter` directly in the REPL
 """
 
 import asyncio
@@ -26,7 +26,7 @@ async def print_result() -> None:
 
 
 composition = double >> add_one >> print_result
-# Module-level so a REPL can `from demos.02_composition import inter` and drive it directly.
+# Module-level so a REPL can `from demos.d02_composition import inter` and drive it directly.
 inter = WorkflowInterpreter(composition.render())
 
 

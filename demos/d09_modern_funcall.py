@@ -1,8 +1,8 @@
-"""09_modern_funcall.py — FN / INTER_FN modern function-call patterns
+"""d09_modern_funcall.py — FN / INTER_FN modern function-call patterns
 
 Usage:
-    python demos/09_modern_funcall.py
-    python -i demos/09_modern_funcall.py   # same, then use `inter` directly in the REPL
+    python demos/d09_modern_funcall.py
+    python -i demos/d09_modern_funcall.py   # same, then use `inter` directly in the REPL
 
 AmritaSense "function blocks" are control-flow transfers, NOT real
 computer function calls — there is no function context: no stack frame,
@@ -85,7 +85,7 @@ composition = (
     >> after_isr
     >> isr_block  # skipped by normal flow via _fn_escape
 )
-# Module-level so a REPL can `from demos.09_modern_funcall import inter` and step across both boundaries.
+# Module-level so a REPL can `from demos.d09_modern_funcall import inter` and step across both boundaries.
 inter = WorkflowInterpreter(composition.render())
 
 

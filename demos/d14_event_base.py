@@ -1,8 +1,8 @@
-"""14_event_base.py — BaseEvent + on_event + MatcherFactory.trigger_event
+"""d14_event_base.py — BaseEvent + on_event + MatcherFactory.trigger_event
 
 Usage:
-    python demos/14_event_base.py
-    python -i demos/14_event_base.py   # same, then use `inter` directly in the REPL
+    python demos/d14_event_base.py
+    python -i demos/d14_event_base.py   # same, then use `inter` directly in the REPL
 """
 
 import asyncio
@@ -46,7 +46,7 @@ async def finish() -> None:
 
 
 composition = produce_event >> finish
-# Module-level so a REPL can `from demos.14_event_base import inter` and dispatch events by hand.
+# Module-level so a REPL can `from demos.d14_event_base import inter` and dispatch events by hand.
 inter = WorkflowInterpreter(composition.render())
 
 

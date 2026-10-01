@@ -1,8 +1,8 @@
-"""20_native_if.py — NATIVE_IF / NATIVE_WHILE / NATIVE_DO demo.
+"""d20_native_if.py — NATIVE_IF / NATIVE_WHILE / NATIVE_DO demo.
 
 Usage:
-    python demos/20_native_if.py
-    python -i demos/20_native_if.py   # same, then use `inter` / `else_inter` / `while_inter` / `do_inter` / `bubble_inter` in the REPL
+    python demos/d20_native_if.py
+    python -i demos/d20_native_if.py   # same, then use `inter` / `else_inter` / `while_inter` / `do_inter` / `bubble_inter` in the REPL
 """
 
 import asyncio
@@ -74,7 +74,7 @@ async def bubble_step_b() -> None:
     print("  bubble step B")
 
 
-# Module-level so a REPL can `from demos.20_native_if import inter, ...` and step through each native form.
+# Module-level so a REPL can `from demos.d20_native_if import inter, ...` and step through each native form.
 inter = WorkflowInterpreter(
     NATIVE_IF(cond_true, if_body).ELSE(else_body).extract().render()
 )

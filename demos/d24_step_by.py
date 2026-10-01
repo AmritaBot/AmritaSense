@@ -1,8 +1,8 @@
-"""24_step_by.py — run_step_by() step-by-step debugging with pointer inspection
+"""d24_step_by.py — run_step_by() step-by-step debugging with pointer inspection
 
 Usage:
-    python demos/24_step_by.py
-    python -i demos/24_step_by.py   # same, then use `inter` directly in the REPL
+    python demos/d24_step_by.py
+    python -i demos/d24_step_by.py   # same, then use `inter` directly in the REPL
 """
 
 import asyncio
@@ -26,7 +26,7 @@ async def c() -> None:
 
 
 composition = a >> b >> c
-# Module-level so a REPL can `from demos.24_step_by import inter` and pull one step at a time.
+# Module-level so a REPL can `from demos.d24_step_by import inter` and pull one step at a time.
 inter = WorkflowInterpreter(composition.render())
 
 

@@ -1,8 +1,8 @@
-"""21_subgraph_isolation.py — fork_interpreter + interpreter tree lifecycle
+"""d21_subgraph_isolation.py — fork_interpreter + interpreter tree lifecycle
 
 Usage:
-    python demos/21_subgraph_isolation.py
-    python -i demos/21_subgraph_isolation.py   # same, then use `inter` directly in the REPL
+    python demos/d21_subgraph_isolation.py
+    python -i demos/d21_subgraph_isolation.py   # same, then use `inter` directly in the REPL
 
 Demonstrates: fork_interpreter(), asyncio.gather for parallel execution,
 terminate() for early stop, and interpreter tree properties (parent, id).
@@ -42,7 +42,7 @@ async def main_start() -> None:
     print("[main] started")
 
 
-# Module-level so a REPL can `from demos.21_subgraph_isolation import inter` and fork children by hand.
+# Module-level so a REPL can `from demos.d21_subgraph_isolation import inter` and fork children by hand.
 inter = WorkflowInterpreter(main_start.as_compose().render())
 
 

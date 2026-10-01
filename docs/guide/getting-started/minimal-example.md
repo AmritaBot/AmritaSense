@@ -35,4 +35,4 @@ We use the `render()` method to convert the workflow into an executable data str
 
 Finally, we launch the workflow with `asyncio.run(interpreter.run())`. If everything goes well, you should see logs in the console and a "Hello, World!" message.
 
-> **More examples**: See the `demos/` directory in the source repository for more standalone, runnable examples covering all core features. Every demo binds its interpreter to a module-level `inter`, so `python -i demos/NN_name.py` drops you straight into a REPL that can inspect and step the workflow.
+> **More examples**: See the `demos/` directory in the source repository for more standalone, runnable examples covering all core features. Every demo binds its interpreter to a module-level `inter`, so `python -i demos/dNN_name.py` drops you straight into a REPL that can inspect and step the workflow — or import it directly, `from demos.dNN_name import inter`.

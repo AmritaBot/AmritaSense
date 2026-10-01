@@ -1,8 +1,8 @@
-"""07_jmp_invoke.py — JMP + INVOKE + ALIAS + ARCHIVED_NODES
+"""d07_jmp_invoke.py — JMP + INVOKE + ALIAS + ARCHIVED_NODES
 
 Usage:
-    python demos/07_jmp_invoke.py
-    python -i demos/07_jmp_invoke.py   # same, then use `inter` / `invoke_inter` in the REPL
+    python demos/d07_jmp_invoke.py
+    python -i demos/d07_jmp_invoke.py   # same, then use `inter` / `invoke_inter` in the REPL
 """
 
 import asyncio

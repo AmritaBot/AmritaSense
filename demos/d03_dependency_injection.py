@@ -1,8 +1,8 @@
-"""03_dependency_injection.py — extra_args / extra_kwargs explicit injection
+"""d03_dependency_injection.py — extra_args / extra_kwargs explicit injection
 
 Usage:
-    python demos/03_dependency_injection.py
-    python -i demos/03_dependency_injection.py   # same, then use `inter` directly in the REPL
+    python demos/d03_dependency_injection.py
+    python -i demos/d03_dependency_injection.py   # same, then use `inter` directly in the REPL
 """
 
 import asyncio
@@ -22,7 +22,7 @@ async def display(message: str) -> None:
 
 
 composition = greet >> display
-# Module-level so a REPL can `from demos.03_dependency_injection import inter` and inspect the injected arguments.
+# Module-level so a REPL can `from demos.d03_dependency_injection import inter` and inspect the injected arguments.
 inter = WorkflowInterpreter(
     composition.render(),
     extra_args=("World",),  # str type -> injected into `name`

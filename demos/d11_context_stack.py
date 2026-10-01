@@ -1,8 +1,8 @@
-"""11_context_stack.py — PUSH_CONTEXT / IRET save & restore
+"""d11_context_stack.py — PUSH_CONTEXT / IRET save & restore
 
 Usage:
-    python demos/11_context_stack.py
-    python -i demos/11_context_stack.py   # same, then use `inter` directly in the REPL
+    python demos/d11_context_stack.py
+    python -i demos/d11_context_stack.py   # same, then use `inter` directly in the REPL
 
 PUSH_CONTEXT(target) only SNAPSHOTS the interpreter state (it does NOT
 jump).  To enter the sub-flow you must jump explicitly with JMP, and
@@ -51,7 +51,7 @@ composition = (
     >> IRET()  # pop & restore
     >> ALIAS(NOP, "done")
 )
-# Module-level so a REPL can `from demos.11_context_stack import inter` and inspect `inter.context_stack`.
+# Module-level so a REPL can `from demos.d11_context_stack import inter` and inspect `inter.context_stack`.
 inter = WorkflowInterpreter(composition.render())
 
 

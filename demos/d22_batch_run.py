@@ -1,8 +1,8 @@
-"""22_batch_run.py — BATCH_RUN concurrent execution demo
+"""d22_batch_run.py — BATCH_RUN concurrent execution demo
 
 Usage:
-    python demos/22_batch_run.py
-    python -i demos/22_batch_run.py   # same, then use `inter` / `subgraph_inter` / `fail_fast_inter` in the REPL
+    python demos/d22_batch_run.py
+    python -i demos/d22_batch_run.py   # same, then use `inter` / `subgraph_inter` / `fail_fast_inter` in the REPL
 """
 
 import asyncio
@@ -70,7 +70,7 @@ async def safe_node() -> None:
 branch_a = validate >> enrich
 branch_b = clean >> transform
 
-# Module-level so a REPL can `from demos.22_batch_run import inter, subgraph_inter, fail_fast_inter` and run each batch by hand.
+# Module-level so a REPL can `from demos.d22_batch_run import inter, subgraph_inter, fail_fast_inter` and run each batch by hand.
 inter = WorkflowInterpreter(
     BATCH_RUN(fetch_users, fetch_orders, fetch_products).as_compose().render()
 )

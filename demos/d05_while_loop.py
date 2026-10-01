@@ -1,8 +1,8 @@
-"""05_while_loop.py — WHILE + DO-WHILE loops
+"""d05_while_loop.py — WHILE + DO-WHILE loops
 
 Usage:
-    python demos/05_while_loop.py
-    python -i demos/05_while_loop.py   # same, then use `inter` / `do_while_inter` in the REPL
+    python demos/d05_while_loop.py
+    python -i demos/d05_while_loop.py   # same, then use `inter` / `do_while_inter` in the REPL
 """
 
 import asyncio
@@ -45,7 +45,7 @@ def do_body() -> None:
         raise BreakLoop
 
 
-# Module-level so a REPL can `from demos.05_while_loop import inter, do_while_inter`; reset `_counter` between runs.
+# Module-level so a REPL can `from demos.d05_while_loop import inter, do_while_inter`; reset `_counter` between runs.
 inter = WorkflowInterpreter((bump >> WHILE(under_three).ACTION(body)).render())
 do_while_inter = WorkflowInterpreter((bump >> DO(do_body).WHILE(cond_dowhile)).render())
 

@@ -1,8 +1,8 @@
-"""06_try_catch.py — TRY / CATCH / FINALLY / THEN exception handling
+"""d06_try_catch.py — TRY / CATCH / FINALLY / THEN exception handling
 
 Usage:
-    python demos/06_try_catch.py
-    python -i demos/06_try_catch.py   # same, then use `inter` / `success_inter` in the REPL
+    python demos/d06_try_catch.py
+    python -i demos/d06_try_catch.py   # same, then use `inter` / `success_inter` in the REPL
 """
 
 import asyncio

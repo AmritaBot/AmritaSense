@@ -1,8 +1,8 @@
-"""13_reset_suspend.py — RESET, SUSPEND, and InterruptKeepContext
+"""d13_reset_suspend.py — RESET, SUSPEND, and InterruptKeepContext
 
 Usage:
-    python demos/13_reset_suspend.py
-    python -i demos/13_reset_suspend.py   # same, then use `inter` / `suspend_inter` / `raise_inter` in the REPL
+    python demos/d13_reset_suspend.py
+    python -i demos/d13_reset_suspend.py   # same, then use `inter` / `suspend_inter` / `raise_inter` in the REPL
 
 Demonstrates three termination / pause mechanisms:
   1. RESET            — emergency stop (state cleared, irrecoverable)

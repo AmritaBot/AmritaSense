@@ -1,4 +1,4 @@
-"""25_debug_repl.py — REPL debugger: inspect, step, breakpoints, crash recovery
+"""d25_debug_repl.py — REPL debugger: inspect, step, breakpoints, crash recovery
 
 This script demonstrates the complete REPL debugging toolkit::
 
@@ -18,13 +18,12 @@ It walks through:
 
 Run this demo::
 
-    python demos/25_debug_repl.py
+    python demos/d25_debug_repl.py
 
 Or, for a genuine REPL experience, start a Python REPL and type::
 
     >>> from amrita_sense.debugger import *
-    >>> import importlib
-    >>> inter = importlib.import_module("demos.25_debug_repl").inter
+    >>> from demos.d25_debug_repl import inter
     >>> inspect(inter)
     >>> step(inter)     # no await !
 """

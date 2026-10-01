@@ -35,4 +35,4 @@ if __name__ == "__main__":
 
 最后，我们使用`asyncio.run(interpreter.run())`启动工作流。如果不出意外，您会在控制台看到日志和一个“Hello, World!”消息。
 
-> **更多示例**：源码仓库的 `demos/` 目录包含了更多覆盖全部核心功能的可独立运行示例。每个 demo 都把解释器绑定到模块级 `inter`，因此 `python -i demos/NN_name.py` 跑完会直接留在可以检查与步进工作流的 REPL 里。
+> **更多示例**：源码仓库的 `demos/` 目录包含了更多覆盖全部核心功能的可独立运行示例。每个 demo 都把解释器绑定到模块级 `inter`，因此 `python -i demos/dNN_name.py` 跑完会直接留在可以检查与步进工作流的 REPL 里；也可以直接导入：`from demos.dNN_name import inter`。

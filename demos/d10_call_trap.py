@@ -1,8 +1,8 @@
-"""10_call_trap.py — External trap: call_sub → CALL → FN → RET → resume
+"""d10_call_trap.py — External trap: call_sub → CALL → FN → RET → resume
 
 Usage:
-    python demos/10_call_trap.py
-    python -i demos/10_call_trap.py   # same, then use `inter` directly in the REPL
+    python demos/d10_call_trap.py
+    python -i demos/d10_call_trap.py   # same, then use `inter` directly in the REPL
 
 An external caller can fire `call_sub(..., interrupt=True)` at a running
 interpreter and make it enter a `CALL` node that lives in an
@@ -55,7 +55,7 @@ worker = FN("worker_entry", worker_a >> worker_b)
 traps = ARCHIVED_NODES(ALIAS(CALL("worker_entry"), "trap_entry"))
 
 composition = trap_point >> main_step >> main_tail >> traps >> worker
-# Module-level so a REPL can `from demos.10_call_trap import inter` and fire the trap by hand.
+# Module-level so a REPL can `from demos.d10_call_trap import inter` and fire the trap by hand.
 inter = WorkflowInterpreter(composition.render())
 
 

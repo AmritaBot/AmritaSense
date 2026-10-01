@@ -40,7 +40,7 @@ An **external interrupt whose target is a `CALL` or `INT` node** instead of a pl
 
 That is what separates a trap from a plain injection: an ordinary handler node leaves only `[C]` on the stack, `call_sub` pops it, and the parked node still runs afterwards. `INT` produces the same trap effect through the context stack — its `IRET` restores the snapshot and resumes at `C + 1`.
 
-Trap targets must not push or pop `_ret_addr_stack` themselves: `call_sub` pops unconditionally, without checking what it popped. `CALL` and `INT` are the nodes that satisfy this contract. See [External Interrupt Calls](/guide/advanced/external_interrupt) for the full stack trace, and `demos/10_call_trap.py` for a runnable version.
+Trap targets must not push or pop `_ret_addr_stack` themselves: `call_sub` pops unconditionally, without checking what it popped. `CALL` and `INT` are the nodes that satisfy this contract. See [External Interrupt Calls](/guide/advanced/external_interrupt) for the full stack trace, and `demos/d10_call_trap.py` for a runnable version.
 
 ### 9.1.10 Depends (Dependency Injection)
 

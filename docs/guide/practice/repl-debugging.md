@@ -435,10 +435,10 @@ AmritaSense's Panic/Recover mechanism is one of the debugger's core capabilities
 
 ## Full Example
 
-The project includes `demos/25_debug_repl.py`, an end-to-end REPL debugging demo covering all features above:
+The project includes `demos/d25_debug_repl.py`, an end-to-end REPL debugging demo covering all features above:
 
 ```bash
-python demos/25_debug_repl.py
+python demos/d25_debug_repl.py
 ```
 
 Demo flow:
@@ -462,27 +462,27 @@ flowchart TD
 
 Every script under `demos/` builds its interpreter at module level and binds it to `inter`. Each one therefore doubles as a playground for the full debugging workflow, and walking a small demo end to end is the quickest way to build intuition for how AmritaSense drives a graph. Nothing runs at import time — only `if __name__ == "__main__"` executes the workflow — so importing a demo hands you a fresh, untouched interpreter.
 
-Demos that need more than one interpreter expose the extras under descriptive names next to `inter`; `demos/05_while_loop.py`, for instance, exports `inter` and `do_while_inter`.
+Demos that need more than one interpreter expose the extras under descriptive names next to `inter`; `demos/d05_while_loop.py`, for instance, exports `inter` and `do_while_inter`.
 
 #### Getting `inter` into a REPL
 
-The file names start with a digit, so `from demos.24_step_by import inter` is a `SyntaxError`. Import through `importlib` instead:
+Every demo is a normal importable module. Their file names carry a `d` prefix (`d24_step_by.py`) so that they stay valid Python identifiers — a leading digit would turn `from demos.d24_step_by import inter` into a `SyntaxError`. `demos/` is an implicit namespace package, so the import works from the repository root without an `__init__.py`:
 
 ```python
->>> import importlib
 >>> from amrita_sense.debugger import *
->>> inter = importlib.import_module("demos.24_step_by").inter
+>>> from demos.d24_step_by import inter
+>>> inspect(inter)
 ```
 
 Alternatively, run a demo under `python -i` and keep poking at it afterwards — note that this _executes_ the demo first, so you land on the finished state rather than a fresh one:
 
 ```bash
-python -i demos/01_minimal.py
+python -i demos/d01_minimal.py
 ```
 
 #### A complete debugging session
 
-`demos/24_step_by.py` is a three-node chain (`a >> b >> c`) — small enough to watch every step. Addresses, tags and the PC marker all come straight from the tools:
+`demos/d24_step_by.py` is a three-node chain (`a >> b >> c`) — small enough to watch every step. Addresses, tags and the PC marker all come straight from the tools. `step()` prints the listing itself, so the `segment [root]:` blocks below are what the terminal shows; `Node A` / `Node B` / `Node C` are the demo's own `print()` calls:
 
 ```python
 >>> where(inter)
@@ -495,18 +495,31 @@ python -i demos/01_minimal.py
 
 >>> dis(inter, around=None)
 segment [root]:
-=>[0] a; 24_step_by.py:13
-  [1] b; 24_step_by.py:18
-  [2] c; 24_step_by.py:23
+=>[0] a; d24_step_by.py:13
+  [1] b; d24_step_by.py:18
+  [2] c; d24_step_by.py:23
 
 >>> step(inter)
 Node A
+segment [root]:
+  [0] a; d24_step_by.py:13
+=>[1] b; d24_step_by.py:18
+  [2] c; d24_step_by.py:23
 >>> where(inter)
 📍 [1]  NodeSuspend::b  stack_depth=0
 
 >>> step(inter); step(inter)
 Node B
+segment [root]:
+  [0] a; d24_step_by.py:13
+  [1] b; d24_step_by.py:18
+=>[2] c; d24_step_by.py:23
 Node C
+segment [root]:
+  [0] a; d24_step_by.py:13
+  [1] b; d24_step_by.py:18
+  [2] c; d24_step_by.py:23
+=> <end of workflow>
 >>> where(inter)
 📍 []  <INVALID>  stack_depth=0
 ```
@@ -516,11 +529,16 @@ Then set a breakpoint and let `cont()` drive to it. A `@Node()` without an expli
 ```python
 >>> break_at_tag(inter, "NodeSuspend::c")
 🔴 Breakpoint: tag='NodeSuspend::c' hits=0
+Breakpoint(target='NodeSuspend::c', kind='tag', condition=None, hit_count=0, enabled=True)
 
 >>> cont(inter)
 Node A
 Node B
 ⏸️  Hit breakpoint: tag='NodeSuspend::c' hits=1
+segment [root]:
+  [0] a; d24_step_by.py:13
+  [1] b; d24_step_by.py:18
+=>[2] c; d24_step_by.py:23
 >>> where(inter)
 📍 [2]  NodeSuspend::c  stack_depth=0
 
@@ -528,7 +546,7 @@ Node B
 ✖  Removed: tag='NodeSuspend::c' hits=1
 ```
 
-`demos/25_debug_repl.py` walks the same tools through a longer script — disassembly across segments, `step_over`, a deliberate crash with panic recovery, and the sub-interpreter tree.
+`demos/d25_debug_repl.py` walks the same tools through a longer script — disassembly across segments, `step_over`, a deliberate crash with panic recovery, and the sub-interpreter tree.
 
 ## Security Considerations
 
