@@ -17,7 +17,7 @@ class WorkflowInterpreter(Generic[io_T]):
 
 **设计定位**
 
-`WorkflowInterpreter` 是 AmritaSense 的“CPU”。它从编译产物（默认实现为 `NodeComposeRendered`，契约见 [Compose 契约](/zh/guide/advanced/compose-contracts)）中读取节点，用 `PointerVector`（程序计数器）追踪当前位置，通过 `_ret_addr_stack`（调用栈）管理子程序返回。所有控制流指令——`IF`、`JMP`、`INVOKE`、`TRY`——最终都通过解释器提供的跳转和调用方法实现。
+`WorkflowInterpreter` 是 AmritaSense 的“CPU”。它从编译产物（默认实现为 `NodeComposeRendered`，契约见 [Compose 契约](/zh/guide/advanced/compose-contracts)）中读取节点，用 `PointerVector`（程序计数器）追踪当前位置，通过 `_ret_addr_stack`（调用栈）管理子程序返回。所有控制流指令——`IF`、`JMP`、`INVOKE`、`Try`——最终都通过解释器提供的跳转和调用方法实现。
 
 **泛型参数**
 
@@ -53,7 +53,7 @@ def __init__(
 
 当未处理异常从主执行循环逃逸时，解释器进入 **panic** 状态：保留异常（`_panic_exc`）、当前指针位置和所有调用栈，以便检查崩溃现场，并可恢复执行。
 
-这与 `TRY/CATCH` 机制有明确分工：
+这与 `Try`/`CATCH` 机制有明确分工：
 
 | 方面         | Try-Catch                  | Panic / Recover                               |
 | ------------ | -------------------------- | --------------------------------------------- |

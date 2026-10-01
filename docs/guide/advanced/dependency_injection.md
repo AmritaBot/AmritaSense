@@ -142,17 +142,27 @@ def safe_node(value: str = Depends(get_maybe_value)):
 
 ### Error handling
 
-If a dependency provider returns `None`, the workflow raises a `DependsResolveFailed` exception. This exception can be caught with TRY/CATCH:
+If a dependency provider returns `None`, resolving that node fails and the workflow raises a `DependsInjectFailed` (a `DependsException`). That is an ordinary exception, so a `Try`/`CATCH` block can handle it:
 
 ```python
-def failing_dependency():
+def failing_dependency() -> str | None:
     return None
 
 
-TRY(NodeType(lambda: print("This won't execute"))).CATCH(
-    DependsResolveFailed, NodeType(lambda: print("Caught dependency failure"))
-)
+@Node()
+def needs_dependency(value: str = Depends(failing_dependency)) -> None:
+    print("This won't execute")
+
+
+@Node()
+def on_failure(exc_val: DependsInjectFailed) -> None:
+    print(f"Caught dependency failure: {exc_val}")
+
+
+Try(needs_dependency).CATCH(DependsInjectFailed, on_failure)
 ```
+
+`CATCH` matches on the exception type, so an exception that no handler claims keeps propagating — a `CATCH(ValueError, ...)` will not swallow a `KeyError`. The handler can also ask for the exception itself: `exc_type`, `exc_val` and `exc_tb` are injected like any other dependency.
 
 This design ensures that dependency injection remains robust and predictable while giving developers a clear error handling mechanism.
 

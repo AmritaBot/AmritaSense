@@ -14,14 +14,14 @@ Furthermore, AmritaSense includes a complete **event and dependency injection su
 
 We believe that **workflows should be designed for the work, not limited by the flow**. “Flow” is merely a presentation; it should never become a shackle when you design logic.
 
-- **Natively Turing-complete** – You can implement complete, arbitrary control logic without defining complex boundary conditions inside your program. AmritaSense natively supports conditionals (`IF/ELIF/ELSE`), loops (`WHILE/DO‑WHILE`), unconditional jumps (`JMP`), subroutine calls (`INVOKE`), and exception handling (`TRY/CATCH`)—no external graph engine or state machine required. Native control flow instructions (`NATIVE_IF` / `NATIVE_WHILE` / `NATIVE_DO` / `BREAK_LOOP` / `CONTINUE`) are also available as an orthogonal extension, built around the `CONTINUE()` / `BREAK_LOOP()` jump model.
+- **Natively Turing-complete** – You can implement complete, arbitrary control logic without defining complex boundary conditions inside your program. AmritaSense natively supports conditionals (`IF/ELIF/ELSE`), loops (`WHILE/DO‑WHILE`), unconditional jumps (`JMP`), subroutine calls (`INVOKE`), and exception handling (`Try`/`CATCH`)—no external graph engine or state machine required. Native control flow instructions (`NATIVE_IF` / `NATIVE_WHILE` / `NATIVE_DO` / `BREAK_LOOP` / `CONTINUE`) are also available as an orthogonal extension, built around the `CONTINUE()` / `BREAK_LOOP()` jump model.
 - **Virtual-machine addressing model** – AmritaSense uses a classic computer-style **addressing and execution model** (`PointerVector` + call stack). All high-level control flow is expanded into uniform pointer instructions at compile time. Only integer operations and function calls remain at runtime; scheduling overhead is nearly zero.
 - **Built for AI agents and complex business logic** – Whether it is tool-calling loops, nested sub‑workflows, pausing for user input, or exception recovery and rollback, AmritaSense can express it directly and execute it with extreme efficiency.
 
 ### Core Value Proposition
 
 - **Low-level computer execution model** – Replaces topological graphs with a pointer vector and call stack; minimal runtime, far outperforming traditional graph engines.
-- **Natively Turing-complete** – `IF`, `WHILE`, `DO‑WHILE`, `JMP`, `INVOKE`, `TRY`, `RESET` and more are all natively supported—no simulation.
+- **Natively Turing-complete** – `IF`, `WHILE`, `DO‑WHILE`, `JMP`, `INVOKE`, `Try`, `RESET` and more are all natively supported—no simulation.
 - **Focus on flow logic** – Say goodbye to complicated edge definitions and state dictionaries; concentrate on the business process you actually care about.
 - **Declarative dependency injection** – Nodes and event handlers declare required parameters through function signatures; the framework automatically performs keyword matching and type resolution.
 - **Async-first, suspendable & resumable** – Native `async/await` support, built-in full-duplex streaming primitive (`SuspendObjectStream`), allowing precise suspension and resumption between nodes.

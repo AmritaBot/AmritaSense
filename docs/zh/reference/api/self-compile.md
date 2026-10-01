@@ -23,7 +23,7 @@ class SelfCompileInstruction(ABC):
 
 **设计理念**
 
-自编译指令是 AmritaSense 扩展性的基石。内置的 `IF`、`WHILE`、`TRY` 等全部实现自这一接口，而开发者可以通过继承它来创建自己的控制流原语——封装的是**编排模式**，而非具体业务逻辑。
+自编译指令是 AmritaSense 扩展性的基石。内置的 `IF`、`WHILE`、`Try` 等全部实现自这一接口，而开发者可以通过继承它来创建自己的控制流原语——封装的是**编排模式**，而非具体业务逻辑。
 
 ## 内置自编译指令
 
@@ -42,7 +42,7 @@ AmritaSense 的内置指令集全部是 `SelfCompileInstruction` 的子类。以
 
 ### 异常处理指令
 
-- `TryClause`：展开为 `[TryNode, try_body, ...catch_handler_i, catch_body_i..., FinNode(可选), fin_body, NOP]`。`TryNode` 管理整条异常处理链的运行时逻辑。
+- `TryClause`：展开为 `[TryNode, try_body, catch_body_1, ..., catch_body_n, then_body?, finally_body?, NOP]`——各 catch 体就是普通槽位，`TryNode` 通过 `_catch_addr_chain` 持有它们的地址。`TryNode` 管理整条异常处理链的运行时逻辑。
 
 ### 子程序存储指令
 

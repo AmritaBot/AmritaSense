@@ -234,7 +234,7 @@ See [REPL Debugging](../practice/repl-debugging#disassembly-view) for the listin
 ## Design principles for custom instructions
 
 1. **Encapsulate patterns, not logic**: custom instructions should encapsulate recurring composition patterns (retry, conditional execution, timeout protection), not concrete business logic. Business logic belongs inside nodes.
-2. **Leverage existing instructions**: prefer composing built-in primitives like `IF`, `WHILE`, and `TRY` rather than manually managing jump offsets. Only calculate addresses manually when built-in instructions cannot express the needed flow.
+2. **Leverage existing instructions**: prefer composing built-in primitives like `IF`, `WHILE`, and `Try` rather than manually managing jump offsets. Only calculate addresses manually when built-in instructions cannot express the needed flow.
 3. **Keep it transparent**: the expanded structure should match a hand-written composition and should not break debugging, suspension, or interruption behavior.
 4. **Use semantic naming**: instruction names should convey the control flow intent clearly (for example, `Retry`, `Timeout`, `Parallel`), so the composition reads like natural language.
 5. **Annotate the mnemonic**: give your node a `__sdb_dis__` so a debugger listing shows `RETRY 3 -> [1, 0]` instead of an anonymous internal node — custom instructions are exactly the ones that most need it.

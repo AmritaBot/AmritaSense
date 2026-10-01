@@ -184,6 +184,6 @@ IF(condition, do).ELIF(condition2, do2).ELSE(else_do)
 
 - **Type safety**: conditions must return a boolean, or a type error is thrown.
 - **Exception propagation**: exceptions thrown by condition nodes propagate normally to the outer flow.
-- **Resource cleanup**: use TRY/FINALLY to ensure cleanup during condition execution.
+- **Resource cleanup**: use `Try`/`FINALLY` to ensure cleanup during condition execution.
 
 With this design, AmritaSense conditionals maintain strong alignment with Python syntax while delivering compile-time optimized high-performance execution.

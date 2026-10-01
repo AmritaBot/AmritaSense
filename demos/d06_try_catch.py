@@ -1,4 +1,4 @@
-"""d06_try_catch.py — TRY / CATCH / FINALLY / THEN exception handling
+"""d06_try_catch.py — Try / CATCH / THEN / FINALLY exception handling
 
 Usage:
     python demos/d06_try_catch.py
@@ -24,7 +24,7 @@ async def handle_error(exc_val: ValueError) -> None:
 
 @Node()
 async def on_success() -> None:
-    """Executes when TRY succeeds (THEN)"""
+    """Executes when Try succeeds (THEN)"""
     print("Success: all good")
 
 

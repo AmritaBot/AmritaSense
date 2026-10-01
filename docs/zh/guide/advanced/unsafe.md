@@ -56,9 +56,9 @@ FORCE_NOT_WRAP_TO_ASYNC: bool = False
 DISABLE_EXC_IGNORED: bool = False
 ```
 
-默认情况下，`InterruptNotice` 和 `BreakLoop` 会自动加入 `_exc_ignored`，使其穿透所有 `TRY/CATCH` 块。匹配器系统在依赖解析时也会遵守 `exception_ignored` 类型。将此标志设为 `True` 会禁用所有这些行为——不再有任何异常被自动忽略，匹配器将所有异常视为可捕获。
+默认情况下，`InterruptNotice` 和 `BreakLoop` 会自动加入 `_exc_ignored`，使其穿透所有 `Try`/`CATCH` 块。匹配器系统在依赖解析时也会遵守 `exception_ignored` 类型。将此标志设为 `True` 会禁用所有这些行为——不再有任何异常被自动忽略，匹配器将所有异常视为可捕获。
 
-**适用场景**：需要 `TRY/CATCH` 块拦截 `BreakLoop` 或 `InterruptNotice`，或者希望完全手动控制异常穿透行为。
+**适用场景**：需要 `Try`/`CATCH` 块拦截 `BreakLoop` 或 `InterruptNotice`，或者希望完全手动控制异常穿透行为。
 
 ### `NO_DEPENDENCY_META_CACHE`
 

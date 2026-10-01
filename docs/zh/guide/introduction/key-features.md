@@ -21,7 +21,7 @@ AmritaSense 提供了一级公民的控制流指令集，无需依赖外部图�
 - **条件分支**：`IF` / `ELIF` / `ELSE`，无需强制配对 `ELSE`，支持链式组合
 - **循环结构**：`WHILE`（前置条件）和 `DO...WHILE`（后置条件），支持 `BreakLoop` 跳出
 - **跳转指令**：`JMP` 配合 `ALIAS` 实现无条件跳转，`INVOKE` 配合 `ARCHIVED_NODES` 实现子程序调用与返回
-- **异常处理**：`TRY...CATCH...THEN...FIN`，完整对齐 Python 的异常处理语义，支持异常穿透控制
+- **异常处理**：`Try…CATCH…THEN…FINALLY`，完整对齐 Python 的异常处理语义，支持异常穿透控制
 
 原生控制流指令 `NATIVE_IF` / `NATIVE_WHILE` / `NATIVE_DO` / `BREAK_LOOP` 是传统指令的**正交扩展**，提供基于 `PUSH/JMP/CONTINUE/BREAK_LOOP` 的更底层控制流，可在需要精确指针控制的场景中使用。循环体统一以 `CONTINUE()` 结尾，`BREAK_LOOP()` / `CONTINUE()` 均为工厂函数。
 

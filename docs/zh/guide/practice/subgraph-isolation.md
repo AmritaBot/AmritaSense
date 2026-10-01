@@ -178,7 +178,7 @@ asyncio.run(main())
 
 ## 错误处理
 
-如果子工作流抛出异常，`FUN_BLOCK` 会通过 `search_exceptions()` 收集所有异常（包括嵌套子解释器中的异常），并将它们作为 `BaseExceptionGroup` 重新抛出。这意味着你可以用 `TRY/CATCH` 包裹 `FUN_BLOCK` 来处理子工作流失败：
+如果子工作流抛出异常，`FUN_BLOCK` 会通过 `search_exceptions()` 收集所有异常（包括嵌套子解释器中的异常），并将它们作为 `BaseExceptionGroup` 重新抛出。这意味着你可以用 `Try`/`CATCH` 包裹 `FUN_BLOCK` 来处理子工作流失败：
 
 ```python
 from amrita_sense.instructions import Try

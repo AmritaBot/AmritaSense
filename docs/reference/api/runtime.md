@@ -33,7 +33,7 @@ Arguments:
 
 - `node_compose`: A rendered workflow graph (an `AbstractCompose[AddressCalculator]`, typically `NodeComposeRendered`) or a self-compiling instruction.
 - `object_io`: Optional external I/O object. Defaults to a new `SuspendObjectStream`.
-- `exception_ignored`: Exception types to bypass TRY/CATCH blocks.
+- `exception_ignored`: Exception types to bypass `Try`/`CATCH` blocks.
 - `extra_args` / `extra_kwargs`: Additional runtime values available for dependency injection.
 - `addr_stack`: Optional return address stack.
 - `context_stack`: Optional pre-initialized interpreter context stack for save/restore workflows. Defaults to a new empty `Stack[InterpreterContext]`.
@@ -44,7 +44,7 @@ Arguments:
 
 When an unhandled exception escapes the main execution loop, the interpreter enters a **panic** state: it preserves the exception (`_panic_exc`), the current pointer position, and all stack state so that the crash site can be inspected and execution can be resumed.
 
-This is distinct from the `TRY/CATCH` mechanism:
+This is distinct from the `Try`/`CATCH` mechanism:
 
 | Aspect          | Try-Catch                                | Panic / Recover                                                 |
 | --------------- | ---------------------------------------- | --------------------------------------------------------------- |

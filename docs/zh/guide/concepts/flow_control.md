@@ -69,33 +69,33 @@ def early_exit():
 
 ## 异常处理
 
-AmritaSense 原生提供了**节点域的 TRY/CATCH 异常捕获体系**。这是传统工作流引擎普遍缺失的能力——在 AmritaSense 中，异常处理和条件分支、循环一样，是一等公民。
+AmritaSense 原生提供了**节点域的 `Try`/`CATCH` 异常捕获体系**。这是传统工作流引擎普遍缺失的能力——在 AmritaSense 中，异常处理和条件分支、循环一样，是一等公民。
 
 ### 完整用法
 
 ```python
-TRY(do).CATCH(exc, handler)  # 捕获特定异常
-TRY(do).FINALLY(cleanup)  # 仅定义清理块
-TRY(do).CATCH(exc, handler).FINALLY(cleanup)  # 捕获 + 清理
-TRY(do).THEN(success).CATCH(exc, handler).FINALLY(cleanup)  # 完整四段式
-TRY(do).CATCH(exc, handler).THEN(success)  # 捕获 + 成功分支
-TRY(do).CATCH(exc1, handler1).CATCH(exc2, handler2).FINALLY(cleanup)  # 多异常捕获
+Try(do).CATCH(exc, handler)  # 捕获特定异常
+Try(do).FINALLY(cleanup)  # 仅定义清理块
+Try(do).CATCH(exc, handler).FINALLY(cleanup)  # 捕获 + 清理
+Try(do).THEN(success).CATCH(exc, handler).FINALLY(cleanup)  # 完整四段式
+Try(do).CATCH(exc, handler).THEN(success)  # 捕获 + 成功分支
+Try(do).CATCH(exc1, handler1).CATCH(exc2, handler2).FINALLY(cleanup)  # 多异常捕获
 ```
 
 整体逻辑与 Python 的 `try-except-else-finally` 高度对齐，差异点在于：
 
 - 使用 `CATCH` 声明要捕获的异常类型和对应的处理节点
-- 使用 `THEN` 等价于 Python 的 `else` 分支——仅在 `TRY` 块无异常、正常执行完毕时才执行
+- 使用 `THEN` 等价于 Python 的 `else` 分支——仅在 `Try` 块无异常、正常执行完毕时才执行
 
 ### 语法约束
 
-1. `TRY` 之后必须跟随至少一个 `CATCH` 或 `FINALLY`
-2. 单个 `TRY` 结构中，`FINALLY` 和 `THEN` 最多只能各定义一个
+1. `Try` 之后必须跟随至少一个 `CATCH` 或 `FINALLY`
+2. 单个 `Try` 结构中，`FINALLY` 和 `THEN` 最多只能各定义一个
 3. `CATCH` 可以定义多个，引擎采用**从上到下、短路优先**的匹配规则——第一个匹配到异常类型的 `CATCH` 处理节点会被执行，后续的 `CATCH` 不再检查
 
 ### 特殊异常穿透规则
 
-与通用编程语言的行为不同：AmritaSense 引入了一套**异常穿透**机制。如果在 `WorkflowInterpreter` 初始化时，通过 `exception_ignored` 参数标记了某些异常类型，那么当这些异常在 `TRY` 块中抛出时，当前层级的任何 `CATCH` 都会直接跳过该异常——**异常不会在这一层被捕获，而是向上穿透，直达顶层全局异常处理器**。
+与通用编程语言的行为不同：AmritaSense 引入了一套**异常穿透**机制。如果在 `WorkflowInterpreter` 初始化时，通过 `exception_ignored` 参数标记了某些异常类型，那么当这些异常在 `Try` 块中抛出时，当前层级的任何 `CATCH` 都会直接跳过该异常——**异常不会在这一层被捕获，而是向上穿透，直达顶层全局异常处理器**。
 
 ```python
 pc = WorkflowPC(nd, exception_ignored=(CriticalError,))

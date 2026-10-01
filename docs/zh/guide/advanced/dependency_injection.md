@@ -144,17 +144,27 @@ def safe_node(value: str = Depends(get_maybe_value)):
 
 ### 错误处理
 
-当依赖提供者返回 `None` 时，工作流会抛出 `DependsResolveFailed` 异常。这个异常可以通过 TRY/CATCH 机制捕获：
+当依赖提供者返回 `None` 时，该节点的依赖解析失败，工作流会抛出 `DependsInjectFailed`（属于 `DependsException`）。它是一个普通异常，因此可以用 `Try`/`CATCH` 捕获：
 
 ```python
-def failing_dependency():
-    return None  # 这会导致工作流终止
+def failing_dependency() -> str | None:
+    return None
 
 
-TRY(NodeType(lambda: print("This won't execute"))).CATCH(
-    DependsResolveFailed, NodeType(lambda: print("Caught dependency failure"))
-)
+@Node()
+def needs_dependency(value: str = Depends(failing_dependency)) -> None:
+    print("不会执行到这里")
+
+
+@Node()
+def on_failure(exc_val: DependsInjectFailed) -> None:
+    print(f"已捕获依赖失败：{exc_val}")
+
+
+Try(needs_dependency).CATCH(DependsInjectFailed, on_failure)
 ```
+
+`CATCH` 按异常类型匹配，因此没有任何处理者认领的异常会继续向上传播——`CATCH(ValueError, ...)` 不会吞掉 `KeyError`。处理节点还可以直接声明异常本身：`exc_type`、`exc_val`、`exc_tb` 与其他依赖一样可被注入。
 
 这种设计确保了依赖注入系统的健壮性和可预测性，同时为开发者提供了清晰的错误处理机制。
 

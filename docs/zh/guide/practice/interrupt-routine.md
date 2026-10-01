@@ -16,7 +16,7 @@ AmritaSense 支持**工作流内部的中断式控制转移**：保存完整解�
 | 字段                  | 描述                               |
 | --------------------- | ---------------------------------- |
 | `ptr`                 | 当前 `PointerVector`（程序计数器） |
-| `exception_ignored`   | 绕过 TRY/CATCH 的异常类型          |
+| `exception_ignored`   | 绕过 `Try`/`CATCH` 的异常类型      |
 | `s_args` / `s_kwargs` | 依赖注入参数（可选）               |
 | `stack`               | 返回地址栈（可选）                 |
 | `extra`               | 扩展数据字典，供自定义使用         |

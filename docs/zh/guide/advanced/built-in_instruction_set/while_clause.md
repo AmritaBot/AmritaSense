@@ -44,7 +44,7 @@ AmritaSense 提供了两种标准循环范式：`WHILE`（先判断后执行）�
 `WHILE` 与 `DO-WHILE` 通过一次 `call_sub` 进入循环体，而一次调用只执行一个节点。因此循环体必须是**单节点**：组合（`a >> b`、`NodeCompose(...)`）虽然会被进入，但不会被推进，只有第一个子节点会运行。传入组合会在编译期抛出 `TypeError`。
 
 ```python
-WHILE(cond).ACTION(one_node)          # OK
+WHILE(cond).ACTION(one_node)  # OK
 WHILE(cond).ACTION(step_a >> step_b)  # TypeError
 ```
 
@@ -74,7 +74,7 @@ WHILE(cond).ACTION(step_a >> step_b)  # TypeError
 
 `BreakLoop` 已在解释器初始化时被自动加入 `_exc_ignored` 元组，因此：
 
-- 它不会被任何内层 `TRY/CATCH` 捕获
+- 它不会被任何内层 `Try`/`CATCH` 捕获
 - 它会直接穿透到最外层的 `WhileNode` 或 `DONode`
 - `WhileNode` 和 `DONode` 内部用 `try-except BreakLoop` 捕获该信号，然后执行 `jump_near(NOP)` 干净退出
 

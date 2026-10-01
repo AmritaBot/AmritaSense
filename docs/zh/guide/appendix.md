@@ -20,7 +20,7 @@ AmritaSense 的核心寻址数据结构。它是一个变长整数数组，每�
 
 ### Instruction Set（指令集）
 
-AmritaSense 提供的一套完备的控制流原语，包括 `IF/ELIF/ELSE`（条件分支）、`WHILE/DO-WHILE`（循环）、`JMP`（无条件跳转）、`INVOKE`（子程序调用）、`CALL` / `RET`（函数块调用与返回）、`INT` / `IRET`（中断转移）、`PUSH_CONTEXT` / `POP_CONTEXT`（上下文快照）、`TRY/CATCH/THEN/FIN`（异常处理）、`NOP`（哨兵）和 `RESET`（强制终止）。所有指令在编译期展开为底层节点组合，运行时通过指针跳转完成。
+AmritaSense 提供的一套完备的控制流原语，包括 `IF/ELIF/ELSE`（条件分支）、`WHILE/DO-WHILE`（循环）、`JMP`（无条件跳转）、`INVOKE`（子程序调用）、`CALL` / `RET`（函数块调用与返回）、`INT` / `IRET`（中断转移）、`PUSH_CONTEXT` / `POP_CONTEXT`（上下文快照）、`Try/CATCH/THEN/FINALLY`（异常处理）、`NOP`（哨兵）和 `RESET`（强制终止）。所有指令在编译期展开为底层节点组合，运行时通过指针跳转完成。
 
 ### Self-Compile Instruction（自编译指令）
 
@@ -81,7 +81,7 @@ trap 目标不得自行压/弹 `_ret_addr_stack`：`call_sub` 的 `pop` 是无�
 在 AmritaSense 中，**工作流同样构建在一组原语之上**：
 
 - **节点是执行原语**：每一个 `@Node()` 包装的函数都是不可再分的原子执行单元。解释器不会在节点内部中断执行，节点要么完整运行，要么完全不运行
-- **指令是控制流原语**：`IF`、`JMP`、`INVOKE`、`TRY` 等指令是流程控制的最小语义单元。它们定义了解释器能执行的最基本控制流操作——条件跳转、无条件跳转、子程序调用、异常捕获
+- **指令是控制流原语**：`IF`、`JMP`、`INVOKE`、`Try` 等指令是流程控制的最小语义单元。它们定义了解释器能执行的最基本控制流操作——条件跳转、无条件跳转、子程序调用、异常捕获
 - **指令是架构边界**：正如 ISA 定义了硬件与软件之间的契约，AmritaSense 的指令集定义了"编译器能生成什么"与"解释器能执行什么"之间的稳定边界。自编译指令（`SelfCompileInstruction`）在编译期展开为底层原语节点，运行时仅处理这些已展开的原语
 
 原语的核心价值在于**简单与完备的统一**：每个原语只做一件事，但一组原语的组合可以表达任意复杂的逻辑。这正是 AmritaSense "极简即真理"设计哲学的理论根源。

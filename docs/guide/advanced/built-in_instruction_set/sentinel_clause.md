@@ -64,7 +64,7 @@ RESET: _Node[NoReturn] = _reset_operation
 
 ### Exception penetration rules
 
-`InterruptNotice` inherits from `BaseException`. In Python, `except Exception` does not catch `BaseException` subclasses, so **workflow `TRY/CATCH` blocks do not catch `InterruptNotice` by default**. It naturally penetrates upward.
+`InterruptNotice` inherits from `BaseException`. In Python, `except Exception` does not catch `BaseException` subclasses, so **workflow `Try`/`CATCH` blocks do not catch `InterruptNotice` by default**. It naturally penetrates upward.
 
 The only exception is when `InterruptNotice` is explicitly included in the `exception_ignored` tuple during `WorkflowInterpreter` initialization, at which point it becomes catchable. However, that is rarely necessary — `RESET` is designed to be an “uncatchable” emergency stop.
 

@@ -16,7 +16,7 @@ Each `WorkflowInterpreter` now maintains a **context stack** (`pc.context_stack`
 | Field                 | Description                                |
 | --------------------- | ------------------------------------------ |
 | `ptr`                 | Current `PointerVector` (program counter)  |
-| `exception_ignored`   | Exception types that bypass TRY/CATCH      |
+| `exception_ignored`   | Exception types that bypass `Try`/`CATCH`  |
 | `s_args` / `s_kwargs` | Dependency injection parameters (optional) |
 | `stack`               | Return-address stack (optional)            |
 | `extra`               | Extension dict for custom use              |

@@ -1,4 +1,4 @@
-# Try / CATCH / THEN / FIN 异常处理
+# Try / CATCH / THEN / FINALLY 异常处理
 
 AmritaSense 提供了完整的异常处理指令体系，与 Python 的 `try-except-else-finally` 高度对齐。但在使用之前，需要先回答一个问题：**什么时候应该用指令编排异常处理，什么时候应该在节点内部写 try-catch？**
 
@@ -24,12 +24,12 @@ async def fetch_data():
 - 处理逻辑极其简单（如返回默认值、记录日志后继续）
 - 异常类型是 Python 标准异常，不需要依赖注入或中断控制
 
-### 指令编排模式（TRY/CATCH/THEN/FIN 指令）
+### 指令编排模式（Try/CATCH/THEN/FINALLY 指令）
 
 当异常处理是一个**独立的、可复用的流程步骤**，或者需要利用 AmritaSense 的能力（如依赖注入、挂起中断、异常穿透）时，使用指令编排：
 
 ```python
-TRY(call_api).CATCH(TimeoutError, use_cache).CATCH(AuthError, refresh_token).FINALLY(
+Try(call_api).CATCH(TimeoutError, use_cache).CATCH(AuthError, refresh_token).FINALLY(
     cleanup
 )
 ```
@@ -44,44 +44,44 @@ TRY(call_api).CATCH(TimeoutError, use_cache).CATCH(AuthError, refresh_token).FIN
 
 ### 决策原则
 
-| 场景                                | 推荐模式                                 |
-| ----------------------------------- | ---------------------------------------- |
-| 处理逻辑 1-2 行，与正常逻辑紧密相关 | 节点内部 try-catch                       |
-| 处理逻辑是独立步骤，可能被复用      | 指令编排 TRY/CATCH                       |
-| 需要依赖注入到异常处理节点          | 指令编排                                 |
-| 需要挂起/中断控制                   | 指令编排                                 |
-| 异常类型需要穿透（不可捕获）        | 指令编排 + `exception_ignored`           |
-| 简单的资源清理（关闭连接、释放锁）  | 节点内部 try-finally 或 TRY/FINALLY 均可 |
+| 场景                                | 推荐模式                                     |
+| ----------------------------------- | -------------------------------------------- |
+| 处理逻辑 1-2 行，与正常逻辑紧密相关 | 节点内部 try-catch                           |
+| 处理逻辑是独立步骤，可能被复用      | 指令编排 `Try`/`CATCH`                       |
+| 需要依赖注入到异常处理节点          | 指令编排                                     |
+| 需要挂起/中断控制                   | 指令编排                                     |
+| 异常类型需要穿透（不可捕获）        | 指令编排 + `exception_ignored`               |
+| 简单的资源清理（关闭连接、释放锁）  | 节点内部 try-finally 或 `Try`/`FINALLY` 均可 |
 
 > **核心原则**
-> 当异常处理是“节点内部的事”，用 Python。当异常处理是“工作流级别的事”，用指令。两者可以混用——TRY 块内部的节点本身也可以有自己的 try-catch。
+> 当异常处理是“节点内部的事”，用 Python。当异常处理是“工作流级别的事”，用指令。两者可以混用——Try 块内部的节点本身也可以有自己的 try-catch。
 
 ## 指令语法与语义
 
 ### 完整语法
 
 ```python
-TRY(do).CATCH(exc, handler)  # 捕获特定异常
-TRY(do).FINALLY(cleanup)  # 仅清理块
-TRY(do).CATCH(exc, handler).FINALLY(cleanup)  # 捕获 + 清理
-TRY(do).THEN(success).CATCH(exc, handler).FINALLY(cleanup)  # 完整四段式
-TRY(do).CATCH(exc, handler).THEN(success)  # 捕获 + 成功分支
-TRY(do).CATCH(exc1, handler1).CATCH(exc2, handler2).FINALLY(cleanup)  # 多异常
+Try(do).CATCH(exc, handler)  # 捕获特定异常
+Try(do).FINALLY(cleanup)  # 仅清理块
+Try(do).CATCH(exc, handler).FINALLY(cleanup)  # 捕获 + 清理
+Try(do).THEN(success).CATCH(exc, handler).FINALLY(cleanup)  # 完整四段式
+Try(do).CATCH(exc, handler).THEN(success)  # 捕获 + 成功分支
+Try(do).CATCH(exc1, handler1).CATCH(exc2, handler2).FINALLY(cleanup)  # 多异常
 ```
 
 ### 语义映射
 
 | 指令                  | Python 对应           | 执行条件               |
 | --------------------- | --------------------- | ---------------------- |
-| `TRY(do)`             | `try: do`             | 总是首先执行           |
+| `Try(do)`             | `try: do`             | 总是首先执行           |
 | `CATCH(exc, handler)` | `except exc: handler` | 匹配到对应异常时执行   |
-| `THEN(node)`          | `else: node`          | TRY 块无异常完成时执行 |
+| `THEN(node)`          | `else: node`          | Try 块无异常完成时执行 |
 | `FINALLY(node)`       | `finally: node`       | 无论是否有异常都执行   |
 
 ### 语法约束
 
-1. `TRY` 之后必须跟随至少一个 `CATCH` 或 `FINALLY`
-2. 单个 `TRY` 结构中，`FINALLY` 和 `THEN` 最多各定义一个
+1. `Try` 之后必须跟随至少一个 `CATCH` 或 `FINALLY`
+2. 单个 `Try` 结构中，`FINALLY` 和 `THEN` 最多各定义一个
 3. `CATCH` 可以定义多个，采用从上到下、短路优先匹配
 
 ## 运行时执行逻辑
@@ -89,14 +89,14 @@ TRY(do).CATCH(exc1, handler1).CATCH(exc2, handler2).FINALLY(cleanup)  # 多异�
 `TryClause` 是 `SelfCompileInstruction`，在编译期展开为：
 
 ```text
-[TryNode, try_body, ..., CatchHandler_1, catch_body_1, ..., FinNode(可选), fin_body(可选), NOP(escape)]
+[TryNode, try_body, catch_body_1, ..., catch_body_n, then_body?, finally_body?, NOP(escape)]
 ```
 
 末尾的 `NOP` 是一个 **escape 哨兵节点**——所有执行路径（成功、捕获、未捕获、finally）最终都通过 `pc.jump_near(self._escape_addr)` 跳转到这里。这确保控制流永远不会错误地落入外层编排中的下一条指令。
 
 `TryNode` 是整条异常处理链的入口。它的运行时逻辑如下：
 
-1. **执行 TRY 块**：通过 `call_near` 调用 `try_body`
+1. **执行 Try 块**：通过 `call_near` 调用 `try_body`
 2. **无异常时**：
    - 若有 `THEN`，通过 `call_near` 调用 `then_body`
 3. **有异常时**：
@@ -120,7 +120,7 @@ pc = WorkflowInterpreter(
 
 当 `TryNode` 捕获到这些异常时，会直接 `raise`，让异常穿透当前层级，继续向上传播。这种机制确保了：
 
-- `InterruptNotice` 始终能终止整个工作流，不被某个 TRY 块误吞
+- `InterruptNotice` 始终能终止整个工作流，不被某个 Try 块误吞
 - `BreakLoop` 始终能跳出最内层循环，不被中间的异常处理拦截
 - **关键业务异常** 可以绕过局部容错逻辑，直达顶层全局处理器
 
@@ -135,7 +135,7 @@ pc = WorkflowInterpreter(
 @Node() async def use_cache(): return get_cached()
 @Node() async def cleanup(): http_client.close()
 
-api_flow = TRY(call_api).CATCH(TimeoutError, use_cache).FINALLY(cleanup)
+api_flow = Try(call_api).CATCH(TimeoutError, use_cache).FINALLY(cleanup)
 ```
 
 ### 节点内部：简单降级
@@ -152,7 +152,7 @@ async def call_api_simple():
 ### 多异常分类处理
 
 ```python
-TRY(risky_op).CATCH(ValueError, handle_value).CATCH(TypeError, handle_type).CATCH(
+Try(risky_op).CATCH(ValueError, handle_value).CATCH(TypeError, handle_type).CATCH(
     Exception, handle_unknown
 ).FINALLY(cleanup)
 ```
@@ -160,12 +160,27 @@ TRY(risky_op).CATCH(ValueError, handle_value).CATCH(TypeError, handle_type).CATC
 ### 确保资源清理（即使无异常）
 
 ```python
-TRY(acquire_resource).FINALLY(release_resource)
+Try(acquire_resource).FINALLY(release_resource)
 ```
 
 ## 异常处理节点中的依赖注入
 
 CATCH、THEN、FINALLY 块中的节点可以正常使用 `Depends` 声明依赖。被捕获的异常对象本身也可以通过依赖注入传入处理节点——这是指令编排相较于节点内部 try-catch 的独特优势：异常处理节点可以获得完整的依赖注入上下文。
+
+`CATCH` 处理节点通过声明 `sys.exc_info()` 中的三个名字来接收异常：
+
+```python
+from types import TracebackType
+
+
+@Node()
+async def handle(
+    exc_type: type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+) -> None:
+    logger.error("failed: %s", exc_val, exc_info=exc_tb)
+```
+
+只有声明类型与抛出异常匹配的处理节点才会执行；若没有任何 `CATCH` 认领该异常，它会继续向上传播（`FINALLY` 块仍会先执行）。
 
 > **关于 `Depends` 返回 `None`**
 > 如果异常处理节点通过 `Depends` 声明了某个依赖，而该依赖的工厂函数返回了 `None`，工作流会**直接抛出异常并终止**。节点的依赖解析失败不是可以“跳过”的场景。因此，异常处理节点中使用的依赖应保证在所有执行路径下都能成功解析。

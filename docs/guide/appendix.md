@@ -20,7 +20,7 @@ An independent address space formed after compilation by nodes wrapped in parent
 
 ### Instruction Set
 
-A complete set of control flow primitives provided by AmritaSense, including `IF/ELIF/ELSE` (conditional branching), `WHILE/DO-WHILE` (loops), `JMP` (unconditional jump), `INVOKE` (subroutine call), `CALL` / `RET` (function block call and return), `INT` / `IRET` (interrupt transfer), `PUSH_CONTEXT` / `POP_CONTEXT` (context snapshot), `TRY/CATCH/THEN/FIN` (exception handling), `NOP` (sentinel), and `RESET` (forced termination). All instructions are expanded into low-level node compositions at compile time and completed through pointer jumps at runtime.
+A complete set of control flow primitives provided by AmritaSense, including `IF/ELIF/ELSE` (conditional branching), `WHILE/DO-WHILE` (loops), `JMP` (unconditional jump), `INVOKE` (subroutine call), `CALL` / `RET` (function block call and return), `INT` / `IRET` (interrupt transfer), `PUSH_CONTEXT` / `POP_CONTEXT` (context snapshot), `Try/CATCH/THEN/FINALLY` (exception handling), `NOP` (sentinel), and `RESET` (forced termination). All instructions are expanded into low-level node compositions at compile time and completed through pointer jumps at runtime.
 
 ### Self-Compile Instruction
 
@@ -81,7 +81,7 @@ A sequence of nodes defined by the `ARCHIVED_NODES` instruction, skipped by `Sub
 In AmritaSense, **workflows are similarly built upon a set of primitives**:
 
 - **Nodes are execution primitives**: Every function wrapped by `@Node()` is an indivisible atomic execution unit. The interpreter will not interrupt execution inside a node; a node either runs completely or not at all.
-- **Instructions are control flow primitives**: `IF`, `JMP`, `INVOKE`, `TRY`, and other instructions are the smallest semantic units of flow control. They define the most basic control flow operations the interpreter can execute—conditional jump, unconditional jump, subroutine call, exception capture.
+- **Instructions are control flow primitives**: `IF`, `JMP`, `INVOKE`, `Try`, and other instructions are the smallest semantic units of flow control. They define the most basic control flow operations the interpreter can execute—conditional jump, unconditional jump, subroutine call, exception capture.
 - **Instructions define the architectural boundary**: Just as an ISA defines the contract between hardware and software, AmritaSense's instruction set defines the stable boundary between "what the compiler can generate" and "what the interpreter can execute." Self-compile instructions (`SelfCompileInstruction`) expand into low-level primitive nodes at compile time; the runtime only processes these already-expanded primitives.
 
 The core value of primitives lies in the **unity of simplicity and completeness**: each primitive does only one thing, but a set of primitives combined can express arbitrarily complex logic. This is the theoretical root of AmritaSense's design philosophy that "simplicity is truth."

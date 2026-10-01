@@ -51,7 +51,7 @@ class InterpreterContext:
 Fields:
 
 - `ptr`: Snapshot of the execution pointer (`PointerVector`).
-- `exception_ignored`: Snapshot of exception types that bypass TRY/CATCH.
+- `exception_ignored`: Snapshot of exception types that bypass `Try`/`CATCH`.
 - `s_args` / `s_kwargs`: Snapshot of dependency injection parameters. `None` if excluded during `dump_interpreter()`.
 - `extra`: Extension data dictionary for custom use.
 - `stack`: Snapshot of the return-address stack. `None` if excluded.

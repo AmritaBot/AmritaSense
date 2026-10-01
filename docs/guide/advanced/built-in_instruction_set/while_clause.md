@@ -44,7 +44,7 @@ AmritaSense provides two standard loop paradigms: `WHILE` (check before executin
 `WHILE` and `DO-WHILE` enter their body with a single `call_sub`, which executes exactly one node. The body must therefore be a **single node**: a composition (`a >> b`, `NodeCompose(...)`) would be entered but never advanced, so only its first child would run. Passing a composition raises `TypeError` at compile time.
 
 ```python
-WHILE(cond).ACTION(one_node)          # OK
+WHILE(cond).ACTION(one_node)  # OK
 WHILE(cond).ACTION(step_a >> step_b)  # TypeError
 ```
 
@@ -74,7 +74,7 @@ Within `action` or `do_node`, you can `raise BreakLoop` to implement `break` sem
 
 `BreakLoop` is automatically added to `_exc_ignored` during interpreter initialization, so:
 
-- it will not be caught by any inner `TRY/CATCH`
+- it will not be caught by any inner `Try`/`CATCH`
 - it will directly propagate to the outer `WhileNode` or `DONode`
 - `WhileNode` and `DONode` catch it and jump to `NOP` to exit cleanly
 

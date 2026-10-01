@@ -208,9 +208,7 @@ async def main() -> None:
 
     task = asyncio.create_task(pc.run())
     await pc.object_io.wait_to_suspend(PC_CHECKPOINT)  # 停驻，锁此时空闲
-    await pc.call_sub(
-        pc.get_graph().calc.resolve_alias("trap_entry"), interrupt=True
-    )
+    await pc.call_sub(pc.get_graph().calc.resolve_alias("trap_entry"), interrupt=True)
     pc.object_io.resume()
     await task
 

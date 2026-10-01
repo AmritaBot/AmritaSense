@@ -93,7 +93,7 @@ class InterpreterContext:
 字段说明：
 
 - `ptr`：执行指针（`PointerVector`）的快照。
-- `exception_ignored`：绕过 TRY/CATCH 的异常类型快照。
+- `exception_ignored`：绕过 `Try`/`CATCH` 的异常类型快照。
 - `s_args` / `s_kwargs`：依赖注入参数的快照。若在 `dump_interpreter()` 中排除则为 `None`。
 - `extra`：扩展数据字典，供自定义使用。
 - `stack`：返回地址栈的快照。若排除则为 `None`。
