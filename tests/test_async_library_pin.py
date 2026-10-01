@@ -9,7 +9,7 @@ asserting is that it is set inside a run and cleared afterwards.
 import asyncio
 
 import pytest
-from aiologic.lowlevel import current_async_library_tlocal
+from sniffio import thread_local
 
 from amrita_sense import NOP, WorkflowInterpreter
 from amrita_sense.node.wrapper import Node as NodeDecorator
@@ -19,7 +19,7 @@ observed: list[str | None] = []
 
 @NodeDecorator()
 async def _observe() -> None:
-    observed.append(current_async_library_tlocal.name)
+    observed.append(thread_local.name)
 
 
 @pytest.mark.asyncio
@@ -34,12 +34,12 @@ async def test_library_is_pinned_while_running() -> None:
 
 @pytest.mark.asyncio
 async def test_library_pin_is_restored_afterwards() -> None:
-    assert current_async_library_tlocal.name is None
+    assert thread_local.name is None
 
     inter = WorkflowInterpreter((NOP >> _observe).render())
     await inter.run()
 
-    assert current_async_library_tlocal.name is None
+    assert thread_local.name is None
 
 
 @pytest.mark.asyncio
@@ -55,19 +55,19 @@ async def test_library_pin_survives_a_failing_run() -> None:
     except ValueError:
         pass
 
-    assert current_async_library_tlocal.name is None
+    assert thread_local.name is None
 
 
 @pytest.mark.asyncio
 async def test_library_pin_keeps_an_existing_value() -> None:
     """A value set by an outer scope survives the run unchanged."""
-    current_async_library_tlocal.name = "asyncio"
+    thread_local.name = "asyncio"
     try:
         inter = WorkflowInterpreter((NOP >> _observe).render())
         await inter.run()
-        assert current_async_library_tlocal.name == "asyncio"
+        assert thread_local.name == "asyncio"
     finally:
-        current_async_library_tlocal.name = None
+        thread_local.name = None
 
 
 @pytest.mark.asyncio
@@ -78,7 +78,7 @@ async def test_concurrent_runs_leave_no_pin_behind() -> None:
 
     await asyncio.gather(first.run(), second.run())
 
-    assert current_async_library_tlocal.name is None
+    assert thread_local.name is None
 
 
 @pytest.mark.asyncio
@@ -89,7 +89,7 @@ async def test_pin_survives_another_run_finishing_first() -> None:
     @NodeDecorator()
     async def _slow_probe() -> None:
         await asyncio.sleep(0.02)
-        seen.append(current_async_library_tlocal.name)
+        seen.append(thread_local.name)
 
     slow = WorkflowInterpreter(_slow_probe.as_compose().render())
     quick = WorkflowInterpreter((NOP >> NOP).render())
@@ -99,8 +99,8 @@ async def test_pin_survives_another_run_finishing_first() -> None:
 
     await quick.run()  # takes and releases the pin around the slow one
 
-    assert current_async_library_tlocal.name == "asyncio"
+    assert thread_local.name == "asyncio"
     await slow_task
 
     assert seen == ["asyncio"]
-    assert current_async_library_tlocal.name is None
+    assert thread_local.name is None

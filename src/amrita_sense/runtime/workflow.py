@@ -27,11 +27,8 @@ from typing import (
 from uuid import uuid4
 
 import aiologic
-from aiologic.lowlevel import (
-    AsyncLibraryNotFoundError,
-    current_async_library,
-    current_async_library_tlocal,
-)
+import sniffio
+from aiologic.lowlevel import current_async_library
 from typing_extensions import LiteralString
 
 from amrita_sense._unsafe import __flags__
@@ -74,10 +71,14 @@ def _pin_async_library() -> None:
     takes a lock on every step, so that detection lands in the hot path.
 
     `aiologic.lowlevel.current_async_library()` already consults
-    `current_async_library_tlocal` first and only falls through to probing when
-    it is empty.  Nothing in aiologic or sniffio ever fills it -- the slot
-    exists for trio-asyncio style bridges -- so writing the library that is
-    *actually* running only caches an answer that was being recomputed anyway.
+    `sniffio.thread_local` first and only falls through to probing when it is
+    empty.  Nothing in aiologic or sniffio ever fills it -- the slot exists for
+    trio-asyncio style bridges -- so writing the library that is *actually*
+    running only caches an answer that was being recomputed anyway.
+
+    aiologic re-exports the same object under a `current_async_library_tlocal`
+    alias, but that spelling is deprecated in 0.18.0 and removed in 0.19.0, so
+    the sniffio name is used here.
 
     The slot is thread-local rather than task-local, so concurrent runs on one
     event loop would otherwise clobber each other's saved value and restore out
@@ -87,12 +88,12 @@ def _pin_async_library() -> None:
     """
     depth = getattr(_pin_state, "depth", 0)
     if depth == 0:
-        tlocal = current_async_library_tlocal
+        tlocal = sniffio.thread_local
         _pin_state.previous = tlocal.name
         if tlocal.name is None:
             try:
                 tlocal.name = current_async_library()
-            except AsyncLibraryNotFoundError:  # pragma: no cover - in a run
+            except sniffio.AsyncLibraryNotFoundError:  # pragma: no cover
                 pass
     _pin_state.depth = depth + 1
 
@@ -104,7 +105,7 @@ def _restore_async_library() -> None:
         _pin_state.depth = depth - 1
         return
     _pin_state.depth = 0
-    current_async_library_tlocal.name = getattr(_pin_state, "previous", None)
+    sniffio.thread_local.name = getattr(_pin_state, "previous", None)
 
 
 class WorkflowInterpreter(Generic[io_T]):
