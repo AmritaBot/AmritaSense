@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import threading
 from collections.abc import (
     AsyncGenerator,
     Awaitable,
@@ -62,7 +63,10 @@ fun_T = TypeVar("fun_T", bound=Callable[..., Any], covariant=True)
 UNSET = object()
 
 
-def _pin_async_library() -> str | None:
+_pin_state = threading.local()
+
+
+def _pin_async_library() -> None:
     """Cache aiologic's async-library detection for the duration of a run.
 
     `aiologic.Lock` re-detects the running async library on every operation,
@@ -75,22 +79,32 @@ def _pin_async_library() -> str | None:
     exists for trio-asyncio style bridges -- so writing the library that is
     *actually* running only caches an answer that was being recomputed anyway.
 
-    Returns the previous value, to be handed back to
-    `_restore_async_library()`.
+    The slot is thread-local rather than task-local, so concurrent runs on one
+    event loop would otherwise clobber each other's saved value and restore out
+    of order.  A per-thread nesting depth keeps the write and the restore
+    paired: only the outermost run touches the slot, and only the outermost
+    exit clears it.
     """
-    tlocal = current_async_library_tlocal
-    previous = tlocal.name
-    if previous is None:
-        try:
-            tlocal.name = current_async_library()
-        except AsyncLibraryNotFoundError:  # pragma: no cover - never in a run
-            pass
-    return previous
+    depth = getattr(_pin_state, "depth", 0)
+    if depth == 0:
+        tlocal = current_async_library_tlocal
+        _pin_state.previous = tlocal.name
+        if tlocal.name is None:
+            try:
+                tlocal.name = current_async_library()
+            except AsyncLibraryNotFoundError:  # pragma: no cover - in a run
+                pass
+    _pin_state.depth = depth + 1
 
 
-def _restore_async_library(previous: str | None) -> None:
-    """Undo `_pin_async_library()`."""
-    current_async_library_tlocal.name = previous
+def _restore_async_library() -> None:
+    """Undo `_pin_async_library()`; the outermost run performs the restore."""
+    depth = getattr(_pin_state, "depth", 0)
+    if depth > 1:
+        _pin_state.depth = depth - 1
+        return
+    _pin_state.depth = 0
+    current_async_library_tlocal.name = getattr(_pin_state, "previous", None)
 
 
 class WorkflowInterpreter(Generic[io_T]):
@@ -828,7 +842,7 @@ class WorkflowInterpreter(Generic[io_T]):
             raise IllegalState(
                 "Cannot start a new workflow while one is already running"
             )
-        pinned_library = _pin_async_library()
+        _pin_async_library()
         try:
             self._waiter_fut = asyncio.Future()
             if any(isinstance(v, DependsFactory) for v in self.__ava_args) or any(
@@ -925,9 +939,13 @@ class WorkflowInterpreter(Generic[io_T]):
                 else:
                     self._waiter_fut.set_result(None)
             self._waiter_fut = None
-            if not resumable:
-                await self._close_workflow_scope()
-            _restore_async_library(pinned_library)
+            try:
+                if not resumable:
+                    await self._close_workflow_scope()
+            finally:
+                # Scope teardown can raise or be cancelled; the pin has to come
+                # off either way.
+                _restore_async_library()
 
     def _make_traceback(self) -> str:
         """Make a traceback string for the current workflow."""

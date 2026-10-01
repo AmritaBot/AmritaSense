@@ -6,6 +6,8 @@ answer that the probe would have returned anyway, so the only thing worth
 asserting is that it is set inside a run and cleared afterwards.
 """
 
+import asyncio
+
 import pytest
 from aiologic.lowlevel import current_async_library_tlocal
 
@@ -66,3 +68,39 @@ async def test_library_pin_keeps_an_existing_value() -> None:
         assert current_async_library_tlocal.name == "asyncio"
     finally:
         current_async_library_tlocal.name = None
+
+
+@pytest.mark.asyncio
+async def test_concurrent_runs_leave_no_pin_behind() -> None:
+    """Two runs sharing the loop must not restore each other out of order."""
+    first = WorkflowInterpreter((NOP >> _observe >> NOP).render())
+    second = WorkflowInterpreter((NOP >> _observe >> NOP).render())
+
+    await asyncio.gather(first.run(), second.run())
+
+    assert current_async_library_tlocal.name is None
+
+
+@pytest.mark.asyncio
+async def test_pin_survives_another_run_finishing_first() -> None:
+    """A run that outlives another keeps its pin until it finishes itself."""
+    seen: list[str | None] = []
+
+    @NodeDecorator()
+    async def _slow_probe() -> None:
+        await asyncio.sleep(0.02)
+        seen.append(current_async_library_tlocal.name)
+
+    slow = WorkflowInterpreter(_slow_probe.as_compose().render())
+    quick = WorkflowInterpreter((NOP >> NOP).render())
+
+    slow_task = asyncio.create_task(slow.run())
+    await asyncio.sleep(0.01)  # let the slow run take the pin
+
+    await quick.run()  # takes and releases the pin around the slow one
+
+    assert current_async_library_tlocal.name == "asyncio"
+    await slow_task
+
+    assert seen == ["asyncio"]
+    assert current_async_library_tlocal.name is None
