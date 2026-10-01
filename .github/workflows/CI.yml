@@ -125,7 +125,10 @@ jobs:
         run: |
           echo "${{ matrix.python-version}}" > .python-version
           uv venv
-          uv sync
+          # `benchmark.py` needs the runtime dependencies only; skipping the
+          # dev group keeps ruff / pyright / py-spy (about 20MiB) off the
+          # critical path, which is where this job has timed out before.
+          uv sync --no-dev
 
       - name: Get Python path
         run: |
