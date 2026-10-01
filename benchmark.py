@@ -611,12 +611,12 @@ def bench_call_ret() -> Result:
 
 def _build_invoke_chain(count: int) -> NodeCompose:
     comp = NOP.as_compose()
-    archive = NOP.as_compose()
+    archive: list[Any] = []
     for i in range(count):
         entry = f"invoke_target_{i}"
         comp >>= INVOKE(entry)
-        archive >>= ALIAS(_noop_node(), entry)
-    comp >>= ARCHIVED_NODES(archive)
+        archive.append(ALIAS(_noop_node(), entry))
+    comp >>= ARCHIVED_NODES(*archive)
     return comp
 
 
@@ -1393,6 +1393,9 @@ def main(argv: list[str] | None = None) -> int:
         verbose=not args.quiet,
         warmup=not args.no_warmup,
     )
+    if args.quiet:
+        # `--quiet` drops the per-run chatter, not the results.
+        report(results)
 
     if not args.no_json:
         to_json(results, args.json_path)
