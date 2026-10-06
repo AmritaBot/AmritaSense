@@ -78,13 +78,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         self._callback_sending_lock = aiologic.Lock()
         self._q_tout = queue_timeout
         self._state_lock = aiologic.Lock()
-        #: Cheap cross-thread-visible guard for the `_wait_for_continue` fast
-        #: path.  A plain `threading.Lock` is a pure-C mutex (~60 ns for
-        #: acquire+release) and, unlike a bare read of `__suspend_signal`, it
-        #: establishes a happens-before edge with `wait_to_suspend`, which is
-        #: what keeps the check sound when the stream is driven from another
-        #: thread.  The aiologic lock is only taken when a suspension might
-        #: actually be armed.
+        #: Guard for the `_wait_for_continue` fast path: a pure-C mutex (~60 ns) that, unlike a bare read of `__suspend_signal`, gives the happens-before edge with `wait_to_suspend` that a stream driven from another thread needs.
         self._fast_lock = threading.Lock()
 
     # Suspend / resume – shared by both stream directions

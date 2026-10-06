@@ -102,12 +102,7 @@ class AbstractCompose(ABC, Generic[Calc_T]):
     be consumed wherever a rendered workflow is expected.
     """
 
-    #: Cheap discriminator for the addressing hot path.  `isinstance(x,
-    #: AbstractCompose)` routes through `ABCMeta.__instancecheck__` (measured
-    #: ~200 ns per call, and the pointer walk does several per node); probing
-    #: this marker is ~50 ns.  It lives on the ABC, so every rendered compose
-    #: inherits it -- `NodeComposeRendered`, `DLLComposeProxy`, or a custom
-    #: implementation -- while nodes and `AbstractComposeOriginal` do not.
+    #: Marker the runtime probes instead of running `isinstance(x, AbstractCompose)`, which costs ~200 ns per call through `ABCMeta.__instancecheck__` against ~50 ns here; it sits on the ABC, so every rendered graph inherits it and no node or `AbstractComposeOriginal` does. See `is_rendered_compose`.
     __rendered_compose__: bool = True
 
     @abstractmethod
