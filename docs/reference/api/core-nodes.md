@@ -11,6 +11,7 @@ class BaseNode:
     func: Callable[..., Any]
     tag: str
     wrap_to_async: bool
+    is_coro: bool
     address_able: bool
     fun_frame: FrameType
     fun_sign: inspect.Signature
@@ -21,6 +22,7 @@ class BaseNode:
 - `func`: The underlying callable. This is what the interpreter ultimately calls when executing the node.
 - `tag`: The node's string identifier. Also serves as the breakpoint name for flow suspension -- external callers can suspend before this node executes via `wait_to_suspend(tag)`. Defaults to `NodeSuspend::{function_name}` if not specified at creation time.
 - `wrap_to_async`: If `True` and `func` is synchronous, the interpreter automatically uses `asyncio.to_thread` to execute it in a thread pool, preventing event-loop blockage.
+- `is_coro`: Whether `func` is a coroutine function, computed once at construction via `inspect.iscoroutinefunction`. The interpreter reads this instead of re-testing on every execution (a test costs ~570 ns), so `func` must not be replaced after the node is built.
 - `address_able`: If `True`, the node can be referenced by `ALIAS`. Only addressable nodes can become targets for jump instructions like `JMP` and `INVOKE`.
 - `fun_sign`: The function signature extracted by `inspect.signature(func)`, used by the dependency injection system for parameter resolution at runtime.
 - `fun_frame`: The stack frame object at node creation time, primarily used for debugging and log location.

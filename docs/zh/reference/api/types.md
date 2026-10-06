@@ -115,6 +115,8 @@ class InterpreterContext:
 | `HLT`  | 停在某个节点上；下一次运行会先跳过它       |
 | `JMP`  | 本轮已跳转；主循环不得再推进指针           |
 
+`amrita_sense.runtime.types` 另外导出 `FLAG_IF`、`FLAG_HLT`、`FLAG_JMP`——上述三个位的纯 int 镜像，在导入时由枚举派生，因此不会与枚举脱节。热路径应当用 `int(flags) & FLAG_HLT` 而非 `flags & Flags.HLT`：后者会走 `Flag.__and__`，再经 `EnumType.__call__` / `__new__` 重新包装（实测 930ns，int 形式为 80ns），而解释器每一步都要测 `HLT` 与 `JMP`。
+
 ## DICache
 
 `DICache` 是管理 `WorkflowInterpreter` 中依赖注入结果缓存的数据类。它将参数指纹与 LRU 缓存结合，避免重复 DI 解析。

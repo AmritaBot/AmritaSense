@@ -73,6 +73,8 @@ The canonical producer is `WorkflowInterpreter.dump_interpreter()` (called by `P
 | `HLT`  | Halted on a node; the next run steps past it before executing anything |
 | `JMP`  | A jump already moved the pointer; the main loop must not advance it    |
 
+`amrita_sense.runtime.types` also exports `FLAG_IF`, `FLAG_HLT` and `FLAG_JMP`: plain-int mirrors of those three bits, derived from the enum at import time so they cannot drift out of sync. Hot code should test `int(flags) & FLAG_HLT` rather than `flags & Flags.HLT`. The latter goes through `Flag.__and__`, which re-wraps the result via `EnumType.__call__` / `__new__` -- measured 930 ns against 80 ns for the int form -- and the interpreter tests `HLT` and `JMP` on every step.
+
 ## DICache
 
 `DICache` is a dataclass that manages the dependency injection result cache within the `WorkflowInterpreter`. It combines args fingerprinting with an LRU cache to avoid redundant DI resolution.

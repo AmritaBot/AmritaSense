@@ -83,6 +83,7 @@ Read side (used at runtime and by hooks):
 - `calc` — the bound address calculator (`resolve_alias()`, `find_addr()`, `find_addr_safe()`, `advance()`).
 - `__getitem__(key)` / `__len__()` — indexed access to child entries. Sequential access is not part of the contract: the graph is addressed by `PointerVector`, so every lookup goes through `__getitem__`. Walk a graph with `for i in range(len(graph)): graph[i]`.
 - `__bool__()` — `False` while empty or not yet built.
+- `__rendered_compose__` — a class-level `True` marker declared on the ABC. The runtime uses it in place of `isinstance(x, AbstractCompose)` to tell a rendered graph from a node: `ABCMeta.__instancecheck__` costs ~200 ns per call and the pointer walk runs several per step, while the attribute probe is ~50 ns. Because the marker lives on the contract, every implementation inherits it -- including the `FakeRendered` below -- and none has to implement it.
 
 > **Why no `__iter__`?** Addressing already goes through `__getitem__`, so an iterator adds nothing the contract needs — and its natural docstring ("iterate over all nodes") would be wrong anyway, since a rendered graph yields _entries_ that may be nested containers rather than nodes. Note that out-of-range indexing raises `NullPointerException`, which is **not** an `IndexError`, so Python's implicit sequence-iteration protocol does not kick in: `for x in graph` does not work, `for i in range(len(graph))` does.
 

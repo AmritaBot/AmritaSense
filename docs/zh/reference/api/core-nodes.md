@@ -11,6 +11,7 @@ class BaseNode:
     func: Callable[..., Any]
     tag: str
     wrap_to_async: bool
+    is_coro: bool
     address_able: bool
     fun_frame: FrameType
     fun_sign: inspect.Signature
@@ -21,6 +22,7 @@ class BaseNode:
 - `func`：底层可调用对象。执行节点时解释器最终调用的就是它
 - `tag`：节点的字符串标识。同时作为流程挂起的断点名称——外部可以通过 `wait_to_suspend(tag)` 在该节点执行前挂起。若创建时未指定，默认为 `NodeSuspend::{函数名}`
 - `wrap_to_async`：若为 `True` 且 `func` 是同步函数，解释器会自动使用 `asyncio.to_thread` 在线程池中执行，避免阻塞事件循环
+- `is_coro`：`func` 是否为协程函数，在构造时用 `inspect.iscoroutinefunction` 算一次。解释器读取该字段而非每次执行都重测（单次约 570ns），因此节点构建后不应再替换 `func`
 - `address_able`：若为 `True`，该节点可被 `ALIAS` 引用。只有可寻址的节点才能成为 `JMP`、`INVOKE` 等跳转指令的目标
 - `fun_sign`：由 `inspect.signature(func)` 提取的函数签名，供依赖注入系统在运行时解析参数
 - `fun_frame`：节点创建时的栈帧对象，主要用于调试和日志定位
