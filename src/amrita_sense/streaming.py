@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import threading
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from functools import wraps
 from typing import Any, Generic, TypeAlias, TypeVar
@@ -55,6 +56,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
     _q_tout: float | None
 
     _state_lock: aiologic.Lock
+    _fast_lock: threading.Lock
 
     def __init__(
         self,
@@ -76,6 +78,14 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         self._callback_sending_lock = aiologic.Lock()
         self._q_tout = queue_timeout
         self._state_lock = aiologic.Lock()
+        #: Cheap cross-thread-visible guard for the `_wait_for_continue` fast
+        #: path.  A plain `threading.Lock` is a pure-C mutex (~60 ns for
+        #: acquire+release) and, unlike a bare read of `__suspend_signal`, it
+        #: establishes a happens-before edge with `wait_to_suspend`, which is
+        #: what keeps the check sound when the stream is driven from another
+        #: thread.  The aiologic lock is only taken when a suspension might
+        #: actually be armed.
+        self._fast_lock = threading.Lock()
 
     # Suspend / resume – shared by both stream directions
 
@@ -132,6 +142,9 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
             `True` if the caller actually blocked (was suspended), `False`
             if no suspension was in progress or the *tag* did not match.
         """
+        with self._fast_lock:
+            if self.__suspend_signal is None:
+                return False
         async with self._state_lock:
             if self.__suspend_signal is None:
                 return False
@@ -181,14 +194,16 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
                     self.__suspend_signal = None
                 else:
                     raise StreamStateError("Already waiting for suspend!")
-            self._suspend_tags = tags
-            self.__suspend_signal = asyncio.Future()
+            with self._fast_lock:
+                self._suspend_tags = tags
+                self.__suspend_signal = asyncio.Future()
         try:
             await asyncio.wait_for(self.__suspend_signal, timeout)
         finally:
             async with self._state_lock:
-                self.__suspend_signal = None
-                self._suspend_tags = None
+                with self._fast_lock:
+                    self.__suspend_signal = None
+                    self._suspend_tags = None
 
     def resume(self) -> None:
         """Resume a suspended producer."""

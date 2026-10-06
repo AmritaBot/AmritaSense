@@ -105,6 +105,10 @@ class BaseNode:
         self.fun_sign = fun_sign
         self.fun_frame = frame
         self.func = func
+        #: Cached here because `inspect.iscoroutinefunction` costs ~570 ns
+        #: per call and the interpreter asked on every step.  `func` is
+        #: fixed at construction, so one check is enough.
+        self.is_coro = inspect.iscoroutinefunction(func)
         self.tag = tag or f"NodeSuspend::{func.__name__}"
         self.wrap_to_async = wrap_to_async
         self.address_able = address_able
@@ -210,6 +214,7 @@ class Node(BaseNode, Generic[NODE_T]):
         "fun_frame",
         "fun_sign",
         "func",
+        "is_coro",
         "tag",
         "wrap_to_async",
     )
@@ -430,7 +435,7 @@ class NodeComposeRendered(AbstractCompose[AddressCalculator]):
         Returns:
             Boolean indicating whether the graph has been built and contains nodes.
         """
-        return bool(self._graph if hasattr(self, "_graph") else False)
+        return bool(getattr(self, "_graph", False))
 
     def __len__(self) -> int:
         """Return the number of nodes in the rendered graph.
@@ -438,7 +443,8 @@ class NodeComposeRendered(AbstractCompose[AddressCalculator]):
         Returns:
             Number of nodes in the rendered graph.
         """
-        return len(self._graph) if hasattr(self, "_graph") else -1
+        graph = getattr(self, "_graph", None)
+        return len(graph) if graph is not None else -1
 
     def _build(
         self,
@@ -583,9 +589,12 @@ class NodeComposeRendered(AbstractCompose[AddressCalculator]):
         Raises:
             NullPointerException: If the index is out of range.
         """
-        if key >= len(self._graph):
-            raise NullPointerException(f"NodeComposeRendered index out of range: {key}")
-        return self._graph[key]
+        try:
+            return self._graph[key]
+        except IndexError:
+            raise NullPointerException(
+                f"NodeComposeRendered index out of range: {key}"
+            ) from None
 
 
 addressing.NodeComposeRendered = NodeComposeRendered

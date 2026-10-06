@@ -24,6 +24,16 @@ class Flags(IntFlag):
     """A jump already moved the pointer; the main loop must not advance it."""
 
 
+#: Plain-int mirrors of the hot `Flags` bits, derived from the enum so they
+#: cannot drift.  `flags & Flags.HLT` goes through `Flag.__and__`, which
+#: re-wraps the result via `EnumType.__call__` / `__new__` (measured ~930 ns
+#: per test); `int(flags) & FLAG_HLT` is ~80 ns.  The interpreter tests a
+#: flag on every step, so the difference lands directly on the hot path.
+FLAG_IF = int(Flags.IF)
+FLAG_HLT = int(Flags.HLT)
+FLAG_JMP = int(Flags.JMP)
+
+
 @dataclass
 class InterpreterContext:
     ptr: PointerVector

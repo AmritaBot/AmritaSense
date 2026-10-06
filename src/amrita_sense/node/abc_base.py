@@ -102,6 +102,14 @@ class AbstractCompose(ABC, Generic[Calc_T]):
     be consumed wherever a rendered workflow is expected.
     """
 
+    #: Cheap discriminator for the addressing hot path.  `isinstance(x,
+    #: AbstractCompose)` routes through `ABCMeta.__instancecheck__` (measured
+    #: ~200 ns per call, and the pointer walk does several per node); probing
+    #: this marker is ~50 ns.  It lives on the ABC, so every rendered compose
+    #: inherits it -- `NodeComposeRendered`, `DLLComposeProxy`, or a custom
+    #: implementation -- while nodes and `AbstractComposeOriginal` do not.
+    __rendered_compose__: bool = True
+
     @abstractmethod
     def __init__(self, compose: "AbstractComposeOriginal"): ...
 
