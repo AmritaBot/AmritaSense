@@ -1326,7 +1326,7 @@ class WorkflowInterpreter(Generic[io_T]):
                 return
             self._pointer.append(0)
             target = addr_getter(self._pointer.base_addr)
-        # The probe narrows inside the loop body only, so collapse the union here.
+        # The probe only narrows inside the loop, so collapse the union here.
         node = cast(BaseNode, target)
         await self.object_io._wait_for_continue(node.tag)
 

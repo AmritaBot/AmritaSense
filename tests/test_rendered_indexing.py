@@ -41,5 +41,5 @@ class TestRenderedIndexing:
     def test_unbuilt_graph_is_falsy(self):
         rendered = NodeComposeRendered(NodeCompose())
         assert not rendered
-        # `__len__` returns -1 as a "not built" sentinel, which the `len()` builtin rejects; it is only observable through a direct call.
+        # `len()` rejects the -1 "not built" sentinel, so call `__len__` directly.
         assert rendered.__len__() == -1

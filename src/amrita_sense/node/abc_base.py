@@ -102,7 +102,7 @@ class AbstractCompose(ABC, Generic[Calc_T]):
     be consumed wherever a rendered workflow is expected.
     """
 
-    #: Marker the runtime probes instead of running `isinstance(x, AbstractCompose)`, which costs ~200 ns per call through `ABCMeta.__instancecheck__` against ~50 ns here; it sits on the ABC, so every rendered graph inherits it and no node or `AbstractComposeOriginal` does. See `is_rendered_compose`.
+    #: Probed by `is_rendered_compose`; on the ABC so every rendered graph inherits it.
     __rendered_compose__: bool = True
 
     @abstractmethod
@@ -194,15 +194,5 @@ class AbstractAddressCalculator(ABC, Generic[Compose_T]):
 
 
 def is_rendered_compose(obj: object) -> TypeIs[AbstractCompose[Any]]:
-    """Whether *obj* is a rendered graph rather than a node.
-
-    The runtime probes the `__rendered_compose__` marker instead of running
-    `isinstance(obj, AbstractCompose)`: the ABC path goes through
-    `ABCMeta.__instancecheck__` (measured ~200 ns per call) and the pointer walk
-    runs several per step, while the probe is ~50 ns.
-
-    `TypeIs` is what keeps this usable from typed code -- an inline `getattr`
-    check cannot narrow a union the way `isinstance` does, and the addressing
-    walk would otherwise need a `cast` on every index operation.
-    """
+    """Whether *obj* is a rendered graph; cheaper than the ABC check, and `TypeIs` keeps narrowing."""
     return getattr(obj, "__rendered_compose__", False)

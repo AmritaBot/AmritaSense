@@ -105,7 +105,7 @@ class BaseNode:
         self.fun_sign = fun_sign
         self.fun_frame = frame
         self.func = func
-        #: Cached because `inspect.iscoroutinefunction` costs ~570 ns and the interpreter asked on every step; `func` is fixed at construction, so one check is enough.
+        #: Cached: the test costs ~570 ns and `func` never changes.
         self.is_coro = inspect.iscoroutinefunction(func)
         self.tag = tag or f"NodeSuspend::{func.__name__}"
         self.wrap_to_async = wrap_to_async
