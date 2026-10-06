@@ -13,7 +13,6 @@ from collections.abc import (
 )
 from contextlib import nullcontext
 from functools import wraps
-from inspect import iscoroutinefunction
 from io import StringIO
 from typing import (
     TYPE_CHECKING,
@@ -44,11 +43,17 @@ from amrita_sense.exceptions import (
 )
 from amrita_sense.hook.matcher import DependsFactory, MatcherFactory, sign_func
 from amrita_sense.logging import logger
-from amrita_sense.node.abc_base import AbstractCompose
+from amrita_sense.node.abc_base import AbstractCompose, is_rendered_compose
 from amrita_sense.node.addressing import AddressCalculator
 from amrita_sense.node.core import BaseNode
 from amrita_sense.node.self_compile import SelfCompileInstruction
-from amrita_sense.runtime.types import Flags, InterpreterContext
+from amrita_sense.runtime.types import (
+    FLAG_HLT,
+    FLAG_IF,
+    FLAG_JMP,
+    Flags,
+    InterpreterContext,
+)
 from amrita_sense.streaming import SuspendObjectStream
 from amrita_sense.types import DICache, PointerVector, Stack
 from amrita_sense.utils import TimeInsighter, _fingerprint_args, isabstractmethod
@@ -106,6 +111,24 @@ def _restore_async_library() -> None:
         return
     _pin_state.depth = 0
     sniffio.thread_local.name = getattr(_pin_state, "previous", None)
+
+
+async def _invoke_node(
+    fun: Callable[..., Any],
+    node: BaseNode,
+    kwargs: dict[str, Any],
+) -> Any:
+    """Run one node body.
+
+    Hoisted out of `_call` so a fresh closure is not built on every step,
+    and the coroutine test is read off the node (see `BaseNode.is_coro`)
+    instead of being recomputed per call.
+    """
+    if node.is_coro:
+        return await fun(**kwargs)
+    if node.wrap_to_async and not __flags__.FORCE_NOT_WRAP_TO_ASYNC:
+        return await asyncio.to_thread(fun, **kwargs)
+    return fun(**kwargs)
 
 
 class WorkflowInterpreter(Generic[io_T]):
@@ -496,12 +519,12 @@ class WorkflowInterpreter(Generic[io_T]):
     @property
     def jump_marked(self) -> bool:
         """Whether a jump has already moved the pointer for this cycle."""
-        return bool(self._flags & Flags.JMP)
+        return bool(int(self._flags) & FLAG_JMP)
 
     @property
     def if_flag(self) -> bool:
         """Whether the interpreter is currently inside an interrupt handler."""
-        return bool(self._flags & Flags.IF)
+        return bool(int(self._flags) & FLAG_IF)
 
     @if_flag.setter
     def if_flag(self, value: bool) -> None:
@@ -887,7 +910,7 @@ class WorkflowInterpreter(Generic[io_T]):
                         if not graph:
                             break
                         self._pointer.append(0)
-                    if self._flags & Flags.HLT:
+                    if int(self._flags) & FLAG_HLT:
                         # Resuming: the pointer still addresses the node that halted, so step past it instead of running it again.
                         if not self.resume_from_halt():
                             break
@@ -1295,14 +1318,16 @@ class WorkflowInterpreter(Generic[io_T]):
             DependsInjectFailed: If dependency injection fails at runtime.
         """
         addr_getter = addr_getter or self.get_graph().calc.find_addr
-        node: BaseNode | AbstractCompose[AddressCalculator] = addr_getter(
+        target: BaseNode | AbstractCompose[AddressCalculator] = addr_getter(
             self._pointer.base_addr
         )
-        while isinstance(node, AbstractCompose):
-            if not node:
+        while is_rendered_compose(target):
+            if not target:
                 return
             self._pointer.append(0)
-            node = addr_getter(self._pointer.base_addr)
+            target = addr_getter(self._pointer.base_addr)
+        # The probe only narrows inside the loop, so collapse the union here.
+        node = cast(BaseNode, target)
         await self.object_io._wait_for_continue(node.tag)
 
         ava_args = self.__ava_args
@@ -1349,15 +1374,8 @@ class WorkflowInterpreter(Generic[io_T]):
                 self._di_cache.payload[cache_key] = (static_kwargs, factories)
 
         #  Per-call resolution of non-cacheable factories
-        async def _invoke(kw_rsved: dict[str, Any]) -> Any:
-            if iscoroutinefunction(fun):
-                return await fun(**kw_rsved)
-            if node.wrap_to_async and not __flags__.FORCE_NOT_WRAP_TO_ASYNC:
-                return await asyncio.to_thread(fun, **kw_rsved)
-            return fun(**kw_rsved)
-
         if not factories:
-            return await _invoke(static_kwargs)
+            return await _invoke_node(fun, node, static_kwargs)
 
         kw_rsved = static_kwargs.copy()
         if any(factory.is_lifecycle for factory in factories.values()):
@@ -1372,7 +1390,7 @@ class WorkflowInterpreter(Generic[io_T]):
                     {**self._lifecycles, Scope.CALL: call_scope},
                     Scope.WORKFLOW,
                 )
-                return await _invoke(kw_rsved)
+                return await _invoke_node(fun, node, kw_rsved)
         await self._inject_factories(
             factories,
             ava_args,
@@ -1382,7 +1400,7 @@ class WorkflowInterpreter(Generic[io_T]):
             self._lifecycles,
             Scope.WORKFLOW,
         )
-        return await _invoke(kw_rsved)
+        return await _invoke_node(fun, node, kw_rsved)
 
     async def _inject_factories(
         self,

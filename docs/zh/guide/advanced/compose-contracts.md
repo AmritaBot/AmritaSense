@@ -83,6 +83,7 @@ from amrita_sense.node.abc_base import (
 - `calc` —— 绑定的地址计算器（`resolve_alias()`、`find_addr()`、`find_addr_safe()`、`advance()`）。
 - `__getitem__(key)` / `__len__()` —— 按索引访问子条目。顺序访问**不在**契约内：图是由 `PointerVector` 寻址的，每次查找都走 `__getitem__`。需要遍历时用 `for i in range(len(graph)): graph[i]`。
 - `__bool__()` —— 为空或尚未构建时返回 `False`。
+- `__rendered_compose__` —— 声明在 ABC 上的类级 `True` 标记。运行期用它代替 `isinstance(x, AbstractCompose)` 来区分渲染图与节点：`ABCMeta.__instancecheck__` 每次约 200ns，而指针走查每步要判好几次；属性探测只需约 50ns。标记本身就在契约上，因此所有实现——包括下文的 `FakeRendered`——都会自动继承，无需自行实现。
 
 > **为什么没有 `__iter__`？** 寻址本来就只依赖 `__getitem__`，迭代器提供不了契约需要的东西——而且它天然的文档表述（“遍历所有节点”）本身就是错的：渲染图产出的是**条目**，其中可能包含嵌套容器而非节点。另外，越界索引抛的是 `NullPointerException`，它**不是** `IndexError`，所以 Python 的隐式序列迭代协议不会生效：`for x in graph` 不可用，`for i in range(len(graph))` 可用。
 

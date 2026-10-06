@@ -24,6 +24,12 @@ class Flags(IntFlag):
     """A jump already moved the pointer; the main loop must not advance it."""
 
 
+#: Plain-int mirrors of the `Flags` bits, so hot tests can use `int(flags) & FLAG_X`.
+FLAG_IF = int(Flags.IF)
+FLAG_HLT = int(Flags.HLT)
+FLAG_JMP = int(Flags.JMP)
+
+
 @dataclass
 class InterpreterContext:
     ptr: PointerVector

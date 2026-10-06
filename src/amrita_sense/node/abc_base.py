@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
-from typing_extensions import Self
+from typing_extensions import Self, TypeIs
 
 from amrita_sense.types import PointerVector
 
@@ -102,6 +102,9 @@ class AbstractCompose(ABC, Generic[Calc_T]):
     be consumed wherever a rendered workflow is expected.
     """
 
+    #: Probed by `is_rendered_compose`; on the ABC so every rendered graph inherits it.
+    __rendered_compose__: bool = True
+
     @abstractmethod
     def __init__(self, compose: "AbstractComposeOriginal"): ...
 
@@ -188,3 +191,8 @@ class AbstractAddressCalculator(ABC, Generic[Compose_T]):
         through their parents to continue at the following sibling.
         """
         ...
+
+
+def is_rendered_compose(obj: object) -> TypeIs[AbstractCompose[Any]]:
+    """Whether *obj* is a rendered graph; cheaper than the ABC check, and `TypeIs` keeps narrowing."""
+    return getattr(obj, "__rendered_compose__", False)
