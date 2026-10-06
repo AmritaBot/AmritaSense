@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
-from typing_extensions import Self
+from typing_extensions import Self, TypeIs
 
 from amrita_sense.types import PointerVector
 
@@ -196,3 +196,18 @@ class AbstractAddressCalculator(ABC, Generic[Compose_T]):
         through their parents to continue at the following sibling.
         """
         ...
+
+
+def is_rendered_compose(obj: object) -> TypeIs[AbstractCompose[Any]]:
+    """Whether *obj* is a rendered graph rather than a node.
+
+    The runtime probes the `__rendered_compose__` marker instead of running
+    `isinstance(obj, AbstractCompose)`: the ABC path goes through
+    `ABCMeta.__instancecheck__` (measured ~200 ns per call) and the pointer walk
+    runs several per step, while the probe is ~50 ns.
+
+    `TypeIs` is what keeps this usable from typed code -- an inline `getattr`
+    check cannot narrow a union the way `isinstance` does, and the addressing
+    walk would otherwise need a `cast` on every index operation.
+    """
+    return getattr(obj, "__rendered_compose__", False)

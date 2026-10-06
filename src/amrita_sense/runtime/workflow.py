@@ -43,7 +43,7 @@ from amrita_sense.exceptions import (
 )
 from amrita_sense.hook.matcher import DependsFactory, MatcherFactory, sign_func
 from amrita_sense.logging import logger
-from amrita_sense.node.abc_base import AbstractCompose
+from amrita_sense.node.abc_base import AbstractCompose, is_rendered_compose
 from amrita_sense.node.addressing import AddressCalculator
 from amrita_sense.node.core import BaseNode
 from amrita_sense.node.self_compile import SelfCompileInstruction
@@ -1318,14 +1318,15 @@ class WorkflowInterpreter(Generic[io_T]):
             DependsInjectFailed: If dependency injection fails at runtime.
         """
         addr_getter = addr_getter or self.get_graph().calc.find_addr
-        node: BaseNode | AbstractCompose[AddressCalculator] = addr_getter(
+        target: BaseNode | AbstractCompose[AddressCalculator] = addr_getter(
             self._pointer.base_addr
         )
-        while getattr(node, "__rendered_compose__", False):
-            if not node:
+        while is_rendered_compose(target):
+            if not target:
                 return
             self._pointer.append(0)
-            node = addr_getter(self._pointer.base_addr)
+            target = addr_getter(self._pointer.base_addr)
+        node = cast(BaseNode, target)
         await self.object_io._wait_for_continue(node.tag)
 
         ava_args = self.__ava_args
