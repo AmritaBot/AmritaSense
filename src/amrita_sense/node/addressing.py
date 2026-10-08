@@ -104,10 +104,7 @@ class AddressCalculator(AbstractAddressCalculator[NodeComposeRendered]):
                     next_parent_node: BaseNode | NodeComposeRendered = parent_container[
                         current_parent_idx + 1
                     ]
-                    if (
-                        is_rendered_compose(next_parent_node)
-                        and next_parent_node
-                    ):
+                    if is_rendered_compose(next_parent_node) and next_parent_node:
                         pointer[-1] = current_parent_idx + 1
                         pointer.append(0)
                     else:

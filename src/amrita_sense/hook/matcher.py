@@ -718,7 +718,7 @@ class MatcherFactory:
                         raise
                     elif exception_ignored and isinstance(e, exception_ignored):
                         raise
-                    logger.opt(exception=e, colors=True).error(
+                    logger.opt(exception=e).error(
                         f"An error occurred while running '{handler.__name__}'({file_name}:{line_number}) "
                     )
                     continue
