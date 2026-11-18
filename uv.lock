@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.10, <3.16"
 
 [[package]]
@@ -88,11 +88,11 @@ wheels = [
 
 [[package]]
 name = "cachetools"
-version = "7.2.3"
+version = "7.3.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/09/88/27fe0785c7a9aa285c753db0b4ea967adbf76128fede66379c35a4b8d054/cachetools-7.2.3.tar.gz", hash = "sha256:e6fafd06de4a5bd915ff7d247588ea497e28c9a568c62db8678d9a5f11515a9a", size = 43727, upload-time = "2026-10-17T11:41:25.471Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0a/d6/3b2743ae0662528e36b1002074909e4e73dc7407f1fc7da0d6a1b7401e72/cachetools-7.3.2.tar.gz", hash = "sha256:43e5db663b58c4337a9959069d93f54dd2e065fdd0438a504cd1100fbeb48beb", size = 50520, upload-time = "2026-11-14T21:19:07.523Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fb/dd/044062b61d94c59c29ad0da6918e6a21106f5b115096e9c87081cdd96167/cachetools-7.2.3-py3-none-any.whl", hash = "sha256:85ef9d2703918bedf7f88caa0b06bb3bb7a71360eb0b05c20796b89fede6e30c", size = 18352, upload-time = "2026-10-17T11:41:24.161Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/8f/9d90e713bdaf06316184c7214a23177e0fe7b9a287932a5dcce643f6fd58/cachetools-7.3.2-py3-none-any.whl", hash = "sha256:afb4b563cb37e7a121a6ea45a0deec42916c64eed58875cc15d8cf9eaca89fb2", size = 19956, upload-time = "2026-11-14T21:19:05.777Z" },
 ]
 
 [[package]]
