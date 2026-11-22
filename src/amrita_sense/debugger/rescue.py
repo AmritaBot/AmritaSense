@@ -23,6 +23,7 @@ from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING
 
 from amrita_sense.debugger.repl import NoActiveRescue, RescueSession, run_repl
+from amrita_sense.logging import logger
 
 if TYPE_CHECKING:
     from amrita_sense.runtime.workflow import WorkflowInterpreter
@@ -30,6 +31,10 @@ if TYPE_CHECKING:
 #: Serialises every push/pop so a session cannot be popped by the wrong thread.
 _sessions: list[RescueSession] = []
 _sessions_lock = threading.RLock()
+#: The session owned by the current thread.  The REPL runs on a worker thread,
+#: so helpers called from `py` and completion must not read a process-wide
+#: "last session" — two concurrent rescues would point at the wrong workflow.
+_local = threading.local()
 
 _FORCE_ENV = "SDB_REPL_FORCE"
 _DISABLE_ENV = "SDB_REPL_DISABLE"
@@ -47,10 +52,12 @@ def stdin_is_tty() -> bool:
     means line editing and colour are meaningless.  ``script``/``expect``
     still pass this check — the read timeout in the driver is the backstop.
     """
-    if os.environ.get(_FORCE_ENV, "").lower() in _TRUTHY:
-        return True
+    # The production guard wins: an operator who turned rescue off must not be
+    # overridden by a leftover FORCE from a test or a shell profile.
     if os.environ.get(_DISABLE_ENV, "").lower() in _TRUTHY:
         return False
+    if os.environ.get(_FORCE_ENV, "").lower() in _TRUTHY:
+        return True
 
     stream = sys.stdin
     if stream is None:
@@ -66,9 +73,18 @@ def stdin_is_tty() -> bool:
         return False
     if os.environ.get("TERM", "").lower() == "dumb":
         return False
-    with contextlib.suppress(OSError):
-        if os.tcgetpgrp(fd) != os.getpgrp():
+    tcgetpgrp = getattr(os, "tcgetpgrp", None)
+    getpgrp = getattr(os, "getpgrp", None)
+    if tcgetpgrp is None or getpgrp is None:
+        # Windows: `isatty` is all we have, and it is enough there.
+        return True
+    try:
+        if tcgetpgrp(fd) != getpgrp():
             return False
+    except OSError:
+        # A failed probe means we cannot prove the terminal is foreground;
+        # treating it as interactive risks blocking a background process.
+        return False
     return True
 
 
@@ -184,7 +200,14 @@ def _current_node(inter: WorkflowInterpreter) -> object | None:
 
 
 def attach_report(exc: BaseException, report: PanicReport) -> PanicReport:
-    """Attach *report* to *exc* without changing its type."""
+    """Attach *report* to *exc*, keeping the innermost scene if one exists.
+
+    A child interpreter reports first; the parent sees the same exception and
+    must not overwrite the crash site with its own.
+    """
+    existing = getattr(exc, "__sdb_report__", None)
+    if isinstance(existing, PanicReport):
+        return existing
     with contextlib.suppress(Exception):
         exc.__sdb_report__ = report  # type: ignore[attr-defined]
     add_note = getattr(exc, "add_note", None)
@@ -200,11 +223,23 @@ def attach_report(exc: BaseException, report: PanicReport) -> PanicReport:
 def push_session(session: RescueSession) -> None:
     with _sessions_lock:
         _sessions.append(session)
+    _local.session = session
 
 
 def pop_session(session: RescueSession) -> None:
     with _sessions_lock, contextlib.suppress(ValueError):
         _sessions.remove(session)
+    if getattr(_local, "session", None) is session:
+        _local.session = None
+
+
+def bind_thread_session(session: RescueSession) -> None:
+    """Make *session* the current thread's rescue, for the REPL worker."""
+    _local.session = session
+
+
+def unbind_thread_session() -> None:
+    _local.session = None
 
 
 def get_rescue_session() -> RescueSession:
@@ -214,6 +249,9 @@ def get_rescue_session() -> RescueSession:
         NoActiveRescue: When called outside a rescue (including after it ends),
             rather than handing back a closed interpreter.
     """
+    local = getattr(_local, "session", None)
+    if local is not None:
+        return local
     with _sessions_lock:
         if not _sessions:
             raise NoActiveRescue(
@@ -262,8 +300,19 @@ async def rescue_on_panic(
         attach_report(exc, build_report(inter, exc))
         return "report"
 
+    # A panic raised from inside an active rescue (say `py` called run()) must
+    # refresh the report, not stack a second prompt on top of the first.
+    if any(active.inter is inter for active in active_sessions()):
+        attach_report(exc, build_report(inter, exc))
+        logger.warning(
+            f"*** nested panic during rescue ***: `{exc}@{type(exc).__name__}` "
+            f"at ptr {inter._pointer.base_addr if inter._pointer else None}"
+        )
+        return "nested"
+
     session = RescueSession(inter)
     push_session(session)
+    inter._rescue_active = True
     try:
         reason = await run_repl(session)
         if reason == "suppress":
@@ -271,10 +320,17 @@ async def rescue_on_panic(
             with contextlib.suppress(Exception):
                 inter._panic_suppressed = True
         if reason in {"kill", "suppress"}:
-            with contextlib.suppress(Exception):
+            try:
                 await inter._close_workflow_scope()
+            except Exception:
+                # Never silent: a failing teardown is a real defect, and the
+                # interpreter keeps a fresh scope either way.
+                logger.exception(
+                    "SenseDBG: workflow scope teardown failed during rescue exit"
+                )
         return reason
     finally:
+        inter._rescue_active = False
         pop_session(session)
 
 
@@ -283,6 +339,7 @@ __all__ = [
     "PanicReport",
     "active_sessions",
     "attach_report",
+    "bind_thread_session",
     "build_report",
     "get_rescue_intp",
     "get_rescue_session",
@@ -290,4 +347,5 @@ __all__ = [
     "push_session",
     "rescue_on_panic",
     "stdin_is_tty",
+    "unbind_thread_session",
 ]

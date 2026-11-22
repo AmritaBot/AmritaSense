@@ -89,6 +89,10 @@ class RescueSession:
         self.last_tokens: list[str] | None = None
         self.color = False
         self.theme = Theme(False)
+        self.original_panic: Exception | None = inter.get_exception()
+        self.at_end = False
+        self.cancelled = False
+        self._py_injected: dict[str, Any] = {}
         self._driving = threading.Lock()
         self._history: list[str] = []
 
@@ -198,13 +202,25 @@ class RescueSession:
             self._driving.release()
 
     def run_coroutine(self, coro: Coroutine[Any, Any, Any]) -> Any:
-        """Run *coro* on the interpreter's loop, polling for a soft interrupt.
+        """Run *coro* on the interpreter's own loop.
 
-        The REPL itself lives on a worker thread while the loop keeps the
-        process alive, so a plain ``await`` is impossible here.  Polling the
-        future instead of blocking on it is what makes Ctrl-C able to cancel a
-        running command.
+        The interpreter is marked as rescue-owned while the session is open, so
+        the drive commands have to drop that mark for the duration of the call —
+        otherwise ``run_step_by()`` would refuse to start and the debugger could
+        not continue the workflow it is debugging.
         """
+        inter = self.inter
+        owned = getattr(inter, "_rescue_active", False)
+        if owned:
+            inter._rescue_active = False
+        try:
+            return self._run_coroutine(coro)
+        finally:
+            if owned and not self.detached:
+                inter._rescue_active = True
+
+    def _run_coroutine(self, coro: Coroutine[Any, Any, Any]) -> Any:
+        """Schedule *coro* on the session loop and poll for a soft interrupt."""
         loop = self.loop
         if loop is None or loop.is_closed() or not loop.is_running():
             return asyncio.run(coro)
@@ -253,6 +269,17 @@ class RescueSession:
         )
         for name in getattr(sdb_module, "__all__", ()):
             namespace.setdefault(name, getattr(sdb_module, name))
+        # Snapshot what we injected: a value the user did not touch must not be
+        # written back, because a step inside `py` may have moved it already.
+        self._py_injected = {
+            key: (
+                list(namespace[key])
+                if isinstance(namespace[key], list)
+                else namespace[key]
+            )
+            for key in PSEUDO_NAMES
+            if key in namespace
+        }
         return namespace
 
     def sync_from_namespace(self, namespace: dict[str, Any]) -> list[str]:
@@ -265,12 +292,11 @@ class RescueSession:
         for key in PSEUDO_NAMES:
             if key not in namespace:
                 continue
-            try:
-                current = self.read_pseudo(key)
-            except SessionError:
-                continue
             candidate = namespace[key]
-            if _same(current, candidate):
+            if key not in self._py_injected:
+                continue
+            if _same(self._py_injected[key], candidate):
+                # Untouched by the user; the interpreter may have moved on.
                 continue
             try:
                 self.write_pseudo(key, candidate)
@@ -321,10 +347,17 @@ def _as_addr(value: Any) -> list[int]:
     if isinstance(value, PointerVector):
         return list(value.base_addr)
     if isinstance(value, (list, tuple)) and value:
-        try:
-            return [int(item) for item in value]
-        except (TypeError, ValueError) as exc:
-            raise SessionError(f"address must be ints, got {value!r}") from exc
+        addr: list[int] = []
+        for item in value:
+            # `int()` would truncate 1.7 to 1 and quietly land on another node.
+            if isinstance(item, bool) or not isinstance(item, int):
+                raise SessionError(f"address coordinates must be ints, got {value!r}")
+            if item < 0:
+                raise SessionError(
+                    f"address coordinates must be non-negative, got {value!r}"
+                )
+            addr.append(item)
+        return addr
     raise SessionError(f"address must be a non-empty list, got {value!r}")
 
 

@@ -1017,3 +1017,194 @@ def test_suppress_continue_does_not_swallow_a_second_panic() -> None:
     assert dispatch(session, lex("suppress continue")) is None
     assert inter.panic_suppressed is False
     assert "another panic surfaced" in output(session)
+
+
+# --------------------------------------------------------- review regressions
+
+
+def test_suppress_continue_stops_early_without_marking_done() -> None:
+    """A breakpoint stops `cont_async` early; that is not a completed run."""
+    inter = make_inter(crashing=True)
+    session = RescueSession(inter, echo=io.StringIO())
+    session.write_pseudo("$pc", [1])
+    session.write_pseudo("$exc", RuntimeError("planned"))
+    dispatch(session, lex("b tag:gamma"))
+
+    assert dispatch(session, lex("suppress continue")) is None
+    assert inter.panic_suppressed is False
+    assert "stopped early" in output(session)
+
+
+def test_suppress_rejects_unknown_mode() -> None:
+    session = make_session()
+    dispatch(session, lex("suppress contin"))
+    text = output(session)
+    assert "unknown suppress mode" in text
+
+
+def test_suppress_keeps_the_original_panic_for_audit() -> None:
+    inter = make_inter(crashing=True)
+    original = RuntimeError("planned")
+    inter._panic_exc = original
+    session = RescueSession(inter, echo=io.StringIO())
+    session.write_pseudo("$pc", [1])
+    dispatch(session, lex("s"))  # recover + re-run, clears _panic_exc
+    dispatch(session, lex("suppress"))
+    assert inter.get_exception() is original
+    assert inter.panic_suppressed is True
+
+
+def test_new_run_clears_the_suppressed_status() -> None:
+    inter = make_inter()
+    inter._panic_suppressed = True
+    asyncio.run(inter.run())
+    assert inter.panic_suppressed is False
+
+
+def test_skip_on_the_last_node_does_not_restart() -> None:
+    inter = make_inter(crashing=True)
+    session = RescueSession(inter, echo=io.StringIO())
+    session.write_pseudo("$pc", [2])
+    session.write_pseudo("$exc", RuntimeError("planned"))
+
+    dispatch(session, lex("skip"))
+    assert "last one" in output(session)
+    dispatch(session, lex("s"))
+    assert "already ended" in output(session)
+    assert session.read_pseudo("pc") is None
+
+
+def test_addresses_reject_fractional_negative_and_bool() -> None:
+    session = make_session()
+    for bad in ([1.5], [-1], [True], ["1"]):
+        with pytest.raises(SessionError):
+            session.write_pseudo("$pc", bad)
+    assert session.read_pseudo("pc") == [0]
+
+    dispatch(session, lex("j [1.5]"))
+    assert "must be ints" in output(session)
+    dispatch(session, lex("j [-1]"))
+    assert "non-negative" in output(session)
+
+
+def test_nested_rescue_refreshes_instead_of_stacking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inter = make_inter(crashing=True)
+    exc = RuntimeError("planned")
+    session = make_session(inter)
+    rescue.push_session(session)
+    try:
+        reason = asyncio.run(rescue.rescue_on_panic(inter, exc, interactive=True))
+    finally:
+        rescue.pop_session(session)
+    assert reason == "nested"
+    assert hasattr(exc, "__sdb_report__")
+
+
+def test_attach_report_keeps_the_innermost_scene() -> None:
+    exc = RuntimeError("planned")
+    inner = rescue.PanicReport(
+        interpreter="child",
+        panic_type="RuntimeError",
+        panic_message="p",
+        pointer=[9],
+        flags=0,
+    )
+    outer = rescue.PanicReport(
+        interpreter="parent",
+        panic_type="RuntimeError",
+        panic_message="p",
+        pointer=[0],
+        flags=0,
+    )
+    assert rescue.attach_report(exc, inner) is inner
+    assert rescue.attach_report(exc, outer) is inner
+    assert getattr(exc, "__sdb_report__", None) is inner
+
+
+def test_disable_guard_beats_force(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SDB_REPL_FORCE", "1")
+    monkeypatch.setenv("SDB_REPL_DISABLE", "1")
+    assert rescue.stdin_is_tty() is False
+
+
+def test_windows_without_tcgetpgrp_is_treated_as_tty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeTTY(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+        def fileno(self) -> int:
+            return 0
+
+    monkeypatch.delenv("SDB_REPL_FORCE", raising=False)
+    monkeypatch.delenv("SDB_REPL_DISABLE", raising=False)
+    monkeypatch.setenv("TERM", "xterm")
+    monkeypatch.setattr(sys, "stdin", FakeTTY(""))
+    monkeypatch.setattr(rescue.os, "isatty", lambda fd: True)
+    monkeypatch.setattr(rescue.os, "tcgetpgrp", None, raising=False)
+    assert rescue.stdin_is_tty() is True
+
+
+def test_failed_foreground_probe_is_not_interactive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeTTY(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+        def fileno(self) -> int:
+            return 0
+
+    def broken(fd: int) -> int:
+        raise OSError("not a controlling terminal")
+
+    monkeypatch.delenv("SDB_REPL_FORCE", raising=False)
+    monkeypatch.delenv("SDB_REPL_DISABLE", raising=False)
+    monkeypatch.setenv("TERM", "xterm")
+    monkeypatch.setattr(sys, "stdin", FakeTTY(""))
+    monkeypatch.setattr(rescue.os, "isatty", lambda fd: True)
+    monkeypatch.setattr(rescue.os, "tcgetpgrp", broken)
+    assert rescue.stdin_is_tty() is False
+
+
+def test_stale_pseudo_register_snapshot_is_not_written_back() -> None:
+    """A step inside `py` moves the pointer; the old snapshot must not rewind it."""
+    session = make_session()
+    namespace = session.py_namespace()
+    session.inter.advance_pointer()  # as if `await step_async` ran
+
+    applied = session.sync_from_namespace(namespace)
+    assert applied == []
+    assert session.read_pseudo("pc") == [1]
+
+
+def test_handler_errors_are_contained_by_dispatch() -> None:
+    from amrita_sense.debugger.repl import commands
+
+    @commands.command("boomcmd")
+    def _boom(session: RescueSession, args: list[str]) -> None:
+        raise RuntimeError("handler exploded")
+
+    session = make_session()
+    try:
+        assert dispatch(session, lex("boomcmd")) is None
+        assert "handler exploded" in output(session)
+    finally:
+        commands.REGISTRY.pop("boomcmd", None)
+
+
+def test_prompt_strips_control_characters_from_tags() -> None:
+    from amrita_sense.debugger.repl.driver import _prompt
+
+    @Node(tag="evil\x1b[31mred\x07")
+    def evil() -> None:
+        return None
+
+    inter = WorkflowInterpreter(evil.as_compose().render())
+    session = RescueSession(inter, echo=io.StringIO())
+    prompt = _prompt(session)
+    assert "\x1b" not in prompt
+    assert "\x07" not in prompt

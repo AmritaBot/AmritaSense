@@ -31,7 +31,7 @@ from amrita_sense.debugger.inspect import backtrace, list_nodes, list_sub_intp, 
 from amrita_sense.debugger.inspect import inspect as inspect_view
 from amrita_sense.debugger.repl.console import RescueConsole, render_banner
 from amrita_sense.debugger.repl.session import RescueSession, SessionError
-from amrita_sense.debugger.repl.theme import PROMPT
+from amrita_sense.debugger.repl.theme import PROMPT, sanitize
 from amrita_sense.debugger.step import (
     cont_async,
     step_async,
@@ -96,7 +96,17 @@ def _as_addr(value: Any) -> list[int]:
         with contextlib.suppress(Exception):
             value = ast.literal_eval(value)
     if isinstance(value, (list, tuple)) and value:
-        return [int(item) for item in value]
+        addr: list[int] = []
+        for item in value:
+            # Rejecting here keeps `jump`/`set $pc` from truncating 1.7 into 1.
+            if isinstance(item, bool) or not isinstance(item, int):
+                raise SessionError(f"address coordinates must be ints, got {value!r}")
+            if item < 0:
+                raise SessionError(
+                    f"address coordinates must be non-negative, got {value!r}"
+                )
+            addr.append(item)
+        return addr
     raise SessionError(f"expected an address like [1, 0], got {value!r}")
 
 
@@ -140,7 +150,7 @@ def _pending_panic(session: RescueSession) -> bool:
     if exc is None:
         return False
     pc = session.read_pseudo("pc")
-    session.warn(f"[panic pending] {type(exc).__name__}: {exc} @ {pc}")
+    session.warn(f"[panic pending] {type(exc).__name__}: {sanitize(str(exc))} @ {pc}")
     session.note("  `s`/`c` will re-run that node; `skip` advances past it")
     return True
 
@@ -150,6 +160,7 @@ def _pending_panic(session: RescueSession) -> bool:
 
 @command("s", "step", usage="s [n]", summary="execute n nodes (default 1)")
 async def _cmd_step(session: RescueSession, args: list[str]) -> None:
+    _guard_live(session)
     count = _int_arg(args[0] if args else None, 1)
     if count < 1:
         raise SessionError("n must be >= 1")
@@ -164,6 +175,7 @@ async def _cmd_step(session: RescueSession, args: list[str]) -> None:
 
 @command("n", "next", usage="n", summary="step over one node")
 async def _cmd_next(session: RescueSession, args: list[str]) -> None:
+    _guard_live(session)
     _pending_panic(session)
     session.claim_driver()
     try:
@@ -174,6 +186,7 @@ async def _cmd_next(session: RescueSession, args: list[str]) -> None:
 
 @command("fin", "finish", usage="fin", summary="run to the end of this frame")
 async def _cmd_finish(session: RescueSession, args: list[str]) -> None:
+    _guard_live(session)
     _pending_panic(session)
     session.claim_driver()
     try:
@@ -184,6 +197,7 @@ async def _cmd_finish(session: RescueSession, args: list[str]) -> None:
 
 @command("c", "cont", "continue", usage="c", summary="continue to breakpoint or end")
 async def _cmd_cont(session: RescueSession, args: list[str]) -> None:
+    _guard_live(session)
     _pending_panic(session)
     session.claim_driver()
     try:
@@ -197,12 +211,18 @@ def _cmd_skip(session: RescueSession, args: list[str]) -> None:
     if session.inter.get_exception() is None:
         raise SessionError("no panic is pending")
     moved = session.inter.advance_pointer()
-    session.ok(f"pc -> {session.read_pseudo('pc')}" + ("" if moved else " (end)"))
+    if not moved:
+        session.at_end = True
+        session.warn("the failed node was the last one — the workflow is over")
+        session.note("use `suppress` to return normally, or `q` to re-raise")
+        return
+    session.ok(f"pc -> {session.read_pseudo('pc')}")
     session.note("`s` or `c` will now resume after the failed node")
 
 
 @command("u", "until", usage="u [addr]", summary="step until past the current address")
 async def _cmd_until(session: RescueSession, args: list[str]) -> None:
+    _guard_live(session)
     start = session.read_pseudo("pc")
     target = _as_addr(_join(args)) if args else None
     session.claim_driver()
@@ -391,6 +411,33 @@ def _cmd_kill(session: RescueSession, args: list[str]) -> str:
     return "kill"
 
 
+#: Accepted operands for ``suppress``.
+_RESUME_WORDS = {"continue", "cont", "c", "resume"}
+
+
+def _finish_suppress(session: RescueSession) -> None:
+    """Mark the panic as suppressed, keeping the original error for the audit."""
+    inter = session.inter
+    if session.original_panic is not None:
+        # `s`/`c` clear `_panic_exc` on the way; put the original back so
+        # `get_exception()` still answers the question it promises to answer.
+        inter._panic_exc = session.original_panic
+    inter._panic_suppressed = True
+    session.at_end = True
+    session.exit_reason = "suppress"
+
+
+def _guard_live(session: RescueSession) -> None:
+    """Refuse to drive a workflow that already ended inside this rescue.
+
+    An empty pointer means both "not started" and "finished"; after `skip` on
+    the last node we know it is the latter, and re-driving would restart at
+    `[0]` and re-run earlier nodes.
+    """
+    if session.at_end:
+        raise SessionError("the workflow already ended here; use `suppress` or `q`")
+
+
 @command(
     "suppress",
     "pass",
@@ -411,9 +458,17 @@ async def _cmd_suppress(session: RescueSession, args: list[str]) -> str | None:
     it, ``inter.panic_suppressed`` is set, and a warning is logged.  A silent
     failure that looks like success is worse than an exception.
     """
-    resume = bool(args) and args[0].lower() in {"continue", "cont", "c", "resume"}
+    if len(args) > 1:
+        raise SessionError("usage: suppress [continue]")
+    resume = bool(args)
+    if resume and args[0].lower() not in _RESUME_WORDS:
+        # A typo in `suppress continue` must not silently become plain `suppress`.
+        raise SessionError(
+            f"unknown suppress mode: {args[0]!r} (usage: suppress [continue])"
+        )
+
     if not resume:
-        session.exit_reason = "suppress"
+        _finish_suppress(session)
         session.warn(
             "suppressing the panic — run() will return normally, no exception propagates"
         )
@@ -425,6 +480,11 @@ async def _cmd_suppress(session: RescueSession, args: list[str]) -> str | None:
 
     if session.inter.get_exception() is None:
         raise SessionError("no panic is pending")
+    if session.at_end or not session.inter._pointer:
+        _finish_suppress(session)
+        session.ok("panic suppressed; there was nothing left to run")
+        return "suppress"
+
     session.inter.advance_pointer()
     session.claim_driver()
     try:
@@ -441,9 +501,13 @@ async def _cmd_suppress(session: RescueSession, args: list[str]) -> str | None:
     if session.inter.get_exception() is not None:
         session.error("the run did not finish cleanly — not swallowing this one")
         return None
-    session.inter._panic_suppressed = True
+    if session.inter._pointer:
+        # A breakpoint or interrupt makes `cont_async` return without finishing.
+        session.warn("the run stopped early (breakpoint or interrupt), not at the end")
+        session.note("continue again, or use plain `suppress` to end here")
+        return None
+    _finish_suppress(session)
     session.ok("panic suppressed; the remaining workflow ran to completion")
-    session.exit_reason = "suppress"
     return "suppress"
 
 

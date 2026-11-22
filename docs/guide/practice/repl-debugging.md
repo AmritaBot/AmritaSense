@@ -461,9 +461,12 @@ It is an unsafe flag: togglable at runtime, but treat it as start-up configurati
 The TTY probe is stricter than `isatty()`: the process must be in the terminal's foreground process group (a background process reading a tty is stopped by `SIGTTIN`, which looks exactly like a hang), and `TERM` must not be `dumb`. Two environment variables override the result:
 
 ```bash
-SDB_REPL_FORCE=1   # force the REPL (tests, manual probing)
-SDB_REPL_DISABLE=1 # never enter (production guard)
+SDB_REPL_DISABLE=1   # never enter (production guard, highest priority)
+SDB_REPL_FORCE=1     # force the REPL (tests, manual probing)
+SDB_REPL_TIMEOUT=300 # seconds without input before returning; 0 disables
 ```
+
+`SDB_REPL_DISABLE` always beats `SDB_REPL_FORCE`: an environment that explicitly turned rescue off must not be re-opened by a leftover FORCE.
 
 **Either way the exception type is never rewritten.** Rescue preserves the scene; it does not swallow the failure. `q` re-raises the original exception unchanged, so upstream `except RuntimeError` handlers keep working.
 
@@ -572,6 +575,10 @@ On the way out, edited `pc` / `flags` / `exc` values are validated and written b
 - **One driver at a time**: `s`/`n`/`fin`/`c`/`u` and `await step_async` inside `py` share a token; the second command is refused rather than racing the pointer.
 - **`py` is not a sandbox**: holding `inter` is holding a process handle. It is only enabled on a local TTY — never wire it to a network or message channel.
 - **Ctrl-C has two phases**: while a command runs it cancels that command; while a line is being typed it cannot interrupt the blocking read (readline on a non-main thread receives no signal), so the line is submitted first and `[interrupted]` explains that the keypress did nothing.
+- **An unattended prompt times out**: rescue waits 300 seconds by default (`SDB_REPL_TIMEOUT`, `0` disables), then prints a note and hands control back, re-raising the original exception. The wait is on the reader thread, so the event loop keeps running.
+- **`skip` never restarts the workflow**: skipping the last node reports that the workflow is over; `s`/`c` are then refused instead of silently running from `[0]` again.
+- **`suppress` keeps the original panic**: even when `s`/`c` cleared `_panic_exc`, suppression writes the first exception back, so `get_exception()` still answers "where did it crash".
+- **Addresses must be non-negative integers**: `set $pc = [1.5]` or `[-1]` is rejected rather than truncated into a different node.
 
 ### Why the hook lives in `run()`, not `run_step_by()`
 

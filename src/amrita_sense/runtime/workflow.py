@@ -194,6 +194,7 @@ class WorkflowInterpreter(Generic[io_T]):
         "_parent_interpreter",
         "_pending_stop",
         "_pointer",
+        "_rescue_active",
         "_ret_addr_stack",
         "_sub_interpreters",
         "_sub_interpreters_all",
@@ -237,6 +238,7 @@ class WorkflowInterpreter(Generic[io_T]):
         self._pointer = PointerVector()
         self._panic_exc = None
         self._panic_suppressed = False
+        self._rescue_active = False
         self.__outer_interpreting = False
         # DI
         self.__ava_args = (self, *extra_args)
@@ -421,6 +423,7 @@ class WorkflowInterpreter(Generic[io_T]):
         self._flags = Flags.NONE
         self._panic_exc = None
         self._panic_suppressed = False
+        self._rescue_active = False
         self._context_stack.clear()
 
     def fork_interpreter(
@@ -863,6 +866,7 @@ class WorkflowInterpreter(Generic[io_T]):
                 pass
         except Exception as exc:
             if __flags__.RESCUE_ON_PANIC:
+                self._rescue_active = True
                 try:
                     from amrita_sense.debugger.rescue import rescue_on_panic
 
@@ -880,6 +884,8 @@ class WorkflowInterpreter(Generic[io_T]):
                             f"{self._pointer.base_addr if self._pointer else None}"
                         )
                         return
+                finally:
+                    self._rescue_active = False
             raise
 
     async def run_step_by(self) -> AsyncGenerator[Any, None]:
@@ -898,6 +904,11 @@ class WorkflowInterpreter(Generic[io_T]):
         exc_val: BaseException | None = None
         # Set when the run stops in a way that allows resuming (a suspend interrupt or a panic), in which case workflow-scoped dependencies have to stay open across the gap.
         resumable = False
+        if self._rescue_active:
+            raise IllegalState(
+                "Cannot start a run while a rescue session owns this interpreter"
+            )
+        self._panic_suppressed = False
         if self._panic_exc is not None:
             logger.debug("Recovered from panic.")
             self._panic_exc = None
@@ -1476,9 +1487,11 @@ class WorkflowInterpreter(Generic[io_T]):
         the same interpreter starts from a clean slate rather than a closed
         one.
         """
-        await self._lifecycles[Scope.WORKFLOW].aclose()
-        self._lifecycles[Scope.WORKFLOW] = LifecycleScope(Scope.WORKFLOW)
-        self._dep_store.clear()
+        try:
+            await self._lifecycles[Scope.WORKFLOW].aclose()
+        finally:
+            self._lifecycles[Scope.WORKFLOW] = LifecycleScope(Scope.WORKFLOW)
+            self._dep_store.clear()
 
 
 __all__ = ["PC_CHECKPOINT", "WorkflowInterpreter", "fun_T", "io_T"]

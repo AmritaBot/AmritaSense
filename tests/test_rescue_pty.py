@@ -77,7 +77,7 @@ def _drive(
         stderr=slave,
         close_fds=True,
         cwd=PROJECT_ROOT,
-        env={**os.environ, **(extra_env or {})},
+        env={"SDB_REPL_FORCE": "1", **os.environ, **(extra_env or {})},
     )
     os.close(slave)
 
@@ -243,3 +243,57 @@ def test_suppress_continue_runs_the_rest_then_returns(tmp_path) -> None:
     assert "after ran" in transcript
     assert "ran to completion" in transcript
     assert code == 0
+
+
+def _drain_until_exit(timeout: float = 20.0) -> tuple[str, int]:
+    """Run the demo under a PTY without ever typing, and wait for it to leave."""
+    try:
+        master, slave = pty.openpty()
+    except OSError as exc:  # pragma: no cover - environment dependent
+        pytest.skip(f"pty unavailable: {exc}")
+
+    process = subprocess.Popen(
+        [sys.executable, "-u", "-c", DEMO],
+        stdin=slave,
+        stdout=slave,
+        stderr=slave,
+        close_fds=True,
+        cwd=PROJECT_ROOT,
+        env={
+            "SDB_REPL_FORCE": "1",
+            "SDB_REPL_TIMEOUT": "0.5",
+            "SDB_HISTORY": "/tmp/sdb_pty_timeout_history",
+            **os.environ,
+        },
+    )
+    os.close(slave)
+    transcript = ""
+    deadline = time.time() + timeout
+    try:
+        while time.time() < deadline:
+            ready, _, _ = select.select([master], [], [], 0.2)
+            if ready:
+                try:
+                    chunk = os.read(master, 4096).decode("utf-8", "replace")
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                transcript += chunk
+            if process.poll() is not None and not ready:
+                break
+        process.wait(timeout=10)
+    finally:
+        if process.poll() is None:  # pragma: no cover - hung child
+            process.kill()
+            process.wait()
+        with contextlib.suppress(OSError):
+            os.close(master)
+    return transcript, process.returncode
+
+
+def test_unattended_tty_times_out() -> None:
+    """Nobody types: the watchdog returns control instead of hanging run()."""
+    transcript, code = _drain_until_exit()
+    assert "rescue timeout" in _visible(transcript)
+    assert code == 1

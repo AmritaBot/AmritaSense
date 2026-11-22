@@ -13,10 +13,14 @@ matter:
 from __future__ import annotations
 
 import os
+import re
 import sys
 from typing import Any
 
 RESET = "\x1b[0m"
+
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 _PROMPT_START = "\001"
 _PROMPT_END = "\002"
 
@@ -28,6 +32,16 @@ WARN = "33"
 OK = "32"
 DIM = "90"
 BOLD = "1"
+
+
+def sanitize(text: str) -> str:
+    """Strip terminal control sequences from workflow-controlled text.
+
+    Node tags and exception messages come from user code; emitting them raw
+    lets a workflow move the cursor, recolour the prompt or spoof output while
+    an operator is debugging.  Newlines and tabs are kept.
+    """
+    return _CONTROL.sub("", _ESCAPE.sub("", text))
 
 
 class Theme:
@@ -85,4 +99,5 @@ __all__ = [
     "WARN",
     "Theme",
     "color_enabled",
+    "sanitize",
 ]
