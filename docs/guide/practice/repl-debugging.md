@@ -482,7 +482,7 @@ SDB_REPL_TIMEOUT=300 # seconds without input before returning; 0 disables
 | `until [addr]` | `u` | Step until past the current address (or to `addr`) |
 | `jump [addr]` | `j` | Rewrite the program counter |
 | `backtrace` | `bt` | Print the interpreter call chain |
-| `info r\|b\|f\|l\|w` | `i` | Registers, breakpoints, interpreter tree, node list, current position |
+| `info <topic>` | `i` | Topic: registers r, breakpoints b, frames/tree f, node list l, where w |
 | `examine [n]` | `x` | Disassemble around the current segment |
 | `print <expr>` | `p` | Evaluate a restricted expression |
 | `set $reg = <value>` | | Write a pseudo-register (addresses are validated) |

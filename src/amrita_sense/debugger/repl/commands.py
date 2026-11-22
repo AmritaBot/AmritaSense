@@ -75,9 +75,6 @@ def command(*names: str, usage: str = "", summary: str = "") -> Any:
     return decorator
 
 
-# --------------------------------------------------------------- utilities
-
-
 def _join(args: list[str]) -> str:
     return " ".join(args).strip()
 
@@ -153,9 +150,6 @@ def _pending_panic(session: RescueSession) -> bool:
     session.warn(f"[panic pending] {type(exc).__name__}: {sanitize(str(exc))} @ {pc}")
     session.note("  `s`/`c` will re-run that node; `skip` advances past it")
     return True
-
-
-# ----------------------------------------------------------------- driving
 
 
 @command("s", "step", usage="s [n]", summary="execute n nodes (default 1)")
@@ -251,9 +245,6 @@ def _cmd_jump(session: RescueSession, args: list[str]) -> None:
     session.ok(f"pc = {addr}")
 
 
-# ------------------------------------------------------------- inspection
-
-
 @command("bt", "backtrace", usage="bt", summary="print the interpreter call chain")
 def _cmd_backtrace(session: RescueSession, args: list[str]) -> None:
     session.write(session.render_block(lambda: backtrace(session.inter)))
@@ -305,9 +296,6 @@ def _cmd_set(session: RescueSession, args: list[str]) -> None:
     session.ok(f"{name.strip()} = {_fmt(session.read_pseudo(name.strip()))}")
 
 
-# -------------------------------------------------------------- breakpoints
-
-
 @command("b", "break", usage="b tag:name | b *[1, 0]", summary="set a breakpoint")
 def _cmd_break(session: RescueSession, args: list[str]) -> None:
     if not args:
@@ -354,9 +342,6 @@ def _cmd_breaks(session: RescueSession, args: list[str]) -> None:
     session.write(session.render_block(lambda: list_breaks(session.inter)))
 
 
-# ------------------------------------------------------------------- state
-
-
 @command("rs", "reset", usage="rs", summary="reset the interpreter (not undoable)")
 def _cmd_reset(session: RescueSession, args: list[str]) -> None:
     session.inter.reset()
@@ -387,9 +372,6 @@ def _cmd_undo(session: RescueSession, args: list[str]) -> None:
     )
 
 
-# ------------------------------------------------------------ python escape
-
-
 @command("py", "python", usage="py [code]", summary="Python console (see `py` banner)")
 def _cmd_py(session: RescueSession, args: list[str]) -> None:
     console = RescueConsole(session)
@@ -408,9 +390,6 @@ def _cmd_py(session: RescueSession, args: list[str]) -> None:
     session.note("[py] returned to (sdb) — session still open")
 
 
-# -------------------------------------------------------------------- exits
-
-
 @command(
     "q", "quit", "exit", usage="q", summary="leave and re-raise the original panic"
 )
@@ -427,7 +406,7 @@ def _cmd_kill(session: RescueSession, args: list[str]) -> str:
     return "kill"
 
 
-#: Accepted operands for ``suppress``.
+# Accepted operands for suppress.
 _RESUME_WORDS = {"continue", "cont", "c", "resume"}
 
 
@@ -435,8 +414,7 @@ def _finish_suppress(session: RescueSession) -> None:
     """Mark the panic as suppressed, keeping the original error for the audit."""
     inter = session.inter
     if session.original_panic is not None:
-        # `s`/`c` clear `_panic_exc` on the way; put the original back so
-        # `get_exception()` still answers the question it promises to answer.
+        # s/c clear `_panic_exc`; put the original back so `get_exception()` still answers.
         inter._panic_exc = session.original_panic
     inter._panic_suppressed = True
     session.at_end = True
@@ -546,9 +524,6 @@ def _cmd_help(session: RescueSession, args: list[str]) -> None:
         pad = " " * max(0, 22 - len(names))
         session.write(f"  {session.theme.paint(names, PROMPT)}{pad}{entry.summary}")
     session.write("  (blank line repeats the previous command; # starts a comment)")
-
-
-# ---------------------------------------------------------------- dispatch
 
 
 def dispatch(session: RescueSession, tokens: list[str]) -> str | None:

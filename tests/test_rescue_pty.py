@@ -22,7 +22,7 @@ pytestmark = pytest.mark.skipif(os.name != "posix", reason="pty is POSIX-only")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-#: Prompt matching has to ignore colour escapes and readline's ignore markers.
+# Prompt matching must ignore colour escapes and readline's ignore markers.
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 

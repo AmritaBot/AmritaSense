@@ -28,20 +28,15 @@ from amrita_sense.logging import logger
 if TYPE_CHECKING:
     from amrita_sense.runtime.workflow import WorkflowInterpreter
 
-#: Serialises every push/pop so a session cannot be popped by the wrong thread.
+# Serialises push/pop so the wrong thread cannot pop a session.
 _sessions: list[RescueSession] = []
 _sessions_lock = threading.RLock()
-#: The session owned by the current thread.  The REPL runs on a worker thread,
-#: so helpers called from `py` and completion must not read a process-wide
-#: "last session" — two concurrent rescues would point at the wrong workflow.
+# The REPL worker thread owns its session; helpers and completion read that, not a global stack.
 _local = threading.local()
 
 _FORCE_ENV = "SDB_REPL_FORCE"
 _DISABLE_ENV = "SDB_REPL_DISABLE"
 _TRUTHY = {"1", "true", "yes", "on"}
-
-
-# --------------------------------------------------------------- pty gate
 
 
 def stdin_is_tty() -> bool:
@@ -52,8 +47,7 @@ def stdin_is_tty() -> bool:
     means line editing and colour are meaningless.  ``script``/``expect``
     still pass this check — the read timeout in the driver is the backstop.
     """
-    # The production guard wins: an operator who turned rescue off must not be
-    # overridden by a leftover FORCE from a test or a shell profile.
+    # The production guard wins: a leftover FORCE must not override an opt-out.
     if os.environ.get(_DISABLE_ENV, "").lower() in _TRUTHY:
         return False
     if os.environ.get(_FORCE_ENV, "").lower() in _TRUTHY:
@@ -82,13 +76,9 @@ def stdin_is_tty() -> bool:
         if tcgetpgrp(fd) != getpgrp():
             return False
     except OSError:
-        # A failed probe means we cannot prove the terminal is foreground;
-        # treating it as interactive risks blocking a background process.
+        # Cannot prove the terminal is foreground; treat it as non-interactive.
         return False
     return True
-
-
-# ----------------------------------------------------------------- report
 
 
 @dataclass
@@ -217,9 +207,6 @@ def attach_report(exc: BaseException, report: PanicReport) -> PanicReport:
     return report
 
 
-# ------------------------------------------------------------ session stack
-
-
 def push_session(session: RescueSession) -> None:
     with _sessions_lock:
         _sessions.append(session)
@@ -275,9 +262,6 @@ def active_sessions() -> list[RescueSession]:
         return list(_sessions)
 
 
-# ------------------------------------------------------------------ rescue
-
-
 async def rescue_on_panic(
     inter: WorkflowInterpreter,
     exc: BaseException,
@@ -300,8 +284,7 @@ async def rescue_on_panic(
         attach_report(exc, build_report(inter, exc))
         return "report"
 
-    # A panic raised from inside an active rescue (say `py` called run()) must
-    # refresh the report, not stack a second prompt on top of the first.
+    # A panic from inside an active rescue refreshes the report instead of stacking prompts.
     if any(active.inter is inter for active in active_sessions()):
         attach_report(exc, build_report(inter, exc))
         logger.warning(
@@ -323,8 +306,7 @@ async def rescue_on_panic(
             try:
                 await inter._close_workflow_scope()
             except Exception:
-                # Never silent: a failing teardown is a real defect, and the
-                # interpreter keeps a fresh scope either way.
+                # Never silent: a failing teardown is a defect, and the scope is swapped either way.
                 logger.exception(
                     "SenseDBG: workflow scope teardown failed during rescue exit"
                 )

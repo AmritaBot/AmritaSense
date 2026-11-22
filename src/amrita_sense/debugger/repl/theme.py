@@ -24,7 +24,7 @@ _ESCAPE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 _PROMPT_START = "\001"
 _PROMPT_END = "\002"
 
-#: Restrained palette: one accent, no gradients, no bright white.
+# Restrained palette: one accent, no gradients, no bright white.
 PROMPT = "36"
 ADDRESS = "36"
 ERROR = "31"

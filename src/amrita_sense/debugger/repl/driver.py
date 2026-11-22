@@ -46,12 +46,11 @@ except ImportError:  # pragma: no cover - Windows without pyreadline
 if TYPE_CHECKING:
     from amrita_sense.debugger.repl.session import RescueSession
 
-#: Seconds to wait for the first keystroke before re-raising the panic.
-#: ``0`` disables the watchdog.
+# Seconds to wait for the first keystroke; 0 disables the watchdog.
 _TIMEOUT_ENV = "SDB_REPL_TIMEOUT"
 _DEFAULT_TIMEOUT = 300.0
 
-#: Names offered by tab completion, besides node tags.
+# Names offered by tab completion, besides node tags.
 _COMPLETION_POOL = (
     *REGISTRY,
     "$pc",
@@ -99,8 +98,7 @@ def _prompt(session: RescueSession) -> str:
         tag = getattr(node, "tag", None) or "?"
     except Exception:
         tag = "?"
-    # A node tag is workflow-controlled text; it must not carry escape codes
-    # into the operator's prompt.
+    # Node tags are workflow-controlled text; strip escape codes before the prompt.
     tag = sanitize(str(tag).splitlines()[0])[:24]
     address = ",".join(str(part) for part in pc)
     return f"(sdb) [{address}] {tag}> "
@@ -287,8 +285,7 @@ async def _run_worker(session: RescueSession) -> str:
     try:
         return await future
     except asyncio.CancelledError:
-        # The reader may still be blocked in read(); it is a daemon, and the
-        # session is marked so it exits at the next line instead of continuing.
+        # The reader may still be blocked; mark the session so it exits at its next line.
         session.cancelled = True
         raise
 

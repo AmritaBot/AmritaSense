@@ -11,8 +11,7 @@ from __future__ import annotations
 _QUOTES = ("'", '"')
 _WHITESPACE = " \t\r\n\u3000\ufeff"
 
-#: Input-method friendly folding: full-width punctuation maps to ASCII so a
-#: CJK IME cannot silently produce a command that "looks" right but is not.
+# Full-width punctuation is folded so a CJK IME cannot produce a lookalike command.
 _FOLD = str.maketrans(
     {
         "\u3000": " ",

@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
     from amrita_sense.runtime.workflow import WorkflowInterpreter
 
-#: Pseudo-registers exposed to the command layer and to ``py``.
+# Pseudo-registers exposed to the command layer and to py.
 PSEUDO_NAMES = ("pc", "rp", "flags", "exc")
 
 
@@ -103,13 +103,9 @@ class RescueSession:
         self._driving = threading.Lock()
         self._history: list[str] = []
 
-    # --------------------------------------------------------------- signal
-
     def on_sigint(self, signum: int, frame: Any) -> None:
         """Convert Ctrl-C into a soft interrupt the REPL can poll."""
         self.interrupted.set()
-
-    # ------------------------------------------------------------------ io
 
     def write(self, text: str = "") -> None:
         """Write one line (or a pre-rendered block) to the session output."""
@@ -137,8 +133,6 @@ class RescueSession:
         dark terminals, and this carries help text the user has to read.
         """
         self.write(text)
-
-    # --------------------------------------------------------- pseudo regs
 
     def read_pseudo(self, name: str) -> Any:
         """Read a pseudo-register (``pc``/``rp``/``flags``/``exc``)."""
@@ -195,8 +189,6 @@ class RescueSession:
         if node is None:
             raise SessionError(f"address {addr} does not exist in this graph")
 
-    # ------------------------------------------------------------- driving
-
     def claim_driver(self) -> None:
         """Take the single driving token, or refuse loudly."""
         if not self._driving.acquire(blocking=False):
@@ -241,13 +233,9 @@ class RescueSession:
                     future.cancel()
                     raise KeyboardInterrupt("interrupted") from None
 
-    # ------------------------------------------------------------ snapshot
-
     def undo(self) -> None:
         """Restore the state captured when the session opened."""
         self.snapshot.restore(self.inter)
-
-    # --------------------------------------------------------- py namespace
 
     def py_namespace(self) -> dict[str, Any]:
         """Build the namespace handed to the embedded Python console.
@@ -276,8 +264,7 @@ class RescueSession:
         )
         for name in getattr(sdb_module, "__all__", ()):
             namespace.setdefault(name, getattr(sdb_module, name))
-        # Snapshot what we injected: a value the user did not touch must not be
-        # written back, because a step inside `py` may have moved it already.
+        # Snapshot what we injected: a value the user did not touch is not written back.
         self._py_injected = {
             key: (
                 list(namespace[key])
@@ -326,8 +313,6 @@ class RescueSession:
             }
         }
         return applied
-
-    # -------------------------------------------------------------- output
 
     def render_block(self, render: Any, *, color: bool | None = None) -> str:
         """Capture a print-based debugger view into a string.

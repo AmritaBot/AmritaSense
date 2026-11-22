@@ -65,9 +65,6 @@ def output(session: RescueSession) -> str:
     return session.echo.getvalue()
 
 
-# --------------------------------------------------------------------- lexer
-
-
 def test_lex_blank_and_comment() -> None:
     assert lex("") == []
     assert lex("   \t ") == []
@@ -88,9 +85,6 @@ def test_lex_folds_full_width_punctuation() -> None:
 
 def test_lex_unterminated_quote_takes_rest() -> None:
     assert lex('b tag:"unclosed') == ["b", 'tag:"unclosed']
-
-
-# ------------------------------------------------------------------- session
 
 
 def test_pseudo_registers_round_trip() -> None:
@@ -188,9 +182,6 @@ def test_render_block_survives_a_broken_view() -> None:
 
     text = session.render_block(explode)
     assert "view failed" in text
-
-
-# ---------------------------------------------------------------- commands
 
 
 def test_step_advances_one_node() -> None:
@@ -437,9 +428,6 @@ def test_driving_while_another_command_runs_is_refused() -> None:
     assert session.read_pseudo("pc") == [0]
 
 
-# ---------------------------------------------------------- python console
-
-
 def test_console_captures_edits_to_registers() -> None:
     session = make_session()
     console = RescueConsole(session)
@@ -504,9 +492,6 @@ def test_console_supports_top_level_await_in_a_loop() -> None:
         assert console.locals.get("marker") == "awaited"
 
     asyncio.run(scenario())
-
-
-# --------------------------------------------------------------- reporting
 
 
 def test_report_captures_the_scene() -> None:
@@ -626,9 +611,6 @@ def test_tty_probe_rejects_dumb_terminal(monkeypatch: pytest.MonkeyPatch) -> Non
     assert rescue.stdin_is_tty() is False
 
 
-# ------------------------------------------------------------------ driver
-
-
 def _run_driver(script: str, monkeypatch: pytest.MonkeyPatch) -> RescueSession:
     session = make_session()
     monkeypatch.setattr(sys, "stdin", io.StringIO(script))
@@ -683,9 +665,6 @@ def test_prompt_names_the_current_node(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "[1] beta>" in output(session)
 
 
-# --------------------------------------------------------------- end to end
-
-
 def test_run_reraises_original_panic_with_tty(monkeypatch: pytest.MonkeyPatch) -> None:
     """`run()` opens the REPL, then re-raises the very same exception."""
     inter = make_inter(crashing=True)
@@ -722,9 +701,6 @@ def test_run_with_rescue_disabled_does_not_block(
         asyncio.run(scenario())
     finally:
         __flags__.RESCUE_ON_PANIC = previous
-
-
-# ------------------------------------------------------- soft interrupt path
 
 
 def test_run_coroutine_cancels_on_soft_interrupt() -> None:
@@ -926,9 +902,6 @@ def test_theme_honours_no_color(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "\x1b[" not in Theme(False).paint("x", "31")
 
 
-# ------------------------------------------------------------- suppression
-
-
 def test_suppress_command_ends_the_session() -> None:
     session = make_session()
     assert dispatch(session, lex("suppress")) == "suppress"
@@ -1017,9 +990,6 @@ def test_suppress_continue_does_not_swallow_a_second_panic() -> None:
     assert dispatch(session, lex("suppress continue")) is None
     assert inter.panic_suppressed is False
     assert "another panic surfaced" in output(session)
-
-
-# --------------------------------------------------------- review regressions
 
 
 def test_suppress_continue_stops_early_without_marking_done() -> None:

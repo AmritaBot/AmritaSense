@@ -51,8 +51,7 @@ class RescueConsole(InteractiveConsole):
         super().__init__(locals=session.py_namespace())
         self.session = session
         self.compile = codeop.CommandCompiler()
-        #: ``py`` is the escape hatch for "do it in Python"; top-level await is
-        #: part of Python, so the console has to accept it.
+        # py is the escape hatch; top-level await is part of Python, so accept it.
         self.compile.compiler.flags |= ast.PyCF_ALLOW_TOP_LEVEL_AWAIT
 
     def runcode(self, code: Any) -> None:  # type: ignore[override]
