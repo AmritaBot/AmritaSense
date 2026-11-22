@@ -34,8 +34,19 @@ class _Flags:
     """Preload DI resolving batch size"""
     SQUASHED_LOOP: bool = field(default=False)
     """Enable squashed loop for workflow execution"""
+    RESCUE_ON_PANIC: bool = field(default=False)
+    """Open an interactive SenseDBG REPL when a workflow panics.
+
+    Only takes effect when stdin is an interactive terminal; without a TTY the
+    panic report is attached to the exception instead.  Rescuing never swallows
+    the failure: the original exception is re-raised once the REPL exits.
+    """
     _writeables: set[str] = field(
-        default_factory=lambda: {"WORKFLOW_DI_PRELOAD_BATCH", "WORKFLOW_DI_NO_CACHE"}
+        default_factory=lambda: {
+            "WORKFLOW_DI_PRELOAD_BATCH",
+            "WORKFLOW_DI_NO_CACHE",
+            "RESCUE_ON_PANIC",
+        }
     )
     _modified_flags: set[str] = field(default_factory=set)
     _args_conflicts: set[tuple[str, ...]] = field(

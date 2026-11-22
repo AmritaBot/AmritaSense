@@ -431,6 +431,189 @@ AmritaSense 的 Panic/Recover 机制是调试器的核心能力之一。当节�
 
 **恢复原理**：`step()` / `cont()` 的内部 `_step_one()` 在每次执行前检查 `_panic_exc`，如果非 `None` 则清除（recover），然后正常执行当前指针指向的节点。由于你已手动 `advance_pointer()` 跳过了崩溃节点，恢复后执行的是下一个节点。
 
+## 崩溃救援：`RESCUE_ON_PANIC`
+
+### 它解决什么问题
+
+panic 默认会一路抛出 `run()`：`finally` 里清掉 `_waiter_fut`、把异常存进 `_panic_exc`，然后交还给调用方。现场其实完整保留着——指针停在崩溃节点、返回栈没动、上下文栈还在——但等你回到解释器时，通常只剩一份 traceback。
+
+这个开关把"抛出之前的那几十秒"留给你。
+
+### 开启
+
+```python
+from amrita_sense._unsafe import __flags__
+
+__flags__.RESCUE_ON_PANIC = True
+```
+
+它是 unsafe 标志，可以运行时切换，但请只当作启动配置使用。
+
+### 两条路径
+
+| 条件 | 行为 |
+| --- | --- |
+| stdin 是交互终端 | 在当前进程内进入 `(sdb)`，阻塞直到你 `q`/`k`/EOF |
+| 没有终端（CI、bot 进程、管道） | 立即抛出，把 `PanicReport` 挂到异常的 `__sdb_report__` 上，Python 3.11+ 额外 `add_note` 一条摘要 |
+
+TTY 判定不只看 `isatty()`：还要求进程是终端的前台进程组（否则后台读 tty 会吃 `SIGTTIN`，表现为假死）、`TERM` 不是 `dumb`。两个环境变量可以覆盖判定：
+
+```bash
+SDB_REPL_FORCE=1   # 强制进入（测试、手工排查）
+SDB_REPL_DISABLE=1 # 强制不进（生产保护）
+```
+
+**无论走哪条路，异常类型都不会被改写。** 救援只保留现场，不吞失败：`q` 退出时原异常照旧上抛，上游的 `except RuntimeError` 不会失效。
+
+### 命令
+
+| 命令 | 缩写 | 作用 |
+| --- | --- | --- |
+| `step [n]` | `s` | 执行 n 个节点（默认 1） |
+| `next` | `n` | 步过一个节点 |
+| `finish` | `fin` | 跑到当前帧结束 |
+| `cont` | `c` | 继续到断点或工作流结束 |
+| `skip` | | 跳过当前崩溃节点：只推进指针，不动栈 |
+| `until [addr]` | `u` | 逐步执行直到越过当前地址（或到达指定地址） |
+| `jump [addr]` | `j` | 直接改写程序计数器 |
+| `backtrace` | `bt` | 解释器调用链 |
+| `info r\|b\|f\|l\|w` | `i` | 寄存器、断点、解释器树、节点表、当前位置 |
+| `examine [n]` | `x` | 反汇编当前段附近 n 个节点 |
+| `print <expr>` | `p` | 受限表达式求值 |
+| `set $reg = <value>` | | 写伪寄存器（地址会先校验） |
+| `break tag:x` / `break *[1, 0]` | `b` | 设断点 |
+| `delete tag:x` / `*[1, 0]` / `all` | `d` | 删断点 |
+| `breaks` | `bl` | 列出断点 |
+| `reset` | `rs` | 重置解释器（快照随之失效） |
+| `undo` | | 回到会话开始时的快照 |
+| `python [code]` | `py` | 嵌入式 Python 控制台 |
+| `quit` | `q` | 离开并重抛原异常 |
+| `kill` | `k` | 放弃，并关闭 workflow scope |
+| `suppress [continue]` | `pass` | 压制：不带参数则结束并让 `run()` 正常返回；带 `continue` 则跳过失败节点、把剩余流程跑完再返回 |
+| `help [cmd]` | `h`、`?` | 帮助 |
+
+空行重复上一条命令，`#` 起到行尾是注释。分词支持引号分组，并会把全角标点折成半角——中文输入法下多按一次全角空格不会让命令失效。
+
+输入行由 GNU readline 处理：左右移动光标、上下翻历史、Tab 补全都可用。补全候选包括命令名、伪寄存器，以及 `tag:` 后面的真实节点标签（从当前图枚举后缓存）；进入 `py` 之后 Tab 改为补 Python 命名空间里的名字。历史保存在 `~/.sdb_history`，可用 `SDB_HISTORY` 指向别处。
+
+颜色按输出流自动判断：终端上给提示符、`panic:` 行、错误、成功提示以及反汇编上色。`NO_COLOR` 或 `TERM=dumb` 会关闭颜色，`FORCE_COLOR=1` 可以强制开启（管道里也能拿到 ANSI）。
+
+### 伪寄存器
+
+| 名称 | 含义 | 可写 |
+| --- | --- | --- |
+| `$pc` | 当前地址向量，例如 `[1, 0]`；工作流结束时为空 | 是，写入前校验地址可解析 |
+| `$rp` | 返回栈顶地址 | 否 |
+| `$flags` | 状态寄存器整数 | 是 |
+| `$exc` | 当前保存的 panic 异常 | 是（只接受异常实例或 `None`） |
+
+`set $pc = [2]` 与 `jump [2]` 等价。地址校验是刻意加上的：把指针指到不存在的段，下一次 `cont` 会 IndexError，再 panic 一次，白白消耗嵌套预算。
+
+### 把被打断的流程接回去
+
+三种方式，按侵入性从低到高：
+
+```text
+(sdb) [1] explode> skip
+pc -> [2]
+`s` or `c` will now resume after the failed node
+(sdb) [2] cleanup> c
+  [cleanup] recovered and ran…
+=> <end of workflow>
+```
+
+- `skip`：只推进程序计数器（必要时进入或退出嵌套段），返回栈不动，然后 `s` 或 `c`。适合"这个节点失败了，但我只想看看后面的逻辑"。
+- `set $pc = [...]` / `j`：跳到任意可解析地址，包括往回跳。
+- `undo`：整体回到会话开始时。`reset` 之后快照失效，`undo` 不再保证。
+
+如果只是想把失败节点重跑一次，直接 `s`——panic 状态会在执行前被清掉，这正是 Recover 的语义。
+
+如果这次失败可以接受（例如离线任务里某个可选步骤崩了），`suppress` 会结束救援并让 `run()` 正常返回。加上 `continue` 则是"跳过失败节点并把剩余流程跑完"，等于把 `skip` 与 `c` 合并成一步：
+
+```text
+(sdb) [1] explode> suppress continue
+  [cleanup] recovered and ran…
+panic suppressed; the remaining workflow ran to completion
+```
+
+它是唯一让失败从上层视线里消失的路径，所以默认不推荐：日志里会留下一条 `panic suppressed by operator`，`inter.panic_suppressed` 也会置位，事后仍然查得到。还有一条硬规则——`suppress continue` 期间若再次 panic，那一次不会被吞，命令会报出来并留在会话里等你处理。
+
+### `py`：真正的 Python，不是简化表达式
+
+`py` 会拉起一个货真价实的解释器，命名空间里已经放好：
+
+```python
+inter                     # 正在调试的解释器
+sdb                       # amrita_sense.debugger 模块（避免遮住 stdlib 的 inspect）
+get_rescue_intp()         # 返回同一个 inter
+pc / rp / flags / exc     # 伪寄存器快照
+step_async / cont_async / inspect / dis / break_at_tag ...
+```
+
+顶层 `await` 可用，而且投递到解释器自己的事件循环上：
+
+```text
+(sdb) [2] cleanup> py await step_async(inter)
+after ran
+=> <end of workflow>
+[py] applied: pc, exc
+(sdb) [2] after> q
+```
+
+退出 `py` 时，`pc`、`flags`、`exc` 如果被改过，会先校验再写回，并打印 `applied:` 行；其余变量留在控制台命名空间里，不回灌解释器。`exit()`、`quit()`、Ctrl-D 都只回到 `(sdb)`，不会结束救援；要离开用 `q` 或 `k`。
+
+### 语义边界
+
+- **默认不吞异常**：`q`、`k`、EOF 之后原异常一律重抛；唯一的例外是显式的 `suppress`——它让 `run()` 正常返回，但仍会写一条 `logger.warning`、保留 `inter.get_exception()`，并把 `inter.panic_suppressed` 置为真。`kill` 与 `suppress` 都会调用 `_close_workflow_scope()`，因为 panic 后的 scope 是特意留着的。
+- **不阻塞非交互进程**：没有终端就直接抛，绝不把崩溃变成挂起。
+- **嵌套只刷新**：救援中再次 panic 不会叠一层 REPL，只更新报告并重绘现场。
+- **单一驱动者**：`s`/`n`/`fin`/`c`/`u` 与 `py` 里的 `await step_async` 共用一把令牌，第二条命令会被拒绝，而不是两个协程同时推指针。
+- **`py` 不是沙箱**：拿到 `inter` 就等于拿到进程句柄。只在本地 TTY 下开放，不要接到网络或消息通道上。
+- **Ctrl-C 分两个阶段**：命令执行中按下会取消该命令；输入行时按下无法打断阻塞的读取（readline 在非主线程收不到信号），回车后会打印 `[interrupted]` 说明这次按键没有生效。
+
+### 为什么挂在 `run()` 而不是 `run_step_by()`
+
+`run_step_by()` 的 `except` 分支里，`_waiter_fut` 还没清、`_panic_exc` 还没赋值——两者都在后面的 `finally` 里。在那里进 REPL，`inspect` 看到的是上一轮的旧异常，`cont` 会直接撞 `IllegalState: Cannot start a new workflow while one is already running`。所以挂点只能在生成器完全退出之后。
+
+另一个副作用是：直接驱动 `run_step_by()` 的代码不会触发救援，需要自己接 `rescue_on_panic()`。
+
+### 实现结构
+
+| 文件 | 职责 |
+| --- | --- |
+| `debugger/rescue.py` | TTY 判定、`PanicReport`、会话栈、`get_rescue_intp()`、`rescue_on_panic()` |
+| `debugger/repl/lexer.py` | 分词、引号分组、全角折叠 |
+| `debugger/repl/session.py` | 快照、伪寄存器、驱动令牌、Python 命名空间同步 |
+| `debugger/repl/commands.py` | 命令表与分派 |
+| `debugger/repl/console.py` | 嵌入式 Python 控制台（顶层 `await`、寄存器回写） |
+| `debugger/repl/driver.py` | 输入循环、提示符、软中断 |
+
+加一条命令只需要注册一个函数：
+
+```python
+from amrita_sense.debugger.repl.commands import command
+
+@command("rg", "registers", usage="rg", summary="print the status register")
+def _cmd_registers(session, args):
+    session.write(f"flags = {session.read_pseudo('$flags')}")
+```
+
+`command()` 会把处理器收到的原始参数交给你；返回 `"quit"` / `"kill"` 表示结束会话。
+
+### 故障排查
+
+| 现象 | 先看这里 |
+| --- | --- |
+| 崩了但没进 REPL | `stdin_is_tty()`；`TERM=dumb`；进程是否在前台进程组；flag 是否在 `run()` 之前设置；是否直接驱动 `run_step_by()` |
+| 提示符出来了但命令没反应 | 上一条驱动命令还在跑（令牌未释放），或 `py` 里还有未结束的 `await` |
+| `py` 里 `await` 卡住 | 事件循环没在运行，或会话没绑定 loop（非 REPL 调用路径） |
+| 报告是空的 | 视图渲染抛异常，输出里会有 `! view failed:` 前缀 |
+| `undo` 没恢复 | 中途执行过 `reset`，或改动发生在快照覆盖范围之外（依赖、context stack） |
+| 左右方向键没反应 | 当前平台没有可用的 `readline`（多见于未装 pyreadline 的 Windows）；Linux/macOS 与 PTY 下正常 |
+| 输出没有颜色 | `NO_COLOR` / `TERM=dumb` 会关闭；输出被重定向到管道时不自动开启，可用 `FORCE_COLOR=1` |
+
+真实用例见 `demos/d26_rescue_repl.py`；测试见 `tests/test_rescue_repl.py` 与 `tests/test_rescue_pty.py`。
+
 ## 完整示例
 
 项目中的 `demos/d25_debug_repl.py` 提供了一个端到端的 REPL 调试演示，覆盖了上述所有功能：
@@ -546,8 +729,11 @@ segment [root]:
 
 `demos/d25_debug_repl.py` 用同样的工具走了一遍更长的脚本——跨段的汇编码、`step_over`、一次故意的崩溃与 panic 恢复，以及子解释器树。
 
+而 `demos/d26_rescue_repl.py` 演示自动救援：节点崩溃时进入 `(sdb)`，用 `skip` 跳过后继续跑完；把 stdin 换成管道（或设 `SDB_REPL_DISABLE=1`）再跑一遍，就能看到无终端时的 `PanicReport` 路径。
+
 ## 安全注意事项
 
 ### 解释器 ID 泄露
 
 `inspect()` 和 `list_sub_intp()` 默认截断显示解释器 UUID（`inter.id[:12]…`），避免完整 UUID 泄露到日志或终端。
+

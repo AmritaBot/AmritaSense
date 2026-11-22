@@ -6,16 +6,18 @@ Usage:
 
 IMPORTANT: Flags must be set BEFORE any WorkflowInterpreter is created.
 Once set, a flag cannot be changed — attempting to do so raises RuntimeError.
+
+Switch any of these on before building the interpreter:
+
+    __flags__.FORCE_NOT_WRAP_TO_ASYNC = True
+    __flags__.DISABLE_EXC_IGNORED = True
+    __flags__.NO_DEPENDENCY_META_CACHE = True
+    __flags__.NO_SHARED_MIDDLEWARE = True
+    __flags__.SQUASHED_LOOP = True
 """
 
 import asyncio
 
-# Uncomment to test different flags:
-# __flags__.FORCE_NOT_WRAP_TO_ASYNC = True
-# __flags__.DISABLE_EXC_IGNORED = True
-# __flags__.NO_DEPENDENCY_META_CACHE = True
-# __flags__.NO_SHARED_MIDDLEWARE = True
-# __flags__.SQUASHED_LOOP = True
 from amrita_sense import Node, WorkflowInterpreter
 
 # ✅ Correct: configure flags at the very top of the entry point

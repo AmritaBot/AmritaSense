@@ -63,6 +63,8 @@ trap 目标不得自行压/弹 `_ret_addr_stack`：`call_sub` 的 `pop` 是无�
 - **DI Cache（DI 缓存）**：`DICache` — `WorkflowInterpreter` 内部基于 LRU 的缓存，存储已解析的依赖注入 kwargs。键为 `hash((id(node.func), args_hash))`，避免相同节点函数在相同参数类型下重复解析 DI。载体为最大 2048 条的 `LRUCache`。由 unsafe 标志 `WORKFLOW_DI_NO_CACHE`、`WORKFLOW_DI_PRELOAD_CACHE` 和 `WORKFLOW_DI_PRELOAD_BATCH` 控制。
 - **Address Calculator（地址计算器）**：`AddressCalculator` — 通过 `NodeComposeRendered.calc` 暴露的无状态地址计算工具，提供 `advance()`、`resolve_alias()`、`find_addr()`、`find_addr_safe()` 方法。将原先散落在解释器 `_ptr_cache` 中的指针推进逻辑固化为编译图的一部分。
 - **Debugger（调试器）**：`amrita_sense.debugger` 模块提供的一套 REPL 优先的纯函数式调试工具包。包含状态检查（`inspect`、`where`、`backtrace`、`list_nodes`、`list_sub_intp`）、步进执行（`step`、`step_over`、`step_out`、`cont`）和断点管理（`break_at_tag`、`break_at_addr`、`clear_break_*`、`list_breaks`）。通过组合式中间件（middleware）注入实现，不修改核心运行时。同步函数可直接在 REPL 中调用而无需 `await`。
+- **Rescue REPL（救援 REPL）**：由 unsafe 标志 `RESCUE_ON_PANIC` 启用的进程内调试会话。`WorkflowInterpreter.run()` 捕获 panic 后，若 stdin 是前台交互终端，就拉起自研的 GDB 风格命令循环（`debugger/repl/`），并可用 `py` 进入嵌入式 Python 控制台；退出时重抛原始异常。没有终端时改为生成 `PanicReport`。`get_rescue_intp()` 在会话内返回正在救援的解释器。
+- **Panic Report（恐慌报告）**：`PanicReport` —— 无法进入 REPL 时附加到异常上的现场快照，含 panic 类型与消息、地址、状态寄存器、运行时 traceback、`inspect`/`backtrace`/反汇编文本。以 `__sdb_report__` 属性形式存在（Python 3.11+ 同时写入 `add_note`），不改变异常类型，避免破坏上层的 `except` 匹配。
 - **Breakpoint（断点）**：标记在特定节点标签或地址上的执行暂停点。通过 `amrita_sense.debugger` 的 `break_at_tag()` 和 `break_at_addr()` 设置，支持条件表达式（`condition` 参数）。命中断点时抛出 `BreakpointHit`（继承 `BaseException` 而非 `Exception`，避免触发 panic 机制），由 `cont()` 捕获后暂停执行。
 
 ### 缩写词

@@ -64,4 +64,6 @@ AmritaSense 内置了一套完整的 REPL 调试器——无需额外安装插�
 - **断点系统** — 按标签（`break_at_tag`）或地址（`break_at_addr`）设置断点，支持条件表达式
 - **步进控制** — `step()`、`step_over()`、`step_out()`、`cont()`，支持同步/异步双 API
 - **崩溃恢复** — 节点异常后 panic 状态完整保留，`inspect()` 查看现场，`advance_pointer()` 跳过崩溃节点后 `cont()` 恢复执行
+- **崩溃救援** — `_unsafe.__flags__.RESCUE_ON_PANIC` 打开后，未处理的节点异常会在解释器正式退出前拉起 `(sdb)`，现场（指针、返回栈、panic）原样保留；没有交互终端时不阻塞，改为把 `PanicReport` 挂到异常的 `__sdb_report__` 上
+- **嵌入式 Python 控制台** — 救援 REPL 的 `py` 命令提供完整 Python 解释器，支持顶层 `await`（投递到解释器自己的事件循环）并把 `pc` / `flags` / `exc` 的修改校验后写回
 - **GDB 风格反汇编** — `dis()` 把编译后的图渲染为带地址的分段清单，`=>` 标记程序计数器；节点可通过 `__sdb_dis__` / `__sdb_cmt__` 魔术属性描述自己的助记符，stdout 为终端时清单会着色
