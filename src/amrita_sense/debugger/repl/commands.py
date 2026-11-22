@@ -360,14 +360,30 @@ def _cmd_breaks(session: RescueSession, args: list[str]) -> None:
 @command("rs", "reset", usage="rs", summary="reset the interpreter (not undoable)")
 def _cmd_reset(session: RescueSession, args: list[str]) -> None:
     session.inter.reset()
-    session.warn("interpreter reset — the captured snapshot is now stale")
+    session.warn("interpreter reset — pc, stacks and context stack cleared")
+    session.note(
+        "`undo` only restores pc / return stack / flags / panic; the context stack does not come back"
+    )
 
 
-@command("undo", usage="undo", summary="restore the state captured at session start")
+@command(
+    "undo",
+    usage="undo",
+    summary="restore debugger state (pc/stack/flags) — not a rollback",
+)
 def _cmd_undo(session: RescueSession, args: list[str]) -> None:
+    """Restore the debugger view, not the business state.
+
+    Nodes that already ran stay ran: their side effects, the context stack and
+    the workflow-scoped dependencies are untouched.  This is a convenience for
+    putting the program counter and registers back, not a transaction log.
+    """
     session.undo()
     session.ok(
         f"restored: pc={session.read_pseudo('pc')} flags={session.read_pseudo('flags')}"
+    )
+    session.note(
+        "debugger state only: node side effects, context stack and DI scope stay as they are"
     )
 
 

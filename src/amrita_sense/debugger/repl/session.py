@@ -39,7 +39,13 @@ class NoActiveRescue(RuntimeError):
 
 @dataclass
 class Snapshot:
-    """The part of the interpreter state that ``undo`` restores."""
+    """The debugger-visible state that ``undo`` restores.
+
+    This is deliberately **not** an execution rollback.  Only the pointer, the
+    return stack, the status register and the panic record are captured; node
+    side effects, the context stack and workflow-scoped dependencies are left
+    exactly as they are.
+    """
 
     pointer: list[int] | None
     ret_stack: list[list[int]]
@@ -57,6 +63,7 @@ class Snapshot:
         )
 
     def restore(self, inter: WorkflowInterpreter) -> None:
+        """Put the captured debugger state back; nothing else is rewound."""
         inter._pointer = (
             PointerVector(list(self.pointer)) if self.pointer else PointerVector()
         )

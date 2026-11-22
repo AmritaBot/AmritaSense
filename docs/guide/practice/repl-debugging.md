@@ -490,7 +490,7 @@ SDB_REPL_TIMEOUT=300 # seconds without input before returning; 0 disables
 | `delete tag:x` / `*[1, 0]` / `all` | `d` | Delete breakpoints |
 | `breaks` | `bl` | List breakpoints |
 | `reset` | `rs` | Reset the interpreter (invalidates the snapshot) |
-| `undo` | | Restore the snapshot taken when the session opened |
+| `undo` | | Restore debugger state (pc / return stack / flags / panic) — no business rollback |
 | `python [code]` | `py` | Embedded Python console |
 | `quit` | `q` | Leave and re-raise the original panic |
 | `kill` | `k` | Abandon the scene and close the workflow scope |
@@ -529,7 +529,7 @@ pc -> [2]
 
 - `skip` advances the program counter only (entering or leaving a nested segment if needed); the return stack is untouched, then `s` or `c` continues.
 - `set $pc = [...]` / `j` jumps anywhere resolvable, including backwards.
-- `undo` restores the whole session snapshot. After `reset` the snapshot is stale and `undo` no longer guarantees anything.
+- `undo` puts back what the debugger sees: program counter, return stack, status register and the panic record. It is **not an execution rollback** — nodes that already ran stay ran, side effects are not undone, and the context stack and DI scope are left alone. If `reset` ran in between, the cleared context stack does not come back either.
 
 To simply re-run the failing node, press `s`: the panic state is cleared before execution, which is exactly the Recover semantics.
 
@@ -577,6 +577,7 @@ On the way out, edited `pc` / `flags` / `exc` values are validated and written b
 - **Ctrl-C has two phases**: while a command runs it cancels that command; while a line is being typed it cannot interrupt the blocking read (readline on a non-main thread receives no signal), so the line is submitted first and `[interrupted]` explains that the keypress did nothing.
 - **An unattended prompt times out**: rescue waits 300 seconds by default (`SDB_REPL_TIMEOUT`, `0` disables), then prints a note and hands control back, re-raising the original exception. The wait is on the reader thread, so the event loop keeps running.
 - **`skip` never restarts the workflow**: skipping the last node reports that the workflow is over; `s`/`c` are then refused instead of silently running from `[0]` again.
+- **`undo` is not a rollback**: it restores debugger state only. Reversing side effects is a business concern — idempotency or compensation — and the debugger holds no transaction log.
 - **`suppress` keeps the original panic**: even when `s`/`c` cleared `_panic_exc`, suppression writes the first exception back, so `get_exception()` still answers "where did it crash".
 - **Addresses must be non-negative integers**: `set $pc = [1.5]` or `[-1]` is rejected rather than truncated into a different node.
 

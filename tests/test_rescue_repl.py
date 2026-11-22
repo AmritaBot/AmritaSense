@@ -388,7 +388,7 @@ def test_reset_clears_the_interpreter() -> None:
     dispatch(session, lex("s"))
     dispatch(session, lex("rs"))
     assert session.read_pseudo("pc") is None
-    assert "snapshot is now stale" in output(session)
+    assert "interpreter reset" in output(session)
 
 
 def test_quit_and_kill_report_their_reason() -> None:
@@ -1208,3 +1208,52 @@ def test_prompt_strips_control_characters_from_tags() -> None:
     prompt = _prompt(session)
     assert "\x1b" not in prompt
     assert "\x07" not in prompt
+
+
+def test_undo_is_not_a_business_rollback() -> None:
+    """`undo` puts the debugger back; side effects of executed nodes stay."""
+    seen: list[str] = []
+
+    @Node(tag="effect")
+    def effect() -> None:
+        seen.append("ran")
+
+    inter = WorkflowInterpreter(effect.as_compose().render())
+    session = RescueSession(inter, echo=io.StringIO())
+
+    dispatch(session, lex("s"))
+    assert seen == ["ran"]
+    dispatch(session, lex("undo"))
+    assert seen == ["ran"]  # not rewound
+    assert session.read_pseudo("pc") == [0]
+    assert "debugger state only" in output(session)
+
+
+def test_undo_leaves_the_context_stack_alone() -> None:
+    from amrita_sense.runtime.types import InterpreterContext
+    from amrita_sense.types import PointerVector
+
+    inter = make_inter()
+    session = RescueSession(inter, echo=io.StringIO())
+    context = InterpreterContext(ptr=PointerVector([0]), exception_ignored=())
+    inter._context_stack.stack.append(context)
+
+    dispatch(session, lex("s"))
+    dispatch(session, lex("undo"))
+    assert context in inter._context_stack.stack
+
+
+def test_undo_after_reset_cannot_restore_the_context_stack() -> None:
+    from amrita_sense.runtime.types import InterpreterContext
+    from amrita_sense.types import PointerVector
+
+    inter = make_inter()
+    session = RescueSession(inter, echo=io.StringIO())
+    context = InterpreterContext(ptr=PointerVector([0]), exception_ignored=())
+    inter._context_stack.stack.append(context)
+
+    dispatch(session, lex("rs"))
+    assert context not in inter._context_stack.stack
+    dispatch(session, lex("undo"))
+    # Documented behaviour: `undo` restores debugger state only.
+    assert context not in inter._context_stack.stack
