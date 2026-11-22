@@ -190,9 +190,11 @@ class WorkflowInterpreter(Generic[io_T]):
         "_lifecycles",
         "_middleware",
         "_panic_exc",
+        "_panic_suppressed",
         "_parent_interpreter",
         "_pending_stop",
         "_pointer",
+        "_rescue_active",
         "_ret_addr_stack",
         "_sub_interpreters",
         "_sub_interpreters_all",
@@ -235,6 +237,8 @@ class WorkflowInterpreter(Generic[io_T]):
         self._graph = cast(AbstractCompose[AddressCalculator], node_compose)
         self._pointer = PointerVector()
         self._panic_exc = None
+        self._panic_suppressed = False
+        self._rescue_active = False
         self.__outer_interpreting = False
         # DI
         self.__ava_args = (self, *extra_args)
@@ -398,6 +402,16 @@ class WorkflowInterpreter(Generic[io_T]):
         """Get the last panic exception."""
         return self._panic_exc
 
+    @property
+    def panic_suppressed(self) -> bool:
+        """Whether the last panic was suppressed by an operator.
+
+        Set when the rescue REPL ended with ``suppress``: the workflow returned
+        normally instead of raising, and the exception is still available via
+        :meth:`get_exception`.
+        """
+        return self._panic_suppressed
+
     def reset(self) -> None:
         """Reset the workflow interpreter to its initial state."""
         if self._waiter_fut is not None:
@@ -408,6 +422,8 @@ class WorkflowInterpreter(Generic[io_T]):
         self._ret_addr_stack.clear()
         self._flags = Flags.NONE
         self._panic_exc = None
+        self._panic_suppressed = False
+        self._rescue_active = False
         self._context_stack.clear()
 
     def fork_interpreter(
@@ -839,9 +855,38 @@ class WorkflowInterpreter(Generic[io_T]):
 
         This method runs the workflow until all nodes have been processed or
         an interrupt occurs.
+
+        When `RESCUE_ON_PANIC` is enabled, a panic opens the SenseDBG rescue
+        REPL (interactive terminal required) or attaches a panic report to the
+        exception.  The exception is always re-raised: rescuing preserves the
+        scene, it does not swallow the failure.
         """
-        async for _ in self.run_step_by():
-            pass
+        try:
+            async for _ in self.run_step_by():
+                pass
+        except Exception as exc:
+            if __flags__.RESCUE_ON_PANIC:
+                self._rescue_active = True
+                try:
+                    from amrita_sense.debugger.rescue import rescue_on_panic
+
+                    reason = await rescue_on_panic(self, exc)
+                except Exception:
+                    logger.exception(
+                        "SenseDBG rescue failed; re-raising the original panic"
+                    )
+                else:
+                    if reason == "suppress":
+                        # Deliberate silence, but never invisible: the log records it.
+                        logger.warning(
+                            f"*** panic suppressed by operator ***: "
+                            f"`{exc}@{type(exc).__name__}` at ptr "
+                            f"{self._pointer.base_addr if self._pointer else None}"
+                        )
+                        return
+                finally:
+                    self._rescue_active = False
+            raise
 
     async def run_step_by(self) -> AsyncGenerator[Any, None]:
         """Execute the workflow step by step, yielding results from each node.
@@ -859,6 +904,11 @@ class WorkflowInterpreter(Generic[io_T]):
         exc_val: BaseException | None = None
         # Set when the run stops in a way that allows resuming (a suspend interrupt or a panic), in which case workflow-scoped dependencies have to stay open across the gap.
         resumable = False
+        if self._rescue_active:
+            raise IllegalState(
+                "Cannot start a run while a rescue session owns this interpreter"
+            )
+        self._panic_suppressed = False
         if self._panic_exc is not None:
             logger.debug("Recovered from panic.")
             self._panic_exc = None
@@ -967,8 +1017,7 @@ class WorkflowInterpreter(Generic[io_T]):
                 if not resumable:
                     await self._close_workflow_scope()
             finally:
-                # Scope teardown can raise or be cancelled; the pin has to come
-                # off either way.
+                # Scope teardown can raise or be cancelled; the pin comes off either way.
                 _restore_async_library()
 
     def _make_traceback(self) -> str:
@@ -1438,9 +1487,11 @@ class WorkflowInterpreter(Generic[io_T]):
         the same interpreter starts from a clean slate rather than a closed
         one.
         """
-        await self._lifecycles[Scope.WORKFLOW].aclose()
-        self._lifecycles[Scope.WORKFLOW] = LifecycleScope(Scope.WORKFLOW)
-        self._dep_store.clear()
+        try:
+            await self._lifecycles[Scope.WORKFLOW].aclose()
+        finally:
+            self._lifecycles[Scope.WORKFLOW] = LifecycleScope(Scope.WORKFLOW)
+            self._dep_store.clear()
 
 
 __all__ = ["PC_CHECKPOINT", "WorkflowInterpreter", "fun_T", "io_T"]

@@ -101,8 +101,7 @@ class TryNode(BaseNode):
                     match_addr = addr
                     break
             if match_addr is None:
-                # No handler claims this exception type, so it has to keep
-                # travelling up.  (`finally` still runs on the way out.)
+                # No handler claims this type, so it keeps travelling up (`finally` still runs).
                 raise
             await pc.call_near(
                 match_addr,

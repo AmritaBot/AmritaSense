@@ -46,8 +46,7 @@ def _collect(
         try:
             _, statements, _, missing, _ = cov.analysis2(filename)
         except Exception:
-            # Files without readable source (compiled extensions, generated
-            # modules) cannot be analysed; skipping them is not fatal.
+            # Unreadable sources (compiled extensions, generated modules) are skipped.
             continue
         covered = len(statements) - len(missing)
         total_statements += len(statements)

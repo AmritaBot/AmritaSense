@@ -115,8 +115,7 @@ MEMORY_CHAIN_LEN = 5000
 # Set env vars
 os.environ["LOG_LEVEL"] = "WARNING"
 
-# Flags live in `amrita_sense._unsafe`; always flip them via `unsafe_flags`
-# so a failing scenario cannot leave a flag set for the next one.
+# Flags live in `amrita_sense._unsafe`; flip them via `unsafe_flags` so a failure cannot leak one into the next scenario.
 
 
 #  Result type
@@ -811,9 +810,7 @@ def _make_event_type(event_type: str) -> type[ConstructableEvent]:
 
 
 def _register_event_handlers(event_type: str, count: int) -> None:
-    # `block=True` (the default) stops the dispatch loop after the first
-    # handler, which would make every handler-count scenario measure the same
-    # single call.  `block=False` lets the whole list run.
+    # `block=True` (default) stops after the first handler; `block=False` runs the whole list.
     for _ in range(count):
 
         @on_event(event_type, block=False).handle()
@@ -1273,8 +1270,7 @@ def to_json(results: list[Result], path: str) -> None:
             "mem_peak_kb": r.mem_peak_kb,
         }
         if any(r.mem_samples):
-            # Only the memory scenario produces a non-zero peak; leave the
-            # other entries free of a list of zeros.
+            # Only the memory scenario has a non-zero peak; don't pad the others with zeros.
             entry["mem_samples"] = r.mem_samples
         entries.append(entry)
 

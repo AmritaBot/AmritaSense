@@ -66,4 +66,6 @@ Key capabilities:
 - **Breakpoint system** — set breakpoints by tag (`break_at_tag`) or address (`break_at_addr`), with conditional expressions
 - **Step control** — `step()`, `step_over()`, `step_out()`, `cont()`, with both sync and async API flavors
 - **Crash recovery** — after a node exception, the panic state is fully preserved; use `inspect()` to examine the crash site, `advance_pointer()` to skip the failing node, then `cont()` to resume
+- **Crash rescue** — with `_unsafe.__flags__.RESCUE_ON_PANIC`, an unhandled node exception opens `(sdb)` before the interpreter unwinds, keeping the scene (pointer, return stack, panic) intact; without an interactive terminal it never blocks and instead attaches a `PanicReport` to the exception as `__sdb_report__`
+- **Embedded Python console** — the rescue REPL's `py` command is a full Python interpreter with top-level `await` (scheduled on the interpreter's own loop) and validated write-back of `pc` / `flags` / `exc`
 - **GDB-style disassembly** — `dis()` renders the compiled graph as address-mapped segments with `=>` marking the program counter; nodes describe their own mnemonics through the `__sdb_dis__` / `__sdb_cmt__` magic attributes, and the listing is colourised when stdout is a terminal

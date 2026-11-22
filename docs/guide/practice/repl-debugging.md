@@ -433,6 +433,197 @@ AmritaSense's Panic/Recover mechanism is one of the debugger's core capabilities
 
 **Recovery principle**: `step()` / `cont()` internally calls `_step_one()`, which checks `_panic_exc` before each execution. If non-`None`, it clears it (recover), then normally executes the node at the current pointer. Since you've already manually `advance_pointer()` past the crash node, recovery executes the next node.
 
+## Crash Rescue: `RESCUE_ON_PANIC`
+
+### What it solves
+
+A panic normally propagates straight out of `run()`: the `finally` block clears `_waiter_fut`, stores the exception in `_panic_exc`, and hands control back to the caller. The scene is actually still intact — pointer parked on the failing node, return stack untouched, context stack preserved — but by the time you get back to a prompt, all that is usually left is a traceback.
+
+This flag keeps the few seconds before the re-raise for you.
+
+### Enabling
+
+```python
+from amrita_sense._unsafe import __flags__
+
+__flags__.RESCUE_ON_PANIC = True
+```
+
+It is an unsafe flag: togglable at runtime, but treat it as start-up configuration.
+
+### Two paths
+
+| Condition | Behaviour |
+| --- | --- |
+| stdin is an interactive terminal | Enter `(sdb)` in-process and block until `q`, `k` or EOF |
+| No terminal (CI, bot process, pipe) | Raise immediately, attaching a `PanicReport` as `__sdb_report__` (plus `add_note` on 3.11+) |
+
+The TTY probe is stricter than `isatty()`: the process must be in the terminal's foreground process group (a background process reading a tty is stopped by `SIGTTIN`, which looks exactly like a hang), and `TERM` must not be `dumb`. Two environment variables override the result:
+
+```bash
+SDB_REPL_DISABLE=1   # never enter (production guard, highest priority)
+SDB_REPL_FORCE=1     # force the REPL (tests, manual probing)
+SDB_REPL_TIMEOUT=300 # seconds without input before returning; 0 disables
+```
+
+`SDB_REPL_DISABLE` always beats `SDB_REPL_FORCE`: an environment that explicitly turned rescue off must not be re-opened by a leftover FORCE.
+
+**Either way the exception type is never rewritten.** Rescue preserves the scene; it does not swallow the failure. `q` re-raises the original exception unchanged, so upstream `except RuntimeError` handlers keep working.
+
+### Commands
+
+| Command | Alias | Purpose |
+| --- | --- | --- |
+| `step [n]` | `s` | Execute n nodes (default 1) |
+| `next` | `n` | Step over one node |
+| `finish` | `fin` | Run to the end of the current frame |
+| `cont` | `c` | Continue to a breakpoint or the end |
+| `skip` | | Advance past the failing node without touching the stack |
+| `until [addr]` | `u` | Step until past the current address (or to `addr`) |
+| `jump [addr]` | `j` | Rewrite the program counter |
+| `backtrace` | `bt` | Print the interpreter call chain |
+| `info <topic>` | `i` | Topic: registers r, breakpoints b, frames/tree f, node list l, where w |
+| `examine [n]` | `x` | Disassemble around the current segment |
+| `print <expr>` | `p` | Evaluate a restricted expression |
+| `set $reg = <value>` | | Write a pseudo-register (addresses are validated) |
+| `break tag:x` / `break *[1, 0]` | `b` | Set a breakpoint |
+| `delete tag:x` / `*[1, 0]` / `all` | `d` | Delete breakpoints |
+| `breaks` | `bl` | List breakpoints |
+| `reset` | `rs` | Reset the interpreter (invalidates the snapshot) |
+| `undo` | | Restore debugger state (pc / return stack / flags / panic) — no business rollback |
+| `python [code]` | `py` | Embedded Python console |
+| `quit` | `q` | Leave and re-raise the original panic |
+| `kill` | `k` | Abandon the scene and close the workflow scope |
+| `suppress [continue]` | `pass` | Swallow the panic: without an argument `run()` returns normally; with `continue` it advances past the failing node and finishes the rest first |
+| `help [cmd]` | `h`, `?` | Help |
+
+A blank line repeats the previous command; `#` comments to end of line. Tokens may be quoted, and full-width punctuation is folded to ASCII so a CJK IME cannot silently break a command.
+
+Input lines are handled by GNU readline: cursor movement, history and tab completion all work. Completion offers command names, pseudo-registers, and real node tags after `tag:` (enumerated from the current graph and cached); inside `py`, tab completion switches to Python namespace names. History lives in `~/.sdb_history`; set `SDB_HISTORY` to relocate it.
+
+Colour follows the output stream: the prompt, the `panic:` line, errors, success messages and the disassembly are styled on a terminal. `NO_COLOR` or `TERM=dumb` disables it; `FORCE_COLOR=1` forces it even through a pipe.
+
+### Pseudo-registers
+
+| Name | Meaning | Writable |
+| --- | --- | --- |
+| `$pc` | Current address vector, e.g. `[1, 0]`; empty once the workflow ends | Yes, after validation |
+| `$rp` | Top of the return stack | No |
+| `$flags` | Status register as an integer | Yes |
+| `$exc` | The stored panic exception | Yes (exception instance or `None`) |
+
+`set $pc = [2]` is equivalent to `jump [2]`. The validation exists for a reason: pointing the PC at a non-existent segment turns the next `cont` into an `IndexError`, which panics again and burns the nested-rescue budget for nothing.
+
+### Resuming an interrupted run
+
+Three options, from least to most invasive:
+
+```text
+(sdb) [1] explode> skip
+pc -> [2]
+`s` or `c` will now resume after the failed node
+(sdb) [2] cleanup> c
+  [cleanup] recovered and ran…
+=> <end of workflow>
+```
+
+- `skip` advances the program counter only (entering or leaving a nested segment if needed); the return stack is untouched, then `s` or `c` continues.
+- `set $pc = [...]` / `j` jumps anywhere resolvable, including backwards.
+- `undo` puts back what the debugger sees: program counter, return stack, status register and the panic record. It is **not an execution rollback** — nodes that already ran stay ran, side effects are not undone, and the context stack and DI scope are left alone. If `reset` ran in between, the cleared context stack does not come back either.
+
+To simply re-run the failing node, press `s`: the panic state is cleared before execution, which is exactly the Recover semantics.
+
+If this failure is acceptable (an optional step in an offline job, say), `suppress` ends the rescue and makes `run()` return normally. Adding `continue` folds `skip` and `c` into one step — advance past the failing node, finish the rest, then return:
+
+```text
+(sdb) [1] explode> suppress continue
+  [cleanup] recovered and ran…
+panic suppressed; the remaining workflow ran to completion
+```
+
+It is the only path that hides a failure from the caller, so it is not the default: a `panic suppressed by operator` warning is logged and `inter.panic_suppressed` is set, so the decision stays auditable. One hard rule: a second panic during `suppress continue` is **not** swallowed — the command reports it and leaves the session open.
+
+### `py`: real Python, not a mini-expression language
+
+`py` starts a genuine interpreter with the session already wired in:
+
+```python
+inter                     # the interpreter under rescue
+sdb                       # amrita_sense.debugger (keeps stdlib `inspect` unshadowed)
+get_rescue_intp()         # returns that same inter
+pc / rp / flags / exc     # pseudo-register snapshots
+step_async / cont_async / inspect / dis / break_at_tag ...
+```
+
+Top-level `await` works and is scheduled on the interpreter's own event loop:
+
+```text
+(sdb) [2] cleanup> py await step_async(inter)
+after ran
+=> <end of workflow>
+[py] applied: pc, exc
+(sdb) [2] after> q
+```
+
+On the way out, edited `pc` / `flags` / `exc` values are validated and written back, with an `applied:` line. Everything else stays in the console namespace and is not pushed into the interpreter. `exit()`, `quit()` and Ctrl-D all return to `(sdb)`; use `q` or `k` to actually leave.
+
+### Semantics and boundaries
+
+- **Never swallows by default**: `q`, `k` and EOF all re-raise the original exception. The one exception is an explicit `suppress` — `run()` returns normally, but a `logger.warning` is written, `inter.get_exception()` still holds the error, and `inter.panic_suppressed` becomes true. Both `kill` and `suppress` call `_close_workflow_scope()`, because the scope is deliberately left open across a panic.
+- **Never blocks a headless process**: no terminal means raise immediately. A crash must not become a hang.
+- **Nested panics only refresh**: a second panic inside the session updates the report and redraws the scene instead of stacking another REPL.
+- **One driver at a time**: `s`/`n`/`fin`/`c`/`u` and `await step_async` inside `py` share a token; the second command is refused rather than racing the pointer.
+- **`py` is not a sandbox**: holding `inter` is holding a process handle. It is only enabled on a local TTY — never wire it to a network or message channel.
+- **Ctrl-C has two phases**: while a command runs it cancels that command; while a line is being typed it cannot interrupt the blocking read (readline on a non-main thread receives no signal), so the line is submitted first and `[interrupted]` explains that the keypress did nothing.
+- **An unattended prompt times out**: rescue waits 300 seconds by default (`SDB_REPL_TIMEOUT`, `0` disables), then prints a note and hands control back, re-raising the original exception. The wait is on the reader thread, so the event loop keeps running.
+- **`skip` never restarts the workflow**: skipping the last node reports that the workflow is over; `s`/`c` are then refused instead of silently running from `[0]` again.
+- **`undo` is not a rollback**: it restores debugger state only. Reversing side effects is a business concern — idempotency or compensation — and the debugger holds no transaction log.
+- **`suppress` keeps the original panic**: even when `s`/`c` cleared `_panic_exc`, suppression writes the first exception back, so `get_exception()` still answers "where did it crash".
+- **Addresses must be non-negative integers**: `set $pc = [1.5]` or `[-1]` is rejected rather than truncated into a different node.
+
+### Why the hook lives in `run()`, not `run_step_by()`
+
+Inside `run_step_by()`'s `except` branch, `_waiter_fut` has not been cleared and `_panic_exc` has not been assigned — both happen in the later `finally`. Entering a REPL there means `inspect` shows the *previous* panic, and `cont` hits `IllegalState: Cannot start a new workflow while one is already running`. The only safe hook point is after the generator has fully unwound.
+
+Consequence: code that drives `run_step_by()` directly does not trigger rescue; call `rescue_on_panic()` yourself.
+
+### Implementation layout
+
+| File | Responsibility |
+| --- | --- |
+| `debugger/rescue.py` | TTY probe, `PanicReport`, session stack, `get_rescue_intp()`, `rescue_on_panic()` |
+| `debugger/repl/lexer.py` | Tokenising, quote grouping, full-width folding |
+| `debugger/repl/session.py` | Snapshot, pseudo-registers, driver token, namespace sync |
+| `debugger/repl/commands.py` | Command registry and dispatch |
+| `debugger/repl/console.py` | Embedded Python console (top-level `await`, register write-back) |
+| `debugger/repl/driver.py` | Input loop, prompt, soft interrupt |
+
+Adding a command is one registration:
+
+```python
+from amrita_sense.debugger.repl.commands import command
+
+@command("rg", "registers", usage="rg", summary="print the status register")
+def _cmd_registers(session, args):
+    session.write(f"flags = {session.read_pseudo('$flags')}")
+```
+
+`command()` hands the handler the raw operands; returning `"quit"` or `"kill"` ends the session.
+
+### Troubleshooting
+
+| Symptom | Check first |
+| --- | --- |
+| Panicked but no REPL | `stdin_is_tty()`; `TERM=dumb`; foreground process group; flag set before `run()`; whether you drive `run_step_by()` directly |
+| Prompt appears, commands ignored | A drive command is still running (token not released), or `py` still has an unfinished `await` |
+| `await` inside `py` hangs | The event loop is not running, or the session is not bound to a loop |
+| Empty report | View rendering failed; look for the `! view failed:` prefix |
+| `undo` did not restore | `reset` ran in between, or the change is outside the snapshot's scope (dependencies, context stack) |
+| Arrow keys do nothing | No usable `readline` on this platform (typically Windows without pyreadline); Linux/macOS and PTY sessions are fine |
+| Output is not coloured | `NO_COLOR` / `TERM=dumb` disable it; a redirected stream does not enable it automatically — use `FORCE_COLOR=1` |
+
+A runnable example lives in `demos/d26_rescue_repl.py`; tests in `tests/test_rescue_repl.py` and `tests/test_rescue_pty.py`.
+
 ## Full Example
 
 The project includes `demos/d25_debug_repl.py`, an end-to-end REPL debugging demo covering all features above:
@@ -547,6 +738,8 @@ segment [root]:
 ```
 
 `demos/d25_debug_repl.py` walks the same tools through a longer script — disassembly across segments, `step_over`, a deliberate crash with panic recovery, and the sub-interpreter tree.
+
+`demos/d26_rescue_repl.py` demonstrates automatic rescue: the REPL opens at the crash site, `skip` moves past the failing node and the workflow finishes. Run it with stdin redirected from a pipe (or `SDB_REPL_DISABLE=1`) to see the headless `PanicReport` path instead.
 
 ## Security Considerations
 
