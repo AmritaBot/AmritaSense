@@ -53,7 +53,9 @@ def all_files() -> list[Path]:
         base = Path(root)
         if base.is_dir():
             files.extend(
-                p for p in base.rglob("*") if p.suffix in COVERED_SUFFIXES and p.is_file()
+                p
+                for p in base.rglob("*")
+                if p.suffix in COVERED_SUFFIXES and p.is_file()
             )
     files.extend(Path(name) for name in ROOT_FILES if Path(name).is_file())
     files.extend(

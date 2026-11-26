@@ -53,14 +53,12 @@ select = [
 ignore = [
     "E501",   # line-too-long
     "UP037",  # quoted-annotation
-    "RUF001", # ambiguous-unicode-character-string
-    "RUF002", # ambiguous-unicode-character-docstring
-    "RUF003", # ambiguous-unicode-character-comment
     "RUF036", # none-at-the-end-of-type-union
 ]
 [tool.ruff.lint.per-file-ignores]
 "demos/*.py" = ["ASYNC250"]
 "tests/*.py" = ["ASYNC250", "PERF401"]
+"src/amrita_sense/debugger/repl/lexer.py" = ["RUF001"]
 
 [tool.pyright]
 typeCheckingMode = "standard"

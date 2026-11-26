@@ -28,11 +28,12 @@ DEPENDENCY_MARKER = "__amrita_sense_dependency__"
 
 
 def is_dependency_marker(value: object) -> bool:
-    """判断一个值是不是依赖声明。
+    """Return whether a value is a dependency declaration.
 
-    先看协议位，再回退到类型：包装器、代理或其它模块的等价标记，只要
-    转发 ``__amrita_sense_dependency__ = True`` 就能被识别，不必恰好是
-    ``DependsFactory`` 这一个类。类型回退保留给未声明协议位的老实现。
+    The protocol marker is checked first, then the type: a wrapper, a proxy
+    or an equivalent marker from another module only has to forward
+    ``__amrita_sense_dependency__ = True``.  The type fallback keeps
+    implementations that predate the marker working.
     """
     if getattr(value, DEPENDENCY_MARKER, False) is True:
         return True
@@ -41,18 +42,19 @@ def is_dependency_marker(value: object) -> bool:
 
 
 def is_depends_factory(value: object) -> TypeGuard["DependsFactory"]:
-    """严格版判定：只认 DependsFactory 本身或其子类。
+    """Strict check: only ``DependsFactory`` itself or its subclasses.
 
-    声明期（``sign_func``）要把值写进 ``factory_map`` 并参与后续解析，
-    这里必须保证类型契约，不能靠协议位把任意对象放进来；运行时参数才
-    用 ``is_dependency_marker`` 的宽口径。
+    Declaration time (``sign_func``) writes the value into ``factory_map``
+    and later resolves it, so the type contract has to hold here; letting an
+    arbitrary object through on the marker alone would only fail later.
+    Runtime arguments use the wider ``is_dependency_marker`` instead.
     """
     factory_cls = globals().get("DependsFactory")
     return factory_cls is not None and isinstance(value, factory_cls)
 
 
 def _require_dependency_interface(value: Any) -> Any:
-    """协议位命中但接口不全时立即报错，而不是等解析期才炸在属性访问上。"""
+    """Fail early when a marked object lacks the interface resolution needs."""
     missing = [
         name
         for name in ("cacheable", "generator_kind", "make_context_manager")
@@ -69,10 +71,11 @@ def _require_dependency_interface(value: Any) -> Any:
 def collect_runtime_dependencies(
     args: Sequence[Any], kwargs: Mapping[str, Any]
 ) -> tuple[dict[int, Any], dict[str, Any]]:
-    """一次扫描分出按位置与按关键字的运行时依赖。
+    """Split positional and keyword runtime dependencies in a single pass.
 
-    调用方原来先 ``any()`` 探一遍、再用两个推导式各扫一遍，同一批参数要
-    过三遍；这里合成一次，同时让所有调用点共用同一套判定。
+    Call sites used to run an ``any()`` probe and then two comprehensions
+    over the same arguments - three passes for one batch.  This does it once
+    and keeps every caller on the same predicate.
     """
     runtime_args = {
         i: _require_dependency_interface(v)
@@ -85,7 +88,6 @@ def collect_runtime_dependencies(
         if is_dependency_marker(v)
     }
     return runtime_args, runtime_kwargs
-
 
 
 class ParamDescriptor(TypedDict):

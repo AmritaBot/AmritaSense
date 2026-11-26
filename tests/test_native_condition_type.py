@@ -1,7 +1,8 @@
-"""Native 分支／循环的条件位类型约束。
+"""Type constraint on native branch and loop condition slots.
 
-条件在布局里只占一个地址槽（IF 的 call_offset、WHILE 的 condi_offset），
-传组合或自编译指令会让后续偏移错位，所以声明处就应该拒绝。
+A condition owns exactly one address slot (IF's call_offset, WHILE's
+condi_offset); a composition or self-compile instruction would shift every
+later offset, so it has to be rejected at the declaration site.
 """
 
 import pytest

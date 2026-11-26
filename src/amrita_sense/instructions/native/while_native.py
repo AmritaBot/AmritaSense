@@ -5,7 +5,7 @@ Usage::
     NATIVE_WHILE(condition).ACTION(body)
 
 `body` is always wrapped as `NodeCompose(body, CONTINUE())` so that
-the loop can iterate.  Single-node bodies are auto‑wrapped.
+the loop can iterate.  Single-node bodies are auto-wrapped.
 """
 
 from __future__ import annotations
@@ -68,7 +68,7 @@ class NativeWhileClause(SelfCompileInstruction):
         flat_cond, _ = _classify_body(self._condition)
         body, is_single = _classify_body(self._body)
 
-        # All bodies end with CONTINUE — single nodes are auto‑wrapped.
+        # All bodies end with CONTINUE — single nodes are auto-wrapped.
         body_slot: NodeCompose = (
             NodeCompose(body, CONTINUE())
             if is_single

@@ -198,8 +198,8 @@ def break_at_addr(
 
     *addr* can be:
 
-    * `list[int]` – raw address vector, e.g. `[0, 1]`
-    * `str`      – alias resolved via `AddressCalculator.resolve_alias()`
+    * `list[int]` - raw address vector, e.g. `[0, 1]`
+    * `str`      - alias resolved via `AddressCalculator.resolve_alias()`
     """
     _ensure_debug_middleware(inter)
     resolved = _resolve_addr(inter, addr)

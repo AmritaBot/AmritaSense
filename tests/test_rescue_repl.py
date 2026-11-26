@@ -79,7 +79,7 @@ def test_lex_keeps_quotes_for_python() -> None:
 
 
 def test_lex_folds_full_width_punctuation() -> None:
-    assert lex("set $pc ＝ ［1, 0］") == ["set", "$pc", "=", "[1,", "0]"]
+    assert lex("set $pc ＝ ［1, 0］") == ["set", "$pc", "=", "[1,", "0]"]  # noqa: RUF001
     assert fold("s 2\r\n") == "s 2"
 
 

@@ -1,4 +1,4 @@
-"""DI 依赖标记的协议化判定与运行时依赖收集。"""
+"""Protocol-based dependency markers and runtime dependency collection."""
 
 import pytest
 
@@ -15,7 +15,7 @@ def provider() -> int:
 
 
 class Wrapped:
-    """只转发协议位与解析接口的包装器，不是 DependsFactory 实例。"""
+    """Forwards the marker and the resolution interface; not a DependsFactory."""
 
     __amrita_sense_dependency__ = True
 
@@ -27,7 +27,7 @@ class Wrapped:
 
 
 class FakeMarker:
-    """只有协议位、没有解析接口，应在收集阶段被拒。"""
+    """Only the marker, no resolution interface; rejected during collection."""
 
     __amrita_sense_dependency__ = True
 

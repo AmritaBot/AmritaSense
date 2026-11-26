@@ -6,7 +6,7 @@ middleware invocation, and DI resolution on every branch entry.
 
 Loop bodies always end with `CONTINUE()` (factory), and `BREAK_LOOP()`
 targets are configured at compile-time via `_configure_loop_control_nodes()`.
-Single-node bodies are auto‑wrapped into `NodeCompose(body, CONTINUE())`.
+Single-node bodies are auto-wrapped into `NodeCompose(body, CONTINUE())`.
 """
 
 from __future__ import annotations
@@ -159,12 +159,14 @@ _ConditionNode = TypeVar("_ConditionNode", bound=BaseNode)
 
 
 def require_condition(value: _ConditionNode, *, where: str) -> _ConditionNode:
-    """校验条件位只接受 `BaseNode` 及派生。
+    """Accept only ``BaseNode`` and its subclasses for a condition slot.
 
-    条件在原生布局里固定占一个地址槽位（IF 的 `call_offset`、WHILE 的
-    `condi_offset`）。若放进组合或自编译指令，摊平后它会占多个槽，
-    后续 `body_pos` / `exit_pos` 全部错位，而且错位发生在编译期，很难
-    从运行期的报错倒推回声明处。所以在这里就拒绝，而不是等布局自己崩。
+    A condition owns exactly one address slot in the native layout (IF's
+    ``call_offset``, WHILE's ``condi_offset``).  A composition or a
+    self-compile instruction would flatten into several nodes and shift
+    ``body_pos`` and ``exit_pos``; the damage happens at compile time and is
+    hard to trace back to the declaration, so reject it here instead of
+    letting the layout break later.
     """
     if not isinstance(value, BaseNode):
         raise TypeError(
@@ -281,7 +283,7 @@ class NativeWhileNode(BaseNode):
 
     Cond true → push `[pos]` onto ``_ret_addr_stack``, `jump_far_ptr`
     into body.  The body's trailing `CONTINUE()` pops and jumps back to
-    `[pos]`, re‑evaluating the condition.
+    `[pos]`, re-evaluating the condition.
 
     Supports nesting: each loop level pushes its own head position.
     """
@@ -351,14 +353,14 @@ class NativeWhileNode(BaseNode):
 
 
 class NativeDoWhileNode(BaseNode):
-    """DO‑WHILE back-edge node.
+    """DO-WHILE back-edge node.
 
     Layout: `[loop_pos]` enter → body (+CONTINUE) → `[pos]` self,
     `[pos+1]` cond, `[pos+2]` NOP exit.
 
     Cond true → `jump_near(loop_pos)` re-enters body via enter.
     The body's trailing `CONTINUE()` pops and jumps back to `[pos]`
-    to re‑evaluate the condition.
+    to re-evaluate the condition.
 
     Supports nesting: each loop level pushes its own head position.
     """
