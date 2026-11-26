@@ -10,3 +10,17 @@ repos:
         language: system
         types_or: [python, toml, yaml, shell, ini]
         pass_filenames: true
+
+      - id: ruff
+        name: ruff check
+        entry: uv run ruff check --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
