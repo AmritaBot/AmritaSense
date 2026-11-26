@@ -102,7 +102,7 @@ class AbstractCompose(ABC, Generic[Calc_T]):
     be consumed wherever a rendered workflow is expected.
     """
 
-    #: Probed by `is_rendered_compose`; on the ABC so every rendered graph inherits it.
+    # Probed by `is_rendered_compose`; on the ABC so every rendered graph inherits it.
     __rendered_compose__: bool = True
 
     @abstractmethod

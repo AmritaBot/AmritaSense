@@ -22,8 +22,8 @@ class _Empty:
 EMPTY = _Empty()  # Empty marker
 
 
-#: Protocol marker for dependency declarations; any object setting it to
-#: ``True`` is treated as a dependency by DI.
+# Protocol marker for dependency declarations; any object setting it to
+# ``True`` is treated as a dependency by DI.
 DEPENDENCY_MARKER = "__amrita_sense_dependency__"
 
 

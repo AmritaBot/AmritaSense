@@ -4,8 +4,8 @@ repos:
   - repo: local
     hooks:
       - id: comment-language
-        name: comments must be English
-        description: Reject CJK characters in Python, TOML, YAML, shell and ini comments.
+        name: comment style
+        description: English only, plain '#' prefix; rejects CJK text and '#:' comments.
         entry: python3 scripts/check_comment_language.py
         language: system
         types_or: [python, toml, yaml, shell, ini]

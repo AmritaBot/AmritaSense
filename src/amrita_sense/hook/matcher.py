@@ -198,7 +198,7 @@ class DependsFactory(Generic[T]):
 
     __slots__ = ("__cacheable", "_depency_func", "_sign", "generator_kind", "scope")
 
-    #: Protocol marker read by DI; a wrapper only has to forward it.
+    # Protocol marker read by DI; a wrapper only has to forward it.
     __amrita_sense_dependency__ = True
 
     @property
