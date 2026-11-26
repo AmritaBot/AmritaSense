@@ -18,6 +18,7 @@ from amrita_sense.instructions.native._core import (
     NativeWhileNode,
     _classify_body,
     _configure_loop_control_nodes,
+    require_condition,
 )
 from amrita_sense.instructions.native.continue_loop import CONTINUE
 from amrita_sense.instructions.workfl_ctrl import NOP
@@ -43,7 +44,7 @@ class NativeWhileClause(SelfCompileInstruction):
     __slots__ = ("_body", "_condition")
 
     def __init__(self, condition: Node[bool]) -> None:
-        self._condition = condition
+        self._condition = require_condition(condition, where="NATIVE_WHILE")
         self._body = None
 
     ### Fluent API ###

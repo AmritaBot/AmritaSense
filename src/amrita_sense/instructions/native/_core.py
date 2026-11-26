@@ -14,7 +14,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Callable
 from types import FrameType
-from typing import Any, Literal, overload
+from typing import Any, Literal, TypeVar, overload
 
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.enum import BuiltinTags
@@ -153,6 +153,25 @@ def _classify_body(
 
 
 #  NativeIfJumpNode
+
+
+_ConditionNode = TypeVar("_ConditionNode", bound=BaseNode)
+
+
+def require_condition(value: _ConditionNode, *, where: str) -> _ConditionNode:
+    """校验条件位只接受 `BaseNode` 及派生。
+
+    条件在原生布局里固定占一个地址槽位（IF 的 `call_offset`、WHILE 的
+    `condi_offset`）。若放进组合或自编译指令，摊平后它会占多个槽，
+    后续 `body_pos` / `exit_pos` 全部错位，而且错位发生在编译期，很难
+    从运行期的报错倒推回声明处。所以在这里就拒绝，而不是等布局自己崩。
+    """
+    if not isinstance(value, BaseNode):
+        raise TypeError(
+            f"{where} condition must be a BaseNode (or a subclass), "
+            f"got {type(value).__name__}"
+        )
+    return value
 
 
 class NativeIfJumpNode(BaseNode):

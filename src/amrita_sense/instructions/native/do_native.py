@@ -19,6 +19,7 @@ from amrita_sense.instructions.native._core import (
     NativeDoWhileNode,
     _classify_body,
     _configure_loop_control_nodes,
+    require_condition,
 )
 from amrita_sense.instructions.native.continue_loop import CONTINUE
 from amrita_sense.instructions.workfl_ctrl import NOP
@@ -55,7 +56,7 @@ class NativeDoClause(SelfCompileInstruction):
         """Set the loop condition."""
         if self._condition is not None:
             raise TypeError("NATIVE_DO can only have a single .WHILE(condition)")
-        self._condition = condition
+        self._condition = require_condition(condition, where="NATIVE_DO.WHILE")
         return self
 
     ### Compile ###
