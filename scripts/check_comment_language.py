@@ -4,10 +4,10 @@
 Two rules, applied to every real comment:
 
 * Comments are written in English - CJK characters are rejected.
-* Comments start with a plain ``#`` (or ``#!`` for a shebang).  The
-  Sphinx doc-comment prefix ``#:`` is rejected: nothing in this project
-  parses it, so it carries no meaning and only splits the codebase into two
-  comment dialects.
+* Comments start with a plain ``#``.  The Sphinx doc-comment prefix ``#:``
+  is rejected: nothing in this project parses it, so it carries no meaning
+  and only splits the codebase into two comment dialects.  ``#!`` is
+  accepted only as a shebang on line 1.
 
 Python files are parsed with ``tokenize``, so plain ``#``, ``#!`` lines and
 consecutive comment blocks are all inspected while docstrings and string
@@ -69,13 +69,15 @@ def all_files() -> list[Path]:
     return files
 
 
-def _violations(comment: str) -> list[str]:
+def _violations(comment: str, line: int) -> list[str]:
     """Return one message per rule the comment breaks."""
     problems: list[str] = []
     if CJK.search(comment):
         problems.append(f"non-English comment: {comment}")
     if comment.startswith("#:"):
         problems.append(f"use a plain '#' instead of '#:': {comment}")
+    if comment.startswith("#!") and line != 1:
+        problems.append(f"'#!' is only allowed as a shebang on line 1: {comment}")
     return problems
 
 
@@ -87,7 +89,7 @@ def scan_python(path: Path) -> list[tuple[int, str]]:
             (token.start[0], problem)
             for token in tokens
             if token.type == tokenize.COMMENT
-            for problem in _violations(token.string.strip())
+            for problem in _violations(token.string.strip(), token.start[0])
         ]
     except (SyntaxError, tokenize.TokenError, UnicodeDecodeError):
         # Unparsable files are someone else's failure; do not mask it here.
@@ -116,7 +118,9 @@ def scan_text(path: Path) -> list[tuple[int, str]]:
                 quote = char
             elif char == "#":
                 comment = line[index:].strip()
-                hits.extend((number, problem) for problem in _violations(comment))
+                hits.extend(
+                    (number, problem) for problem in _violations(comment, number)
+                )
                 break
             index += 1
     return hits
