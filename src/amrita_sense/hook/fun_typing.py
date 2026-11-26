@@ -3,11 +3,11 @@ from __future__ import annotations
 import builtins
 import inspect
 import typing
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from dataclasses import field as Field
 from types import FrameType
-from typing import TYPE_CHECKING, Annotated, Any, Literal, TypedDict
+from typing import TYPE_CHECKING, Annotated, Any, Literal, TypedDict, TypeGuard, cast
 
 from amrita_sense.exceptions import DependsDeclarationError
 
@@ -20,6 +20,72 @@ class _Empty:
 
 
 EMPTY = _Empty()  # Empty marker
+
+
+#: Protocol marker for dependency declarations; any object setting it to
+#: ``True`` is treated as a dependency by DI.
+DEPENDENCY_MARKER = "__amrita_sense_dependency__"
+
+
+def is_dependency_marker(value: object) -> bool:
+    """判断一个值是不是依赖声明。
+
+    先看协议位，再回退到类型：包装器、代理或其它模块的等价标记，只要
+    转发 ``__amrita_sense_dependency__ = True`` 就能被识别，不必恰好是
+    ``DependsFactory`` 这一个类。类型回退保留给未声明协议位的老实现。
+    """
+    if getattr(value, DEPENDENCY_MARKER, False) is True:
+        return True
+    factory_cls = globals().get("DependsFactory")
+    return isinstance(value, factory_cls) if factory_cls is not None else False
+
+
+def is_depends_factory(value: object) -> TypeGuard["DependsFactory"]:
+    """严格版判定：只认 DependsFactory 本身或其子类。
+
+    声明期（``sign_func``）要把值写进 ``factory_map`` 并参与后续解析，
+    这里必须保证类型契约，不能靠协议位把任意对象放进来；运行时参数才
+    用 ``is_dependency_marker`` 的宽口径。
+    """
+    factory_cls = globals().get("DependsFactory")
+    return factory_cls is not None and isinstance(value, factory_cls)
+
+
+def _require_dependency_interface(value: Any) -> Any:
+    """协议位命中但接口不全时立即报错，而不是等解析期才炸在属性访问上。"""
+    missing = [
+        name
+        for name in ("cacheable", "generator_kind", "make_context_manager")
+        if not hasattr(value, name)
+    ]
+    if missing:
+        raise TypeError(
+            f"Object marked with {DEPENDENCY_MARKER} is not a usable dependency: "
+            f"missing {', '.join(missing)}"
+        )
+    return value
+
+
+def collect_runtime_dependencies(
+    args: Sequence[Any], kwargs: Mapping[str, Any]
+) -> tuple[dict[int, Any], dict[str, Any]]:
+    """一次扫描分出按位置与按关键字的运行时依赖。
+
+    调用方原来先 ``any()`` 探一遍、再用两个推导式各扫一遍，同一批参数要
+    过三遍；这里合成一次，同时让所有调用点共用同一套判定。
+    """
+    runtime_args = {
+        i: _require_dependency_interface(v)
+        for i, v in enumerate(args)
+        if is_dependency_marker(v)
+    }
+    runtime_kwargs = {
+        k: _require_dependency_interface(v)
+        for k, v in kwargs.items()
+        if is_dependency_marker(v)
+    }
+    return runtime_args, runtime_kwargs
+
 
 
 class ParamDescriptor(TypedDict):
@@ -79,8 +145,8 @@ def _extract_depends(anno: Any) -> DependsFactory | None:
     if not _is_annotated(anno):
         return None
     for meta in reversed(typing.get_args(anno)[1:]):
-        if isinstance(meta, DependsFactory):
-            return meta
+        if is_dependency_marker(meta):
+            return cast(DependsFactory, meta)
     return None
 
 
@@ -155,7 +221,7 @@ def sign_func(func: Callable[..., Any]):
             anno = EMPTY
         anno = unwrap_annotated(anno)
         declared = _extract_depends(annotations.get(name, EMPTY))
-        if isinstance(default, DependsFactory):
+        if is_depends_factory(default):
             if declared is not None:
                 raise DependsDeclarationError(
                     f"Parameter {name!r} of {_func_name(func)} declares `Depends` "
