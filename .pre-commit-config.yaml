@@ -1,0 +1,12 @@
+# Local hooks only: this repository does not vendor third-party hook repos.
+# Install once with `pre-commit install`.
+repos:
+  - repo: local
+    hooks:
+      - id: comment-language
+        name: comments must be English
+        description: Reject CJK characters in Python, TOML, YAML, shell and ini comments.
+        entry: python3 scripts/check_comment_language.py
+        language: system
+        types_or: [python, toml, yaml, shell, ini]
+        pass_filenames: true
