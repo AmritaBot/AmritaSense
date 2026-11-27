@@ -6,7 +6,7 @@ lock acquisition, middleware invocation, and DI resolution on every
 branch entry.
 
 All body paths end with `CONTINUE()` — single-node bodies are
-auto‑wrapped.  `BREAK_LOOP()` targets are configured at compile-time
+auto-wrapped.  `BREAK_LOOP()` targets are configured at compile-time
 via `_configure_loop_control_nodes()`.
 """
 

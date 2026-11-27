@@ -6,7 +6,7 @@ middleware invocation, and DI resolution on every branch entry.
 
 Loop bodies always end with `CONTINUE()` (factory), and `BREAK_LOOP()`
 targets are configured at compile-time via `_configure_loop_control_nodes()`.
-Single-node bodies are auto‑wrapped into `NodeCompose(body, CONTINUE())`.
+Single-node bodies are auto-wrapped into `NodeCompose(body, CONTINUE())`.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Callable
 from types import FrameType
-from typing import Any, Literal, overload
+from typing import Any, Literal, TypeVar, overload
 
 from amrita_sense.hook.fun_typing import DependencyMeta
 from amrita_sense.instructions.enum import BuiltinTags
@@ -155,6 +155,27 @@ def _classify_body(
 #  NativeIfJumpNode
 
 
+_ConditionNode = TypeVar("_ConditionNode", bound=BaseNode)
+
+
+def require_condition(value: _ConditionNode, *, where: str) -> _ConditionNode:
+    """Accept only ``BaseNode`` and its subclasses for a condition slot.
+
+    A condition owns exactly one address slot in the native layout (IF's
+    ``call_offset``, WHILE's ``condi_offset``).  A composition or a
+    self-compile instruction would flatten into several nodes and shift
+    ``body_pos`` and ``exit_pos``; the damage happens at compile time and is
+    hard to trace back to the declaration, so reject it here instead of
+    letting the layout break later.
+    """
+    if not isinstance(value, BaseNode):
+        raise TypeError(
+            f"{where} condition must be a BaseNode (or a subclass), "
+            f"got {type(value).__name__}"
+        )
+    return value
+
+
 class NativeIfJumpNode(BaseNode):
     """IF-condition jump node for native fast-path branching.
 
@@ -262,7 +283,7 @@ class NativeWhileNode(BaseNode):
 
     Cond true → push `[pos]` onto ``_ret_addr_stack``, `jump_far_ptr`
     into body.  The body's trailing `CONTINUE()` pops and jumps back to
-    `[pos]`, re‑evaluating the condition.
+    `[pos]`, re-evaluating the condition.
 
     Supports nesting: each loop level pushes its own head position.
     """
@@ -332,14 +353,14 @@ class NativeWhileNode(BaseNode):
 
 
 class NativeDoWhileNode(BaseNode):
-    """DO‑WHILE back-edge node.
+    """DO-WHILE back-edge node.
 
     Layout: `[loop_pos]` enter → body (+CONTINUE) → `[pos]` self,
     `[pos+1]` cond, `[pos+2]` NOP exit.
 
     Cond true → `jump_near(loop_pos)` re-enters body via enter.
     The body's trailing `CONTINUE()` pops and jumps back to `[pos]`
-    to re‑evaluate the condition.
+    to re-evaluate the condition.
 
     Supports nesting: each loop level pushes its own head position.
     """

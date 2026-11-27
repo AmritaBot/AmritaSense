@@ -5,7 +5,7 @@ Usage::
     NATIVE_DO(body).WHILE(condition)
 
 `body` is always wrapped as `NodeCompose(body, CONTINUE())` so that
-the loop can iterate.  Single-node bodies are auto‑wrapped.
+the loop can iterate.  Single-node bodies are auto-wrapped.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from amrita_sense.instructions.native._core import (
     NativeDoWhileNode,
     _classify_body,
     _configure_loop_control_nodes,
+    require_condition,
 )
 from amrita_sense.instructions.native.continue_loop import CONTINUE
 from amrita_sense.instructions.workfl_ctrl import NOP
@@ -34,7 +35,7 @@ class NativeDoClause(SelfCompileInstruction):
     `[3]` cond, `[4]` NOP exit.
 
     Enter pushes and `jump_far_ptr`'s into body every iteration.
-    `CONTINUE()` pops and jumps to `[2]` do_while to re‑check.
+    `CONTINUE()` pops and jumps to `[2]` do_while to re-check.
     `BREAK_LOOP()` pops and jumps to `[4]` NOP exit.
     """
 
@@ -55,7 +56,7 @@ class NativeDoClause(SelfCompileInstruction):
         """Set the loop condition."""
         if self._condition is not None:
             raise TypeError("NATIVE_DO can only have a single .WHILE(condition)")
-        self._condition = condition
+        self._condition = require_condition(condition, where="NATIVE_DO.WHILE")
         return self
 
     ### Compile ###
@@ -68,7 +69,7 @@ class NativeDoClause(SelfCompileInstruction):
         flat_cond, _ = _classify_body(self._condition)
         body, is_single = _classify_body(self._body)
 
-        # All bodies end with CONTINUE — single nodes are auto‑wrapped.
+        # All bodies end with CONTINUE — single nodes are auto-wrapped.
         body_slot: NodeCompose = (
             NodeCompose(body, CONTINUE())
             if is_single

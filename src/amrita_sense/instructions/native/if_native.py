@@ -23,13 +23,14 @@ from amrita_sense.instructions.native._core import (
     NativeBubbleEnterNode,
     NativeIfJumpNode,
     _classify_body,
+    require_condition,
 )
 from amrita_sense.instructions.workfl_ctrl import NOP
 from amrita_sense.node.abc_base import AbstractComposeOriginal
 from amrita_sense.node.core import BaseNode, Node, NodeCompose
 from amrita_sense.node.self_compile import SelfCompileInstruction
 
-#: Body payload accepted by the native IF/ELIF/ELSE clauses — a single node, any source composition (`AbstractComposeOriginal`, e.g. `NodeCompose` or a custom composition), or a self-compiling instruction.
+# Body payload accepted by the native IF/ELIF/ELSE clauses — a single node, any source composition (`AbstractComposeOriginal`, e.g. `NodeCompose` or a custom composition), or a self-compiling instruction.
 _NativeBody = BaseNode | AbstractComposeOriginal | SelfCompileInstruction
 
 
@@ -43,7 +44,7 @@ class _ELIFClause:
         condition: Node[bool],
         body: _NativeBody,
     ) -> None:
-        self.condition = condition
+        self.condition = require_condition(condition, where="ELIF")
         self.body = body
 
 
@@ -60,7 +61,7 @@ class NativeIfClause(SelfCompileInstruction):
         condition: Node[bool],
         body: _NativeBody,
     ) -> None:
-        self._condition = condition
+        self._condition = require_condition(condition, where="NATIVE_IF")
         self._body = body
         self._elifs = []
         self._else_body = None

@@ -375,7 +375,7 @@ def _sense_compile_self(instr: Any) -> tuple[Any, float]:
 
 
 def _sense_exec(rendered: NodeComposeRendered) -> float:
-    """Execute a pre‑compiled workflow, return execution_time_sec."""
+    """Execute a pre-compiled workflow, return execution_time_sec."""
     pc = WorkflowInterpreter[Any](rendered)
     with _Timer() as t:
         asyncio.run(pc.run())
@@ -998,7 +998,7 @@ def bench_concurrent_interpreters() -> Result:
 
 @benchmark
 def bench_subgraph_sense() -> Result:
-    """Sense: 1000 sequential sub‑workflow invocations using FUN_BLOCK"""
+    """Sense: 1000 sequential sub-workflow invocations using FUN_BLOCK"""
 
     @Node()
     def node_a() -> None: ...

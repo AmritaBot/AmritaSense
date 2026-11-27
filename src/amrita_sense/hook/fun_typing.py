@@ -3,11 +3,11 @@ from __future__ import annotations
 import builtins
 import inspect
 import typing
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from dataclasses import field as Field
 from types import FrameType
-from typing import TYPE_CHECKING, Annotated, Any, Literal, TypedDict
+from typing import TYPE_CHECKING, Annotated, Any, Literal, TypedDict, TypeGuard, cast
 
 from amrita_sense.exceptions import DependsDeclarationError
 
@@ -20,6 +20,74 @@ class _Empty:
 
 
 EMPTY = _Empty()  # Empty marker
+
+
+# Protocol marker for dependency declarations; any object setting it to
+# ``True`` is treated as a dependency by DI.
+DEPENDENCY_MARKER = "__amrita_sense_dependency__"
+
+
+def is_dependency_marker(value: object) -> bool:
+    """Return whether a value is a dependency declaration.
+
+    The protocol marker is checked first, then the type: a wrapper, a proxy
+    or an equivalent marker from another module only has to forward
+    ``__amrita_sense_dependency__ = True``.  The type fallback keeps
+    implementations that predate the marker working.
+    """
+    if getattr(value, DEPENDENCY_MARKER, False) is True:
+        return True
+    factory_cls = globals().get("DependsFactory")
+    return isinstance(value, factory_cls) if factory_cls is not None else False
+
+
+def is_depends_factory(value: object) -> TypeGuard["DependsFactory"]:
+    """Strict check: only ``DependsFactory`` itself or its subclasses.
+
+    Declaration time (``sign_func``) writes the value into ``factory_map``
+    and later resolves it, so the type contract has to hold here; letting an
+    arbitrary object through on the marker alone would only fail later.
+    Runtime arguments use the wider ``is_dependency_marker`` instead.
+    """
+    factory_cls = globals().get("DependsFactory")
+    return factory_cls is not None and isinstance(value, factory_cls)
+
+
+def _require_dependency_interface(value: Any) -> Any:
+    """Fail early when a marked object lacks the interface resolution needs."""
+    missing = [
+        name
+        for name in ("cacheable", "generator_kind", "make_context_manager")
+        if not hasattr(value, name)
+    ]
+    if missing:
+        raise TypeError(
+            f"Object marked with {DEPENDENCY_MARKER} is not a usable dependency: "
+            f"missing {', '.join(missing)}"
+        )
+    return value
+
+
+def collect_runtime_dependencies(
+    args: Sequence[Any], kwargs: Mapping[str, Any]
+) -> tuple[dict[int, Any], dict[str, Any]]:
+    """Split positional and keyword runtime dependencies in a single pass.
+
+    Call sites used to run an ``any()`` probe and then two comprehensions
+    over the same arguments - three passes for one batch.  This does it once
+    and keeps every caller on the same predicate.
+    """
+    runtime_args = {
+        i: _require_dependency_interface(v)
+        for i, v in enumerate(args)
+        if is_dependency_marker(v)
+    }
+    runtime_kwargs = {
+        k: _require_dependency_interface(v)
+        for k, v in kwargs.items()
+        if is_dependency_marker(v)
+    }
+    return runtime_args, runtime_kwargs
 
 
 class ParamDescriptor(TypedDict):
@@ -79,8 +147,8 @@ def _extract_depends(anno: Any) -> DependsFactory | None:
     if not _is_annotated(anno):
         return None
     for meta in reversed(typing.get_args(anno)[1:]):
-        if isinstance(meta, DependsFactory):
-            return meta
+        if is_dependency_marker(meta):
+            return cast(DependsFactory, meta)
     return None
 
 
@@ -155,7 +223,7 @@ def sign_func(func: Callable[..., Any]):
             anno = EMPTY
         anno = unwrap_annotated(anno)
         declared = _extract_depends(annotations.get(name, EMPTY))
-        if isinstance(default, DependsFactory):
+        if is_depends_factory(default):
             if declared is not None:
                 raise DependsDeclarationError(
                     f"Parameter {name!r} of {_func_name(func)} declares `Depends` "

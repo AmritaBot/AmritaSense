@@ -41,7 +41,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
     _callback_fun_sending: CALLBACK_TYPE | None = None
     _callback_sending_lock: aiologic.Lock
 
-    # Streams – two independent unidirectional channels
+    # Streams - two independent unidirectional channels
     _send_stream: ObjectSendStream  # Producer -> Consumer
     _receive_stream: ObjectReceiveStream  # Consumer reads from Producer
 
@@ -78,10 +78,10 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         self._callback_sending_lock = aiologic.Lock()
         self._q_tout = queue_timeout
         self._state_lock = aiologic.Lock()
-        #: Guards the `_wait_for_continue` fast path; a bare read would lose the happens-before edge with `wait_to_suspend`.
+        # Guards the `_wait_for_continue` fast path; a bare read would lose the happens-before edge with `wait_to_suspend`.
         self._fast_lock = threading.Lock()
 
-    # Suspend / resume – shared by both stream directions
+    # Suspend / resume - shared by both stream directions
 
     @staticmethod
     def suspend(func: Callable[..., Any], tag: str | None = None) -> Callable[..., Any]:
@@ -90,7 +90,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         resumed.  Must be applied to a coroutine that receives a
         `SuspendObjectStream` instance as one of its arguments.
 
-        The optional *tag* allows selective resumption – only
+        The optional *tag* allows selective resumption - only
         `wait_to_suspend` calls with a matching tag will block the
         function.
         """
@@ -205,7 +205,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
             if self.__resume_signal and not self.__resume_signal.done():
                 self.__resume_signal.set_result(True)
 
-    # Low‑level send helpers
+    # Low-level send helpers
 
     async def _put_to_queue(self, item):
         """Send *item* through the producer -> consumer channel."""
@@ -241,7 +241,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         """
         Producer sends a response chunk to the consumer.
 
-        This is normally used to stream output from a long‑running operation.
+        This is normally used to stream output from a long-running operation.
         It respects the `SUSPEND_ON_YIELD` suspension tag and falls back to
         the `_callback_fun` callback if one is configured.
         """
@@ -324,7 +324,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
 
     async def send_done_to_producer(self) -> None:
         """
-        Consumer sends the end‑of‑stream marker to the producer.
+        Consumer sends the end-of-stream marker to the producer.
 
         After this call the producer's input generator (obtained via
         `get_producer_input_generator`) will stop yielding items.
@@ -393,7 +393,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         pushing it to the stream.
 
         Raises:
-            StreamStateError: If a sending‑side callback has already been set.
+            StreamStateError: If a sending-side callback has already been set.
         """
         with self._state_lock:
             if self._callback_fun_sending:
