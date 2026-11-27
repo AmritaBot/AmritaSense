@@ -1,6 +1,6 @@
 [project]
 name = "amrita-sense"
-version = "1.2.0"
+version = "1.2.1"
 description = "Next-Gen event stream and workflow engine."
 readme = "README.md"
 requires-python = ">=3.10, <3.16"
@@ -62,8 +62,6 @@ ignore = [
 
 [tool.pyright]
 typeCheckingMode = "standard"
-#  Resolve third-party packages from the repository .venv; otherwise pytest,
-#  nonebot and friends are reported as missing imports.
 venvPath = "."
 venv = ".venv"
 #  The instruction-name deprecation shims rely on PEP 702; pyright does not
